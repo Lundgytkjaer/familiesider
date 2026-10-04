@@ -465,3 +465,116 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .sekundaer-knap { flex: 0 0 auto; background: transparent; color: var(--fg); border: 1.5px solid var(--linje); }
 .lektion.ret { grid-template-columns: 116px 1fr 36px; gap: 6px; padding-inline: 10px; }
 .lektion.ret input.tid-felt { padding: 0 8px; font-size: 14px; }
+
+/* Kalender: månedsvisning */
+#kal-visning { margin-bottom: 10px; }
+.maaned {
+  display: grid; grid-template-columns: 30px repeat(7, minmax(0, 1fr)); gap: 3px;
+  background: var(--flade); border-radius: var(--radius); padding: 8px 6px; margin-bottom: 12px;
+}
+.md-hoved { font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--daempet); text-align: center; padding-bottom: 4px; }
+.md-ugenr { font-size: 11px; font-weight: 600; color: var(--daempet); display: flex; align-items: flex-start; justify-content: center; padding-top: 8px; font-variant-numeric: tabular-nums; }
+.md-dag {
+  min-height: 52px; min-width: 0; padding: 5px 2px; border: 0; border-radius: 10px; background: none;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; overflow: hidden;
+}
+.md-dag.weekend { background: color-mix(in srgb, var(--bg) 60%, transparent); }
+.md-dag.anden { opacity: .4; }
+.md-nr { font-weight: 700; font-size: 15px; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; font-variant-numeric: tabular-nums; }
+.md-dag.idag .md-nr { background: var(--accent); color: var(--paa-accent); }
+.md-dag.valgt { box-shadow: inset 0 0 0 2px var(--accent); }
+.md-prikker { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; max-width: 100%; }
+.md-prikker .prik { width: 7px; height: 7px; border-radius: 50%; background: var(--p); }
+.md-titler { display: none; }
+.dag-detalje .sek-hoved { align-items: center; }
+.dag-liste { background: var(--flade); border-radius: var(--radius); padding: 6px 14px; }
+.dag-aftale { flex: 1; display: flex; align-items: center; gap: 10px; min-height: 40px; border: 0; background: none; text-align: left; font-size: 16px; }
+.dag-hvem { font-size: 13px; color: var(--daempet); font-weight: 600; }
+@media (min-width: 900px) {
+  .md-dag { min-height: 96px; align-items: stretch; padding: 4px; }
+  .md-nr { align-self: flex-end; }
+  .md-prikker { display: none; }
+  .md-titler { display: flex; flex-direction: column; gap: 2px; }
+  .md-titel {
+    font-size: 11.5px; line-height: 1.25; padding: 1px 4px; border-radius: 4px; text-align: left;
+    background: color-mix(in srgb, var(--p) 18%, var(--flade)); border-left: 3px solid var(--p);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+}
+
+/* Mere-siden */
+.tilbage { min-height: 40px; padding: 0 2px; margin-bottom: 4px; border: 0; background: none; color: var(--accent); font-weight: 700; }
+.mere-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.mere-kort { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 130px; }
+.mere-kort svg { width: 30px; height: 30px; color: var(--accent); margin-bottom: 6px; }
+.mere-navn { font-family: var(--font-titel); font-weight: 700; font-size: 18px; line-height: 1.15; }
+.mere-kort .under { margin: 0; font-size: 14px; }
+.lille-titel { margin-top: 18px; }
+.lille-seg button { min-height: 36px; font-size: 13px; }
+.fremskridt { display: block; height: 6px; border-radius: 3px; background: var(--linje); overflow: hidden; }
+.fremskridt span { display: block; height: 100%; background: var(--accent); border-radius: 3px; transition: width .3s; }
+.bred-knap { width: 100%; margin-top: 10px; }
+.link-knap { border: 0; background: none; padding: 0; min-height: 32px; }
+.fare-knap { color: var(--fare); border-color: var(--fare); }
+
+/* Pligter og stjerner */
+.stat-raekke { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+.stat { background: var(--flade); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 2px; }
+.stat-tal { font-family: var(--font-titel); font-weight: 800; font-size: 28px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.stat-navn { font-size: 13px; color: var(--daempet); font-weight: 600; }
+.stat:first-child .stat-tal { color: var(--p2); }
+.udbetal { margin-bottom: 4px; }
+.tags .kr-tag { background: var(--accent-blod); color: var(--accent); }
+.tags .stjerne-tag { background: color-mix(in srgb, var(--p2) 20%, var(--flade)); color: var(--p2); }
+.liste.i-kort { background: var(--bg); margin: 0; }
+.beloen-liste, .ret-liste { list-style: none; margin: 0 0 10px; padding: 0; background: var(--flade); border-radius: var(--radius); overflow: hidden; }
+.beloen-liste li + li, .ret-liste li + li { border-top: 1px solid var(--linje); }
+.beloen { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; padding: 12px 14px; }
+.beloen-info { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.beloen-navn { font-weight: 700; }
+.beloen-pris { font-size: 13px; color: var(--daempet); }
+.beloen .fremskridt span { background: var(--p2); }
+.beloen .lille-knap:disabled { opacity: .4; }
+.beloen .lille-knap.bekraeft { border-color: var(--p2); color: var(--p2); }
+.historik { list-style: none; margin: 0 0 10px; padding: 4px 14px; background: var(--flade); border-radius: var(--radius); }
+.historik li { display: grid; grid-template-columns: 74px 1fr auto auto; gap: 10px; align-items: center; min-height: 40px; font-size: 15px; }
+.historik li + li { border-top: 1px solid var(--linje); }
+.h-dato { font-size: 13px; color: var(--daempet); font-variant-numeric: tabular-nums; }
+.h-tekst { min-width: 0; overflow-wrap: anywhere; }
+.h-vaerdi { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.historik .slet { width: 36px; height: 36px; }
+.ret-raekke { width: 100%; display: grid; grid-template-columns: 1fr 16px; grid-template-rows: auto auto; column-gap: 10px; padding: 10px 14px; border: 0; background: none; text-align: left; }
+.ret-navn { font-weight: 700; }
+.ret-under { grid-row: 2; font-size: 13px; color: var(--daempet); }
+.ret-raekke .m-pil { grid-row: 1 / 3; grid-column: 2; align-self: center; }
+.dage-valg { margin-top: 8px; }
+
+/* Pakkelister */
+.pak-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.pak-kort { display: flex; flex-direction: column; gap: 6px; }
+.pak-navn { font-family: var(--font-titel); font-weight: 700; font-size: 18px; line-height: 1.15; }
+.pak-kort .under { margin: 0; font-size: 14px; }
+.pak-top { margin-bottom: 4px; }
+.pak-titel { display: grid; gap: 4px; margin-bottom: 12px; }
+.pak-titel .lille-titel { margin: 8px 0 0; font-size: 22px; }
+.pak-titel .under { margin: 0; font-size: 14px; }
+.hvem-tag { background: color-mix(in srgb, var(--p, var(--daempet)) 18%, var(--flade)) !important; color: var(--fg) !important; }
+.pak-fod { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Konkurrence */
+.konk-liste { list-style: none; margin: 0 0 8px; padding: 6px 14px; background: var(--flade); border-radius: var(--radius); }
+.konk-raekke { display: grid; grid-template-columns: 26px 70px 1fr auto; gap: 10px; align-items: center; min-height: 48px; }
+.konk-raekke + .konk-raekke { border-top: 1px solid var(--linje); }
+.konk-plads { font-family: var(--font-titel); font-weight: 800; font-size: 18px; color: var(--daempet); }
+.konk-raekke.foerer .konk-plads { color: var(--p2); }
+.konk-navn { font-weight: 700; }
+.konk-bar { height: 12px; border-radius: 6px; background: var(--bg); overflow: hidden; }
+.konk-bar span { display: block; height: 100%; background: var(--p); border-radius: 6px; transition: width .3s; }
+.konk-km { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 64px; text-align: right; }
+.konk-status { margin: 0 0 12px; font-weight: 600; color: var(--daempet); }
+.konk-tilfoej { display: grid; gap: 10px; margin-bottom: 8px; }
+.konk-tilfoej .seg { margin: 0; }
+.konk-felter { display: grid; grid-template-columns: 1fr 1.3fr auto; gap: 8px; }
+.konk-felter input { background: var(--bg) !important; min-width: 0; }
+
+.seg-label { margin: 4px 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--daempet); }

@@ -44,11 +44,13 @@ function tidSomMin(tid) {
 const slutTid = tid => ((tid || '').split(/[-–]/)[1] || '').trim();
 
 // ---------- Faner ----------
-const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'skema'];
+const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'pligter', 'pakkelister', 'konkurrence'];
+const UNDER_MERE = ['skema', 'pligter', 'pakkelister', 'konkurrence'];   // sider man når via "Mere"
 function visFane(navn) {
   if (!FANER.includes(navn)) navn = 'idag';
   document.querySelectorAll('.fane').forEach(s => (s.hidden = s.id !== navn));
-  document.querySelectorAll('[data-fane]').forEach(b => b.setAttribute('aria-selected', b.dataset.fane === navn));
+  const iMenu = UNDER_MERE.includes(navn) ? 'mere' : navn;
+  document.querySelectorAll('[data-fane]').forEach(b => b.setAttribute('aria-selected', b.dataset.fane === iMenu));
   lokal.set('fane', navn);
 }
 document.querySelectorAll('[data-fane]').forEach(b => b.addEventListener('click', () => { visFane(b.dataset.fane); window.scrollTo(0, 0); }));
@@ -880,7 +882,102 @@ function isoDato(d) {
 const visTid = t => (t || '').replace(':', '.');
 const sorterAftaler = (a, b) => (a.tid || '').localeCompare(b.tid || '');
 
+// Uge- eller månedsvisning (huskes på denne enhed)
+let kalVisning = lokal.get('kal-visning') === 'maaned' ? 'maaned' : 'uge';
+let kalMaaned = 0;                       // 0 = denne måned
+let kalValgtDag = isoDato(new Date());   // valgt dag i månedsvisningen
+
+function tegnKalVisningValg() {
+  const seg = document.getElementById('kal-visning');
+  seg.replaceChildren(...[['uge', 'Uge'], ['maaned', 'Måned']].map(([v, navn]) => {
+    const k = knap(navn, null, () => { kalVisning = v; lokal.set('kal-visning', v); tegnKalender(); });
+    k.setAttribute('role', 'radio');
+    k.setAttribute('aria-checked', v === kalVisning);
+    return k;
+  }));
+  document.getElementById('kal-uge-del').hidden = kalVisning !== 'uge';
+  document.getElementById('kal-maaned-del').hidden = kalVisning !== 'maaned';
+  document.getElementById('kal-forrige').setAttribute('aria-label', kalVisning === 'uge' ? 'Forrige uge' : 'Forrige måned');
+  document.getElementById('kal-naeste').setAttribute('aria-label', kalVisning === 'uge' ? 'Næste uge' : 'Næste måned');
+}
+
+async function tegnMaaned() {
+  const foerste = new Date(); foerste.setHours(0, 0, 0, 0); foerste.setDate(1);
+  foerste.setMonth(foerste.getMonth() + kalMaaned);
+  const sidste = new Date(foerste.getFullYear(), foerste.getMonth() + 1, 0);
+  const navn = MDR_LANG[foerste.getMonth()];
+  document.getElementById('kal-titel').textContent = navn[0].toUpperCase() + navn.slice(1) + ' ' + foerste.getFullYear();
+  document.getElementById('kal-idag').textContent = 'Til denne måned';
+  document.getElementById('kal-idag').hidden = kalMaaned === 0;
+  document.getElementById('kal-dato').textContent = '';
+
+  const aftaler = await Data.list('kalender');
+  const alleFoed = await Data.list('foedselsdage');
+  const idagIso = isoDato(new Date());
+  if (kalValgtDag.slice(0, 7) !== isoDato(foerste).slice(0, 7)) {
+    kalValgtDag = idagIso.slice(0, 7) === isoDato(foerste).slice(0, 7) ? idagIso : isoDato(foerste);
+  }
+
+  const g = document.getElementById('maaned');
+  g.replaceChildren(el('div', 'md-hoved md-uge', 'Uge'), ...DAGE.map(d => el('div', 'md-hoved', d)));
+
+  const dag = mandagFor(foerste);
+  while (dag <= sidste) {
+    g.append(el('div', 'md-ugenr', ugenummer(dag)));
+    for (let i = 0; i < 7; i++) {
+      const iso = isoDato(dag);
+      const dagens = aftaler.filter(a => a.dato === iso).sort(sorterAftaler);
+      const foed = alleFoed.filter(f => isoDato(datoIAar(f, dag.getFullYear())) === iso);
+      const k = knap('', 'md-dag' + (dag.getMonth() !== foerste.getMonth() ? ' anden' : '') +
+        (iso === idagIso ? ' idag' : '') + (iso === kalValgtDag ? ' valgt' : '') + (i >= 5 ? ' weekend' : ''),
+        () => { kalValgtDag = iso; tegnMaaned(); });
+      k.setAttribute('aria-label', dag.getDate() + '. ' + MDR_LANG[dag.getMonth()] +
+        (dagens.length || foed.length ? ', ' + (dagens.length + foed.length) + ' ting' : ''));
+      k.append(el('span', 'md-nr', dag.getDate()));
+      // Prikker på mobil, korte titler på store skærme
+      const prikker = el('span', 'md-prikker');
+      const titler = el('span', 'md-titler');
+      for (const f of foed) {
+        prikker.append(el('span', 'prik c-foed'));
+        titler.append(el('span', 'md-titel c-foed', f.navn));
+      }
+      for (const a of dagens) {
+        prikker.append(el('span', 'prik ' + PK[a.hvem]));
+        titler.append(el('span', 'md-titel ' + PK[a.hvem], (a.tid ? visTid(a.tid) + ' ' : '') + a.titel));
+      }
+      k.append(prikker, titler);
+      g.append(k);
+      dag.setDate(dag.getDate() + 1);
+    }
+  }
+
+  // Den valgte dag
+  const valgt = new Date(kalValgtDag + 'T00:00');
+  const detalje = document.getElementById('dag-detalje');
+  const top = el('div', 'sek-hoved');
+  top.append(el('h3', 'lille-titel', DAGE_LANG[(valgt.getDay() + 6) % 7] + ' ' + valgt.getDate() + '. ' + MDR_LANG[valgt.getMonth()]),
+    knap('Ny aftale', 'lille-knap', () => redigerAftale({ dato: kalValgtDag, hvem: 'Fælles' })));
+  const ul = el('ul', 'husk-liste dag-liste');
+  for (const f of await foedselsdageDen(kalValgtDag)) {
+    const li = el('li', 'c-foed');
+    li.append(el('span', 'prik'), el('span', 'husk-tekst', foedTekst(f)));
+    ul.append(li);
+  }
+  for (const a of aftaler.filter(a => a.dato === kalValgtDag).sort(sorterAftaler)) {
+    const li = el('li', PK[a.hvem]);
+    const b = knap('', 'dag-aftale', () => redigerAftale(a));
+    b.append(el('span', 'prik'), el('span', 'husk-tekst', (a.tid ? visTid(a.tid) + ' ' : '') + a.titel), el('span', 'dag-hvem', a.hvem));
+    li.append(b);
+    ul.append(li);
+  }
+  if (!ul.children.length) ul.append(el('li', 'tom-husk', 'Ingen aftaler.'));
+  detalje.replaceChildren(top, ul);
+}
+
 async function tegnKalender() {
+  tegnKalVisningValg();
+  if (kalVisning === 'maaned') return tegnMaaned();
+  document.getElementById('kal-idag').textContent = 'Til denne uge';
   const man = mandagDenneUge();
   man.setDate(man.getDate() + kalUge * 7);
   const son = new Date(man); son.setDate(man.getDate() + 6);
@@ -969,9 +1066,9 @@ function redigerAftale(a) {
   if (ny) setTimeout(() => titel.focus(), 50);
 }
 
-document.getElementById('kal-forrige').addEventListener('click', () => { kalUge--; tegnKalender(); });
-document.getElementById('kal-naeste').addEventListener('click', () => { kalUge++; tegnKalender(); });
-document.getElementById('kal-idag').addEventListener('click', () => { kalUge = 0; tegnKalender(); });
+document.getElementById('kal-forrige').addEventListener('click', () => { if (kalVisning === 'uge') kalUge--; else kalMaaned--; tegnKalender(); });
+document.getElementById('kal-naeste').addEventListener('click', () => { if (kalVisning === 'uge') kalUge++; else kalMaaned++; tegnKalender(); });
+document.getElementById('kal-idag').addEventListener('click', () => { kalUge = 0; kalMaaned = 0; kalValgtDag = isoDato(new Date()); tegnKalender(); });
 
 // ---------- Børnetavle: Olivers og Villads' egen I dag-side ----------
 // Data: 'info' {barn, dato: 'ÅÅÅÅ-MM-DD', tekst} – ekstra ting at huske, som ikke står i kalenderen
@@ -1139,7 +1236,10 @@ async function tegnBoernetavle(barn) {
   const huskKort = kort('Husk', liste, form);
 
   const gitter = el('div', 'overblik');
-  gitter.append(huskKort, skemaKort, madKort);
+  gitter.append(huskKort);
+  const pligter = await pligtKort(barn);   // fra mere.js
+  if (pligter) gitter.append(pligter);
+  gitter.append(skemaKort, madKort);
   boks.replaceChildren(strip, hoved, gitter);
 }
 
@@ -1472,6 +1572,7 @@ function tegnAlt() {
   tegnListe('indkob'); tegnListe('todo'); tegnMaaltidsValg().then(tegnMadplan); tegnSkema(); tegnKalender(); tegnOverblik();
   tegnForslag('indkob'); tegnForslag('todo'); tegnForslag('ret'); tegnForslag('morgen'); tegnForslag('frokost');
   tegnFoedselsdage();
+  tegnMere();   // fra mere.js
 }
 
 async function startTavle() {
@@ -1480,6 +1581,7 @@ async function startTavle() {
   logUd.textContent = profil.navn + ' · Log ud';
   logUd.hidden = false;
   await laegStartlisterInd();
+  await laegMereStartInd();   // fra mere.js
   for (const r of (await Data.list('madplan')).filter(r => !r.uge)) {
     await Data.update('madplan', r.id, { uge: isoDato(mandagDenneUge()) });
   }

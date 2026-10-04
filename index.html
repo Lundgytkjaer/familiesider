@@ -59,6 +59,7 @@
     <!-- KALENDER -->
     <section id="kalender" class="fane" hidden>
       <div class="sek-hoved"><h2>Kalender</h2><span class="taeller" id="kal-dato"></span></div>
+      <div class="seg" id="kal-visning" role="radiogroup" aria-label="Visning"></div>
       <div class="kal-nav">
         <button type="button" class="pil" id="kal-forrige" aria-label="Forrige uge">‹</button>
         <div class="kal-titel">
@@ -67,8 +68,14 @@
         </div>
         <button type="button" class="pil" id="kal-naeste" aria-label="Næste uge">›</button>
       </div>
-      <div class="kal-wrap"><div class="kal" id="kal"></div></div>
-      <p class="hint">Tryk i et felt for at tilføje en aftale. Tryk på en aftale for at rette den.</p>
+      <div id="kal-uge-del">
+        <div class="kal-wrap"><div class="kal" id="kal"></div></div>
+        <p class="hint">Tryk i et felt for at tilføje en aftale. Tryk på en aftale for at rette den.</p>
+      </div>
+      <div id="kal-maaned-del" hidden>
+        <div class="maaned" id="maaned"></div>
+        <div class="dag-detalje" id="dag-detalje"></div>
+      </div>
 
       <div class="foed-sektion">
         <div class="sek-hoved"><h2>Fødselsdage</h2><button type="button" class="lille-knap" id="ny-foed">Tilføj</button></div>
@@ -147,6 +154,7 @@
 
     <!-- SKOLESKEMA -->
     <section id="skema" class="fane" hidden>
+      <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
       <div class="sek-hoved"><h2>Skoleskema</h2></div>
       <div class="seg" role="radiogroup" aria-label="Barn" id="vaelg-barn"></div>
       <div class="seg" role="radiogroup" aria-label="Dag" id="vaelg-dag"></div>
@@ -159,6 +167,49 @@
       </div>
       <p class="hint" id="rediger-hint" hidden>Tiderne gælder alle dage for dette barn. Lad faget stå tomt, hvis der ikke er noget. Tryk på den runde knap for at give en farve.</p>
       <div class="skema-farver" id="skema-farver"></div>
+    </section>
+    <!-- MERE -->
+    <section id="mere" class="fane" hidden>
+      <div class="sek-hoved"><h2>Mere</h2></div>
+      <div class="mere-grid">
+        <button type="button" class="kort mere-kort" data-gaa="skema">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>
+          <span class="mere-navn">Skoleskema</span><span class="under">Drengenes skemaer med farver</span>
+        </button>
+        <button type="button" class="kort mere-kort" data-gaa="pligter">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
+          <span class="mere-navn">Pligter og stjerner</span><span class="under">Lommepenge, stjerner og belønninger</span>
+        </button>
+        <button type="button" class="kort mere-kort" data-gaa="pakkelister">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="7" width="16" height="13" rx="2"/><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M4 12h16"/></svg>
+          <span class="mere-navn">Pakkelister</span><span class="under">Til sommerhus, ferie og weekender</span>
+        </button>
+        <button type="button" class="kort mere-kort" data-gaa="konkurrence">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4"/></svg>
+          <span class="mere-navn">Ugens konkurrence</span><span class="under">Hvem cykler eller går længst?</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- PLIGTER -->
+    <section id="pligter" class="fane" hidden>
+      <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
+      <div class="sek-hoved"><h2>Pligter og stjerner</h2></div>
+      <div id="pligter-indhold"></div>
+    </section>
+
+    <!-- PAKKELISTER -->
+    <section id="pakkelister" class="fane" hidden>
+      <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
+      <div class="sek-hoved"><h2>Pakkelister</h2></div>
+      <div id="pak-indhold"></div>
+    </section>
+
+    <!-- KONKURRENCE -->
+    <section id="konkurrence" class="fane" hidden>
+      <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
+      <div class="sek-hoved"><h2>Ugens konkurrence</h2></div>
+      <div id="konk-indhold"></div>
     </section>
   </main>
 </div>
@@ -185,9 +236,9 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6h10M10 12h10M10 18h10M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5M3.5 18l1.5 1.5 2.5-2.5"/></svg>
       To do<span class="badge" data-badge="todo" hidden></span>
     </button>
-    <button role="tab" class="fane-knap" data-fane="skema">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>
-      Skema
+    <button role="tab" class="fane-knap" data-fane="mere">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
+      Mere
     </button>
   </div>
 </nav>
@@ -215,5 +266,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="data.js"></script>
 <script src="app.js"></script>
+<script src="mere.js"></script>
 </body>
 </html>
