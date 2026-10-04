@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f2f5f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e1311" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Familien">
+  <meta name="robots" content="noindex">
+  <title>Familietavlen</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="indhold">
+  <header class="hoved">
+    <h1>Familietavlen</h1>
+    <p class="dato" id="dato"></p>
+  </header>
+
+  <main>
+    <p class="note" id="eksempel-note" hidden>
+      <span>Der er lagt eksempler ind, også i skoleskemaet. Ret eller slet løs.</span>
+      <button type="button" id="luk-note">OK</button>
+    </p>
+
+    <!-- I DAG -->
+    <section id="idag" class="fane" hidden>
+      <div class="overblik">
+        <button type="button" class="kort" data-gaa="kalender">
+          <div class="kort-top"><span class="kort-label">Kalender i dag</span><span class="kort-pil">Kalender ›</span></div>
+          <ul class="mini" id="ov-kal"></ul>
+          <p class="under" id="ov-kal-imorgen"></p>
+        </button>
+
+        <button type="button" class="kort" data-gaa="madplan">
+          <div class="kort-top"><span class="kort-label">Aftensmad i dag</span><span class="kort-pil">Madplan ›</span></div>
+          <p class="stor" id="ov-ret"></p>
+          <p class="under" id="ov-ret-imorgen"></p>
+        </button>
+
+        <button type="button" class="kort" data-gaa="skema">
+          <div class="kort-top"><span class="kort-label" id="ov-skole-label">Skole i dag</span><span class="kort-pil">Skema ›</span></div>
+          <div id="ov-skole"></div>
+        </button>
+
+        <button type="button" class="kort" data-gaa="todo">
+          <div class="kort-top"><span class="kort-label">To do</span><span class="kort-pil" id="ov-todo-antal">›</span></div>
+          <ul class="mini" id="ov-todo"></ul>
+        </button>
+
+        <button type="button" class="kort" data-gaa="indkob">
+          <div class="kort-top"><span class="kort-label">Indkøb</span><span class="kort-pil" id="ov-indkob-antal">›</span></div>
+          <div class="chips" id="ov-indkob"></div>
+        </button>
+      </div>
+    </section>
+
+    <!-- KALENDER -->
+    <section id="kalender" class="fane" hidden>
+      <div class="sek-hoved"><h2>Kalender</h2><span class="taeller" id="kal-dato"></span></div>
+      <div class="kal-nav">
+        <button type="button" class="pil" id="kal-forrige" aria-label="Forrige uge">‹</button>
+        <div class="kal-titel">
+          <strong id="kal-titel"></strong>
+          <button type="button" class="lille-knap" id="kal-idag" hidden>Til denne uge</button>
+        </div>
+        <button type="button" class="pil" id="kal-naeste" aria-label="Næste uge">›</button>
+      </div>
+      <div class="kal-wrap"><div class="kal" id="kal"></div></div>
+      <p class="hint">Tryk i et felt for at tilføje en aftale. Tryk på en aftale for at rette den.</p>
+    </section>
+
+    <!-- MADPLAN -->
+    <section id="madplan" class="fane" hidden>
+      <div class="sek-hoved"><h2>Madplan</h2><span class="taeller" id="ugenr"></span></div>
+      <div class="madplan-knapper">
+        <button type="button" class="lille-knap" id="fyld-tomme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Fyld tomme dage
+        </button>
+        <button type="button" class="lille-knap" id="bland-uge" data-tekst="Bland hele ugen" data-handling="blande">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>Bland hele ugen
+        </button>
+      </div>
+      <ol class="uge"></ol>
+      <datalist id="retter-forslag"></datalist>
+      <button type="button" class="ryd" id="ryd-uge" data-tekst="Ryd ugen">Ryd ugen</button>
+      <details class="retter-boks">
+        <summary><span>Vores retter <span class="taeller" id="antal-retter"></span></span></summary>
+        <form class="tilfoj" id="ny-ret-form">
+          <input type="text" id="ny-ret" placeholder="Ny ret, fx boller i karry" aria-label="Ny ret" autocomplete="off" enterkeyhint="done">
+          <button class="knap">Tilføj</button>
+        </form>
+        <div class="forslag" data-forslag="ret"></div>
+      </details>
+    </section>
+
+    <!-- INDKØB -->
+    <section id="indkob" class="fane" hidden>
+      <div class="sek-hoved"><h2>Indkøb</h2><span class="taeller" data-taeller="indkob"></span></div>
+      <form class="tilfoj" data-liste="indkob">
+        <input type="text" id="ny-indkob" placeholder="Fx mælk" aria-label="Ny vare" autocomplete="off" enterkeyhint="done">
+        <button class="knap">Tilføj</button>
+      </form>
+      <div class="forslag" data-forslag="indkob"></div>
+      <div class="seg" id="butik-filter" role="radiogroup" aria-label="Vis varer fra butik" hidden></div>
+      <ul class="liste" data-liste="indkob"></ul>
+      <p class="hint">Tryk på ⋯ for at sætte butik, tilbud eller billede på en vare.</p>
+      <button type="button" class="ryd" data-liste="indkob" data-tekst="Ryd det købte">Ryd det købte</button>
+    </section>
+
+    <!-- TO DO -->
+    <section id="todo" class="fane" hidden>
+      <div class="sek-hoved"><h2>To do</h2><span class="taeller" data-taeller="todo"></span></div>
+      <form class="tilfoj" data-liste="todo">
+        <input type="text" id="ny-todo" placeholder="Fx bestil tid til vinterdæk" aria-label="Ny opgave" autocomplete="off" enterkeyhint="done">
+        <button class="knap">Tilføj</button>
+      </form>
+      <div class="seg" role="radiogroup" aria-label="Prioritet for ny opgave" id="ny-prio">
+        <button type="button" role="radio" data-prio="1" class="p1"><span class="prik"></span>Haster</button>
+        <button type="button" role="radio" data-prio="2" class="p2"><span class="prik"></span>Snart</button>
+        <button type="button" role="radio" data-prio="3" class="p3"><span class="prik"></span>Engang</button>
+      </div>
+      <div class="forslag" data-forslag="todo"></div>
+      <ul class="liste" data-liste="todo"></ul>
+      <p class="hint">Tryk på prioriteten for at skifte den.</p>
+      <button type="button" class="ryd" data-liste="todo" data-tekst="Ryd det klarede">Ryd det klarede</button>
+    </section>
+
+    <!-- SKOLESKEMA -->
+    <section id="skema" class="fane" hidden>
+      <div class="sek-hoved"><h2>Skoleskema</h2><span class="taeller" id="skema-eksempel">Eksempel</span></div>
+      <div class="seg" role="radiogroup" aria-label="Barn" id="vaelg-barn"></div>
+      <div class="seg" role="radiogroup" aria-label="Dag" id="vaelg-dag"></div>
+      <ol class="lektioner" id="lektioner"></ol>
+      <div class="skema-fod">
+        <span class="fri" id="fri-kl"></span>
+        <button type="button" class="lille-knap" id="rediger-skema" aria-pressed="false">Ret skema</button>
+      </div>
+      <p class="hint" id="rediger-hint" hidden>Tiderne gælder alle dage for dette barn. Lad faget stå tomt, hvis der ikke er en time.</p>
+    </section>
+  </main>
+</div>
+
+<nav class="bundmenu" aria-label="Sider">
+  <div class="bundmenu-indre" role="tablist">
+    <button role="tab" class="fane-knap" data-fane="idag">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 10.5L12 4l8.5 6.5V20a1 1 0 0 1-1 1h-5v-6h-5v6h-5a1 1 0 0 1-1-1z"/></svg>
+      I dag
+    </button>
+    <button role="tab" class="fane-knap" data-fane="kalender">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+      Kalender
+    </button>
+    <button role="tab" class="fane-knap" data-fane="madplan">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v18M4.5 3v5a2.5 2.5 0 0 0 5 0V3M17 21V3c-2.5 1.5-3.5 4.5-3.5 8h3.5"/></svg>
+      Madplan
+    </button>
+    <button role="tab" class="fane-knap" data-fane="indkob">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M2.5 3.5h2.3l2.5 11.7a1 1 0 0 0 1 .8h9.4a1 1 0 0 0 1-.8L20.5 8H5.9"/></svg>
+      Indkøb<span class="badge" data-badge="indkob" hidden></span>
+    </button>
+    <button role="tab" class="fane-knap" data-fane="todo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6h10M10 12h10M10 18h10M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5M3.5 18l1.5 1.5 2.5-2.5"/></svg>
+      To do<span class="badge" data-badge="todo" hidden></span>
+    </button>
+    <button role="tab" class="fane-knap" data-fane="skema">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>
+      Skema
+    </button>
+  </div>
+</nav>
+
+<div class="ark-baggrund" id="ark" hidden>
+  <div class="ark" role="dialog" aria-modal="true" aria-labelledby="ark-titel">
+    <div class="ark-top"><h2 id="ark-titel"></h2><button type="button" class="ark-luk" id="ark-luk" aria-label="Luk">✕</button></div>
+    <div id="ark-indhold"></div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

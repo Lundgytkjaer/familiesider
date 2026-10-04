@@ -1,0 +1,319 @@
+/* Layout: én kolonne med seks faner i bunden; "I dag" er overblikket, der samler alt (to kolonner på computer) */
+:root {
+  --bg: #f2f5f3;
+  --flade: #ffffff;
+  --fg: #16201c;
+  --daempet: #64706b;
+  --accent: #1d6b58;
+  --accent-blod: #dcebe4;
+  --linje: #e5eae7;
+  --paa-accent: #ffffff;
+  --fare: #b8402c;
+  --p1: #c8432f;
+  --p2: #c98410;
+  --p3: #9aa5a0;
+  --c-faelles: #1d6b58;
+  --c-timmo: #2f63c8;
+  --c-winnie: #b8417f;
+  --c-oliver: #c96f12;
+  --c-villads: #6d4fcf;
+  --tilbud: #d6261c;
+  --font-titel: "Bricolage Grotesque", system-ui, sans-serif;
+  --font: "Hanken Grotesk", system-ui, -apple-system, sans-serif;
+  --radius: 16px;
+  --raekke: 48px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1311; --flade: #19201d; --fg: #e7eeea; --daempet: #93a09a;
+    --accent: #5cc3a3; --accent-blod: #1d3a30; --linje: #26302c; --paa-accent: #08221a; --fare: #ef7d68;
+    --p1: #f07a63; --p2: #e8b04a; --p3: #5f6b66;
+    --c-faelles: #5cc3a3; --c-timmo: #7aa5f5; --c-winnie: #ee86bd; --c-oliver: #f2a45a; --c-villads: #a990ff; --tilbud: #ff6b5e;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1311; --flade: #19201d; --fg: #e7eeea; --daempet: #93a09a;
+  --accent: #5cc3a3; --accent-blod: #1d3a30; --linje: #26302c; --paa-accent: #08221a; --fare: #ef7d68;
+  --p1: #f07a63; --p2: #e8b04a; --p3: #5f6b66;
+  --c-faelles: #5cc3a3; --c-timmo: #7aa5f5; --c-winnie: #ee86bd; --c-oliver: #f2a45a; --c-villads: #a990ff; --tilbud: #ff6b5e;
+  color-scheme: dark;
+}
+.c-faelles { --p: var(--c-faelles); } .c-timmo { --p: var(--c-timmo); } .c-winnie { --p: var(--c-winnie); }
+.c-oliver { --p: var(--c-oliver); } .c-villads { --p: var(--c-villads); }
+
+* { box-sizing: border-box; }
+:root { padding-top: env(safe-area-inset-top, 0px); }
+body { margin: 0; }
+[hidden] { display: none !important; }
+html, body { background: var(--bg); }
+body {
+  color: var(--fg);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.35;
+  padding-inline: 16px;
+  padding-block: 0 calc(84px + env(safe-area-inset-bottom, 0px));
+}
+.indhold { max-width: 560px; margin: 0 auto; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Overskrift */
+.hoved { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-block: 14px 10px; }
+h1 { font-family: var(--font-titel); font-weight: 800; font-size: 26px; letter-spacing: -.02em; margin: 0; }
+.dato { margin: 0; color: var(--daempet); font-weight: 600; font-size: 14px; }
+.dato::first-letter { text-transform: uppercase; }
+
+.sek-hoved { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+h2 { font-family: var(--font-titel); font-weight: 700; font-size: 19px; margin: 0; }
+.taeller { font-size: 13px; font-weight: 600; color: var(--daempet); font-variant-numeric: tabular-nums; }
+
+.note {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 12px; padding: 6px 6px 6px 12px;
+  font-size: 14px; color: var(--daempet); background: var(--flade); border-radius: 12px;
+}
+.note button { margin-left: auto; flex: none; min-height: 36px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent-blod); color: var(--fg); font-weight: 700; }
+
+/* Felter og knapper */
+.tilfoj { display: flex; gap: 8px; margin-bottom: 10px; }
+input[type="text"], input[type="date"], input[type="time"] {
+  flex: 1; min-width: 0; min-height: 48px; padding: 0 14px;
+  font: inherit; color: var(--fg); background: var(--flade);
+  border: 2px solid var(--linje); border-radius: var(--radius);
+}
+input[type="text"]::placeholder { color: var(--daempet); opacity: .8; }
+input:focus-visible { outline: none; border-color: var(--accent); }
+.knap {
+  flex: none; min-height: 48px; padding: 0 18px; border: 0; border-radius: var(--radius);
+  background: var(--accent); color: var(--paa-accent); font-weight: 700; transition: transform .12s;
+}
+.knap:active { transform: scale(.96); }
+.ryd {
+  width: 100%; min-height: 44px; border: 1.5px solid var(--linje); border-radius: var(--radius);
+  background: transparent; font-weight: 600; font-size: 15px; color: var(--daempet);
+}
+.ryd.bekraeft { border-color: var(--fare); color: var(--fare); }
+
+/* Segmenter (valg af barn, dag, prioritet) */
+.seg { display: flex; gap: 6px; margin-bottom: 10px; overflow-x: auto; }
+.seg button {
+  flex: 1; min-height: 40px; padding: 0 12px; border: 1.5px solid var(--linje); border-radius: 999px;
+  background: var(--flade); font-size: 14px; font-weight: 600; color: var(--daempet); white-space: nowrap;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.seg button[aria-checked="true"] { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+.seg .prik { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+
+/* Lister */
+.liste, .uge, .lektioner { list-style: none; margin: 0 0 10px; padding: 0; background: var(--flade); border-radius: var(--radius); overflow: hidden; }
+.punkt { display: flex; align-items: stretch; }
+.punkt + .punkt, .dag + .dag, .lektion + .lektion { border-top: 1px solid var(--linje); }
+.punkt-knap {
+  flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px;
+  min-height: var(--raekke); padding: 6px 4px 6px 14px; border: 0; background: none; text-align: left;
+}
+.tjek {
+  flex: none; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--daempet);
+  display: grid; place-items: center; transition: background .15s, border-color .15s;
+}
+.tjek svg { width: 14px; height: 14px; opacity: 0; color: var(--paa-accent); }
+.faerdig .tjek { background: var(--accent); border-color: var(--accent); }
+.faerdig .tjek svg { opacity: 1; }
+.tekst { overflow-wrap: anywhere; }
+.faerdig .tekst { text-decoration: line-through; color: var(--daempet); }
+.slet { flex: none; width: 48px; border: 0; background: none; color: var(--daempet); display: grid; place-items: center; }
+.slet svg { width: 18px; height: 18px; }
+.tom { padding: 20px 14px; text-align: center; color: var(--daempet); }
+
+/* To do med prioritet */
+.prio-knap {
+  flex: none; display: flex; align-items: center; gap: 6px; padding: 0 12px 0 10px; border: 0; background: none;
+  font-size: 12px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+}
+.prio-knap .prik { width: 10px; height: 10px; border-radius: 50%; }
+.p1 { --p: var(--p1); } .p2 { --p: var(--p2); } .p3 { --p: var(--p3); }
+.prio-knap, .p-tekst { color: var(--p); }
+.prik { background: var(--p); }
+.punkt.p1:not(.faerdig) { box-shadow: inset 4px 0 0 var(--p1); }
+.faerdig .prio-knap { opacity: .4; }
+
+/* Indkøb: butik, tilbud, billede */
+.tekst-boks { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; }
+.tags span { font-size: 12px; font-weight: 700; padding: 1px 7px; border-radius: 6px; background: var(--bg); color: var(--daempet); }
+.tags .tilbud-tag { background: var(--tilbud); color: #fff; }
+.tags .note-tag { background: none; padding: 0; font-weight: 500; }
+.thumb { flex: none; align-self: center; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 8px; overflow: hidden; background: var(--bg); }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.mere-knap { flex: none; width: 40px; border: 0; background: none; color: var(--daempet); display: grid; place-items: center; }
+.mere-knap svg { width: 20px; height: 20px; }
+
+/* Ark (bundpanel til at rette ting) */
+.ark-baggrund { position: fixed; inset: 0; z-index: 20; background: rgb(0 0 0 / .45); display: flex; align-items: flex-end; justify-content: center; }
+.ark {
+  width: 100%; max-width: 560px; max-height: 92vh; overflow-y: auto;
+  background: var(--flade); border-radius: 22px 22px 0 0;
+  padding: 16px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+}
+.ark-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+.ark-luk { width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--bg); font-size: 18px; }
+.ark input[type="text"], .ark input[type="date"], .ark input[type="time"] { width: 100%; background: var(--bg); }
+.felt-label { display: block; font-size: 13px; font-weight: 700; color: var(--daempet); margin: 14px 0 6px; }
+.to-felter { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.to-felter > div { min-width: 0; }
+.seg.wrap { flex-wrap: wrap; overflow: visible; }
+.seg.wrap button { flex: 0 0 auto; }
+.check { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-top: 10px; font-weight: 600; }
+.check input { width: 22px; height: 22px; accent-color: var(--tilbud); }
+.ark-knapper { display: flex; gap: 8px; margin-top: 18px; }
+.ark-knapper .knap { flex: 1; }
+.knap.fare { flex: 0 0 auto; background: transparent; color: var(--fare); border: 1.5px solid var(--fare); }
+.billede-boks { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.billede-boks img { max-width: 100%; max-height: 200px; border-radius: 12px; display: block; }
+.fil-knap { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
+.fil-knap input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.fejl { color: var(--fare); font-weight: 600; font-size: 14px; margin: 10px 0 0; }
+.stort-billede { width: 100%; border-radius: 12px; display: block; margin-top: 8px; }
+
+/* Kalender */
+.kal-nav { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.pil { flex: none; width: 44px; height: 44px; border: 1.5px solid var(--linje); border-radius: 50%; background: var(--flade); font-size: 20px; font-weight: 700; }
+.kal-titel { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.kal-titel .lille-knap { min-height: 30px; font-size: 13px; }
+.kal-wrap { overflow-x: auto; background: var(--flade); border-radius: var(--radius); margin-bottom: 10px; }
+.kal { display: grid; grid-template-columns: 42px repeat(5, minmax(58px, 1fr)); min-width: 340px; }
+.kal-hoved {
+  display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 2px;
+  font-size: 12px; font-weight: 700; border-bottom: 2px solid var(--p);
+}
+.kal-hoved .prik { width: 8px; height: 8px; border-radius: 50%; }
+.kal-dag {
+  display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 6px 2px;
+  font-size: 13px; font-weight: 700; color: var(--daempet); border-top: 1px solid var(--linje); line-height: 1.1;
+}
+.kal-dag small { font-size: 11px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.kal-celle {
+  min-height: 54px; padding: 3px; border-top: 1px solid var(--linje); border-left: 1px solid var(--linje);
+  display: flex; flex-direction: column; gap: 3px; cursor: pointer; min-width: 0;
+}
+.kal-celle:hover { background: color-mix(in srgb, var(--accent-blod) 50%, transparent); }
+.kal-dag.idag, .kal-celle.idag { background: var(--accent-blod); }
+.kal-dag.idag { color: var(--accent); }
+.kal-dag.weekend { color: var(--fg); }
+.beg {
+  display: block; width: 100%; padding: 3px 4px 3px 5px; border: 0; border-left: 3px solid var(--p); border-radius: 5px;
+  background: color-mix(in srgb, var(--p) 16%, var(--flade)); text-align: left;
+  font-size: 12px; line-height: 1.2; overflow-wrap: break-word; hyphens: auto;
+}
+.beg b { display: block; font-size: 11px; font-variant-numeric: tabular-nums; }
+
+/* Hurtigvalg – ting der kommer igen */
+.forslag { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 12px; }
+.forslag button, .forslag .tag {
+  min-height: 36px; padding: 0 12px; border: 1.5px solid var(--linje); border-radius: 999px;
+  background: var(--flade); font-size: 14px; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.forslag .plus { color: var(--accent); font-weight: 800; }
+.forslag.ret-tilstand button:not(.styr) { border-color: var(--fare); color: var(--fare); }
+.forslag.ret-tilstand .plus { color: var(--fare); }
+.forslag .styr { border-style: dashed; color: var(--daempet); background: transparent; }
+
+/* Madplan */
+.madplan-knapper { display: flex; gap: 8px; margin-bottom: 10px; }
+.madplan-knapper .lille-knap { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.madplan-knapper .lille-knap.bekraeft { border-color: var(--fare); color: var(--fare); }
+.madplan-knapper svg, .terning svg { width: 18px; height: 18px; }
+.dag { display: grid; grid-template-columns: 58px 1fr 48px; align-items: center; padding-left: 14px; min-height: var(--raekke); }
+.terning { width: 48px; height: var(--raekke); border: 0; background: none; color: var(--daempet); display: grid; place-items: center; }
+.terning:active svg { transform: rotate(90deg); }
+.dag.ny { animation: blink .9s ease; }
+@keyframes blink { from { background: var(--accent-blod); } }
+.retter-boks { margin-top: 14px; background: var(--flade); border-radius: var(--radius); padding: 0 14px; }
+.retter-boks summary { min-height: var(--raekke); display: flex; align-items: center; justify-content: space-between; font-weight: 700; cursor: pointer; list-style: none; }
+.retter-boks summary::-webkit-details-marker { display: none; }
+.retter-boks summary::after { content: "›"; color: var(--daempet); font-size: 20px; transition: transform .15s; }
+.retter-boks[open] summary::after { transform: rotate(90deg); }
+.retter-boks .tilfoj input[type="text"] { background: var(--bg); }
+.dag label { display: flex; flex-direction: column; line-height: 1.1; font-weight: 700; font-size: 14px; color: var(--daempet); }
+.dag label small { font-weight: 500; font-size: 12px; font-variant-numeric: tabular-nums; }
+.dag.idag { background: var(--accent-blod); }
+.dag.idag label { color: var(--accent); }
+.dag.forbi label { opacity: .55; }
+.dag input[type="text"] { min-height: var(--raekke); border: 0; background: transparent; padding: 0; border-radius: 0; }
+
+/* Skoleskema */
+.lektion { display: grid; grid-template-columns: 28px 92px 1fr; align-items: center; gap: 10px; min-height: var(--raekke); padding: 4px 14px; }
+.lektion .nr {
+  width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--accent-blod); color: var(--accent); font-size: 13px; font-weight: 700;
+}
+.lektion .tid { font-size: 14px; color: var(--daempet); font-variant-numeric: tabular-nums; }
+.lektion .fag { font-weight: 600; overflow-wrap: anywhere; }
+.lektion.nu { background: var(--accent-blod); }
+.lektion input[type="text"] { min-height: 40px; padding: 0 10px; border-radius: 10px; font-size: 15px; }
+.lektion input.tid-felt { font-variant-numeric: tabular-nums; }
+.skema-fod { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+.fri { font-weight: 700; }
+.lille-knap { min-height: 40px; padding: 0 14px; border: 1.5px solid var(--linje); border-radius: 999px; background: var(--flade); font-weight: 600; font-size: 14px; }
+.lille-knap[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--paa-accent); }
+.hint { font-size: 13px; color: var(--daempet); margin: 0 0 10px; }
+
+/* I dag – overblik */
+.overblik { display: grid; gap: 12px; }
+.kort {
+  display: block; width: 100%; text-align: left; border: 0; background: var(--flade); border-radius: var(--radius);
+  padding: 14px 16px;
+}
+.kort-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.kort-label { font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--daempet); }
+.kort-pil { color: var(--daempet); font-size: 14px; font-weight: 600; }
+.stor { font-family: var(--font-titel); font-weight: 700; font-size: 24px; line-height: 1.15; margin: 0; }
+.stor.tom-ret { color: var(--daempet); font-weight: 600; font-size: 20px; }
+.under { margin: 4px 0 0; font-size: 14px; color: var(--daempet); }
+.barn-linje { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding-block: 6px; }
+.barn-linje + .barn-linje { border-top: 1px solid var(--linje); }
+.barn-navn { font-weight: 700; }
+.barn-fri { font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.barn-fag { grid-column: 1 / -1; font-size: 14px; color: var(--daempet); }
+.mini { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.mini li { display: flex; align-items: center; gap: 10px; }
+.mini .prik { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chips span { padding: 4px 10px; border-radius: 999px; background: var(--bg); font-size: 14px; }
+
+/* Bundmenu */
+.bundmenu {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+  background: var(--flade); border-top: 1px solid var(--linje);
+}
+.bundmenu-indre { display: grid; grid-template-columns: repeat(6, 1fr); gap: 2px; max-width: 600px; margin: 0 auto; }
+.fane-knap {
+  position: relative; min-height: 56px; padding: 0; border: 0; border-radius: 14px; background: none;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  color: var(--daempet); font-size: 11px; font-weight: 700;
+}
+.fane-knap svg { width: 22px; height: 22px; }
+.fane-knap[aria-selected="true"] { color: var(--accent); background: var(--accent-blod); }
+.badge {
+  position: absolute; top: 3px; left: calc(50% + 5px); min-width: 19px; height: 19px; padding: 0 5px;
+  border-radius: 10px; background: var(--accent); color: var(--paa-accent);
+  font-size: 11px; line-height: 19px; text-align: center; font-variant-numeric: tabular-nums;
+}
+.badge.haster { background: var(--p1); color: #fff; }
+
+@media (min-width: 900px) {
+  .indhold { max-width: 900px; }
+  h1 { font-size: 32px; }
+  .hoved { padding-block: 24px 16px; }
+  .overblik { grid-template-columns: 1fr 1fr; }
+  .fane:not(#idag):not(#kalender) { max-width: 560px; margin-inline: auto; }
+  .kal-celle { min-height: 72px; }
+  .beg { font-size: 13px; }
+  .ark-baggrund { align-items: center; }
+  .ark { border-radius: 22px; }
+}
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
