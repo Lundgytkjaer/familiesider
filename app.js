@@ -218,7 +218,7 @@ async function redigerVare(p) {
     try {
       await Data.update('indkob', p.id, { tekst, butik, tilbud: tilbud.checked, note: note.value.trim(), billede });
     } catch {
-      fejl.textContent = 'Der er ikke plads til flere billeder i prototypen. Fjern et billede og prøv igen.';
+      fejl.textContent = 'Kunne ikke gemme. Tjek forbindelsen og prøv igen.';
       fejl.hidden = false;
       return;
     }
@@ -596,8 +596,6 @@ async function gemSkemaFelt(liste, noegle, felter) {
   if (fundet && tom) await Data.remove(liste, fundet.id);
   else if (fundet) await Data.update(liste, fundet.id, felter);
   else if (!tom) await Data.add(liste, { ...noegle, ...felter });
-  lokal.set('skema-rettet', '1');
-  document.getElementById('skema-eksempel').hidden = true;
   tegnOverblik();
 }
 
@@ -765,52 +763,13 @@ async function tegnOverblik() {
   ovInd.replaceChildren();
   if (!varer.length) ovInd.append(el('span', null, 'Listen er tom'));
   for (const v of varer.slice(0, 8)) ovInd.append(el('span', null, v.tekst));
-  document.getElementById('ov-indkob-antal').textContent = varer.length ? varer.length + ' varer ›' : '›';
+  document.getElementById('ov-indkob-antal').textContent = varer.length ? varer.length + (varer.length === 1 ? ' vare ›' : ' varer ›') : '›';
 }
 
 // ---------- Eksempler første gang ----------
-async function laegEksemplerInd() {
-  if (lokal.get('eksempler')) return;
-  lokal.set('eksempler', '1');
-  for (const t of ['Mælk', 'Rugbrød', 'Bananer', 'Pålæg', 'Kaffe', 'Æg']) await Data.add('indkob', { tekst: t, klaret: false });
-  await Data.add('indkob', { tekst: 'Gulerødder til Alfie', klaret: true });
-
-  const opgaver = [['Bestil tid til vinterdæk', 1], ['Betal SFO', 1], ['Skift Alfies hø', 2], ['Madpakker fredag', 2], ['Rydde op i skuret', 3]];
-  for (const [tekst, prio] of opgaver) await Data.add('todo', { tekst, prio, klaret: false });
-
-  const eks = ['Lasagne', 'Tarteletter', 'Fiskefrikadeller', 'Rester', 'Hjemmelavet pizza', 'Burgere', 'Kylling i ovn'];
-  for (let i = 0; i < 7; i++) await Data.add('madplan', { dag: i, ret: eks[i] });
-
-  const tider = ['8.00-8.45', '8.45-9.30', '9.50-10.35', '10.35-11.20', '12.00-12.45', '12.45-13.30', '13.40-14.25'];
-  const skemaer = {
-    Oliver: [
-      ['Dansk', 'Dansk', 'Matematik', 'Engelsk', 'Historie', 'Idræt', 'Idræt'],
-      ['Matematik', 'Matematik', 'Natur/teknologi', 'Dansk', 'Tysk', 'Musik'],
-      ['Dansk', 'Engelsk', 'Matematik', 'Kristendom', 'Billedkunst', 'Billedkunst'],
-      ['Matematik', 'Dansk', 'Dansk', 'Natur/teknologi', 'Tysk', 'Engelsk', 'Klassens tid'],
-      ['Idræt', 'Idræt', 'Dansk', 'Matematik', 'Historie']
-    ],
-    Villads: [
-      ['Dansk', 'Dansk', 'Matematik', 'Musik', 'Idræt'],
-      ['Matematik', 'Dansk', 'Natur/teknologi', 'Engelsk', 'Billedkunst'],
-      ['Dansk', 'Dansk', 'Matematik', 'Idræt', 'Idræt'],
-      ['Matematik', 'Engelsk', 'Dansk', 'Kristendom', 'Håndværk og design', 'Håndværk og design'],
-      ['Dansk', 'Matematik', 'Natur/teknologi', 'Klassens tid']
-    ]
-  };
-  for (const barn of BOERN) {
-    for (let nr = 1; nr <= 7; nr++) await Data.add('ringetider', { barn, nr, tid: tider[nr - 1] });
-    for (let dag = 0; dag < 5; dag++) {
-      const fagListe = skemaer[barn][dag];
-      for (let i = 0; i < fagListe.length; i++) await Data.add('skema', { barn, dag, nr: i + 1, fag: fagListe[i] });
-    }
-  }
-  lokal.set('vis-note', '1');
-}
-
-async function laegFavoritterInd() {
-  if (lokal.get('eks-fav')) return;
-  lokal.set('eks-fav', '1');
+// ---------- Startlister (lægges ind én gang for hele familien) ----------
+async function laegStartlisterInd() {
+  if ((await Data.list('favoritter')).length) return;
   const start = {
     ret: ['Lasagne', 'Tarteletter', 'Fiskefrikadeller', 'Hjemmelavet pizza', 'Burgere', 'Kylling i ovn',
       'Frikadeller med kartofler', 'Spaghetti med kødsovs', 'Boller i karry', 'Biksemad', 'Tacos',
@@ -820,41 +779,75 @@ async function laegFavoritterInd() {
     indkob: ['Mælk', 'Rugbrød', 'Toastbrød', 'Smør', 'Ost', 'Pålæg', 'Æg', 'Bananer', 'Æbler', 'Agurk',
       'Gulerødder', 'Kaffe', 'Yoghurt', 'Havregryn', 'Pasta', 'Ris', 'Hakket oksekød', 'Kylling',
       'Toiletpapir', 'Opvasketabs', 'Gulerødder til Alfie', 'Hø til Alfie'],
-    todo: ['Skift Alfies hø', 'Betal SFO', 'Smør madpakker', 'Vask tøj', 'Tøm opvaskemaskinen', 'Støvsug', 'Sæt skraldespanden ud']
+    todo: ['Skift Alfies hø', 'Betal SFO', 'Smør madpakker', 'Vask tøj', 'Tøm opvaskemaskinen', 'Støvsug', 'Sæt skraldespanden ud'],
+    butik: ['Netto', 'Rema 1000', 'Lidl', 'Føtex', 'Bilka', 'Coop 365']
   };
+  const raekker = [];
   for (const [type, liste] of Object.entries(start)) {
-    for (const tekst of liste) await Data.add('favoritter', { type, tekst, brugt: 0 });
+    for (const tekst of liste) raekker.push({ type, tekst, brugt: 0 });
   }
+  await Data.addMange('favoritter', raekker);
 }
 
-async function laegKalenderOgButikkerInd() {
-  if (lokal.get('eks-kal')) return;
-  lokal.set('eks-kal', '1');
-  // Eksempelaftaler i denne og næste uge (dag 0 = mandag i denne uge)
-  const man = mandagDenneUge();
-  const aftaler = [
-    [2, 'Oliver', '17:00', 'Fodbold'], [3, 'Villads', '16:00', 'Svømning'], [4, 'Fælles', '18:00', 'Fredagshygge'],
-    [6, 'Fælles', '', 'Vask bilen'], [6, 'Timmo', '19:30', 'Ring til mor'],
-    [7, 'Timmo', '07:30', 'Bil til service'], [7, 'Villads', '', 'Husk idrætstøj'],
-    [8, 'Fælles', '19:00', 'Forældremøde'], [8, 'Winnie', '17:30', 'Frisør'],
-    [9, 'Oliver', '17:00', 'Fodbold'], [10, 'Villads', '16:00', 'Svømning'], [10, 'Winnie', '19:30', 'Bogklub'],
-    [11, 'Fælles', '', 'Skolefoto'], [12, 'Fælles', '', 'Sommerhuset'], [12, 'Oliver', '14:00', 'Fødselsdag hos Magnus']
-  ];
-  for (const [dag, hvem, tid, titel] of aftaler) {
-    const d = new Date(man); d.setDate(man.getDate() + dag);
-    await Data.add('kalender', { dato: isoDato(d), hvem, tid, titel });
-  }
-  for (const b of ['Netto', 'Rema 1000', 'Lidl', 'Føtex', 'Bilka', 'Coop 365']) await Data.add('favoritter', { type: 'butik', tekst: b, brugt: 0 });
-  // Vis butik og tilbud på et par eksempelvarer
-  const varer = await Data.list('indkob');
-  const kaffe = varer.find(v => v.tekst === 'Kaffe');
-  if (kaffe) await Data.update('indkob', kaffe.id, { butik: 'Netto', tilbud: true, note: '2 for 70 kr.' });
-  const baner = varer.find(v => v.tekst === 'Bananer');
-  if (baner) await Data.update('indkob', baner.id, { butik: 'Lidl' });
+// ---------- Fejlbesked hvis noget ikke kunne gemmes ----------
+let statusTimer;
+function visStatus(tekst) {
+  const s = document.getElementById('status');
+  s.textContent = tekst;
+  s.hidden = false;
+  clearTimeout(statusTimer);
+  statusTimer = setTimeout(() => (s.hidden = true), 5000);
+}
+window.addEventListener('unhandledrejection', e => {
+  console.error(e.reason);
+  visStatus(navigator.onLine ? 'Noget gik galt – ændringen blev måske ikke gemt.' : 'Ingen forbindelse – ændringen blev ikke gemt.');
+});
+
+// ---------- Login ----------
+const LOGIN_NAVNE = ['Timmo', 'Winnie', 'Oliver', 'Villads'];
+let loginNavn = lokal.get('sidste-navn') || '';
+
+function visLogin() {
+  document.body.dataset.tilstand = 'login';
+  const login = document.getElementById('login');
+  login.hidden = false;
+  const navne = document.getElementById('login-navne');
+  const tegn = () => navne.replaceChildren(...LOGIN_NAVNE.map(n => {
+    const k = knap(n, null, () => { loginNavn = n; tegn(); document.getElementById('login-kode').focus(); });
+    k.setAttribute('role', 'radio');
+    k.setAttribute('aria-checked', n === loginNavn);
+    return k;
+  }));
+  tegn();
 }
 
-const note = document.getElementById('eksempel-note');
-document.getElementById('luk-note').addEventListener('click', () => { note.hidden = true; lokal.set('vis-note', ''); });
+document.getElementById('login-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const fejl = document.getElementById('login-fejl');
+  const kode = document.getElementById('login-kode');
+  fejl.hidden = true;
+  if (!loginNavn) { fejl.textContent = 'Tryk på dit navn først.'; fejl.hidden = false; return; }
+  if (!kode.value) { kode.focus(); return; }
+  const knapEl = e.target.querySelector('.knap');
+  knapEl.disabled = true;
+  knapEl.textContent = 'Logger ind…';
+  try {
+    await Data.login(loginNavn, kode.value);
+    lokal.set('sidste-navn', loginNavn);
+    kode.value = '';
+    document.getElementById('login').hidden = true;
+    await startTavle();
+  } catch (err) {
+    console.error(err);
+    fejl.textContent = navigator.onLine ? 'Forkert navn eller kode. Prøv igen.' : 'Ingen forbindelse til internettet.';
+    fejl.hidden = false;
+  } finally {
+    knapEl.disabled = false;
+    knapEl.textContent = 'Log ind';
+  }
+});
+
+document.getElementById('log-ud').addEventListener('click', () => Data.logud());
 
 // ---------- Start ----------
 function tegnAlt() {
@@ -862,26 +855,36 @@ function tegnAlt() {
   tegnForslag('indkob'); tegnForslag('todo'); tegnForslag('ret');
 }
 
-document.documentElement.lang = 'da'; // giver dansk orddeling i kalenderen
-document.getElementById('dato').textContent =
-  new Date().toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' });
-
-(async () => {
-  // Nulstil eksempler fra tidligere prototyper
-  if (lokal.get('eksempler') && !lokal.get('v3')) {
-    try { ['indkob', 'husk', 'madplan', 'todo', 'skema', 'ringetider'].forEach(l => localStorage.removeItem('familiesider:' + l)); } catch {}
-    lokal.set('eksempler', '');
-    lokal.set('fane', 'idag');
-  }
-  lokal.set('v3', '1');
-  await laegEksemplerInd();
-  await laegFavoritterInd();
-  await laegKalenderOgButikkerInd();
-  note.hidden = lokal.get('vis-note') !== '1';
-  document.getElementById('skema-eksempel').hidden = lokal.get('skema-rettet') === '1';
+async function startTavle() {
+  const profil = Data.bruger();
+  const logUd = document.getElementById('log-ud');
+  logUd.textContent = profil.navn + ' · Log ud';
+  logUd.hidden = false;
+  await laegStartlisterInd();
   if (!BOERN.includes(skemaBarn)) skemaBarn = BOERN[0];
   tegnNyPrio();
   visFane(lokal.get('fane'));
   tegnAlt();
   Data.onChange(tegnAlt);
+  document.body.dataset.tilstand = 'klar';
+}
+
+document.documentElement.lang = 'da'; // giver dansk orddeling i kalenderen
+document.getElementById('dato').textContent =
+  new Date().toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' });
+
+(async () => {
+  try {
+    const profil = await Data.start();
+    if (profil) await startTavle();
+    else visLogin();
+  } catch (err) {
+    console.error(err);
+    visLogin();
+    const fejl = document.getElementById('login-fejl');
+    fejl.textContent = err.message === 'mangler-profil'
+      ? 'Din bruger mangler en profil i databasen. Spørg Timmo.'
+      : 'Kunne ikke forbinde. Tjek internettet og prøv igen.';
+    fejl.hidden = false;
+  }
 })();

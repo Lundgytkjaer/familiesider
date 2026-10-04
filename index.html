@@ -12,18 +12,15 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<body data-tilstand="starter">
 <div class="indhold">
   <header class="hoved">
     <h1>Familietavlen</h1>
     <p class="dato" id="dato"></p>
+    <button type="button" class="log-ud" id="log-ud" hidden></button>
   </header>
 
   <main>
-    <p class="note" id="eksempel-note" hidden>
-      <span>Der er lagt eksempler ind, også i skoleskemaet. Ret eller slet løs.</span>
-      <button type="button" id="luk-note">OK</button>
-    </p>
 
     <!-- I DAG -->
     <section id="idag" class="fane" hidden>
@@ -130,7 +127,7 @@
 
     <!-- SKOLESKEMA -->
     <section id="skema" class="fane" hidden>
-      <div class="sek-hoved"><h2>Skoleskema</h2><span class="taeller" id="skema-eksempel">Eksempel</span></div>
+      <div class="sek-hoved"><h2>Skoleskema</h2></div>
       <div class="seg" role="radiogroup" aria-label="Barn" id="vaelg-barn"></div>
       <div class="seg" role="radiogroup" aria-label="Dag" id="vaelg-dag"></div>
       <ol class="lektioner" id="lektioner"></ol>
@@ -179,6 +176,20 @@
   </div>
 </div>
 
+<div class="login" id="login" hidden>
+  <form class="login-boks" id="login-form">
+    <h1>Familietavlen</h1>
+    <p class="under">Hvem er du?</p>
+    <div class="seg wrap" id="login-navne" role="radiogroup" aria-label="Hvem er du"></div>
+    <input type="password" id="login-kode" placeholder="Kode" autocomplete="current-password" aria-label="Kode">
+    <button class="knap">Log ind</button>
+    <p class="fejl" id="login-fejl" hidden></p>
+  </form>
+</div>
+
+<p class="status" id="status" role="status" hidden></p>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="data.js"></script>
 <script src="app.js"></script>
 </body>
