@@ -1194,12 +1194,13 @@ async function tegnBoernetavle(barn) {
   const kontakt = dagNr < 5 ? await dagKontakt(barn, dagNr) : '';
   if (kontakt && skemaKort.querySelector('.bt-tider')) skemaKort.querySelector('.bt-tider').append(el('span', 'bt-kontakt', 'Kontakt: ' + kontakt));
 
-  // Husk: fødselsdage, kalender (eget + fælles) og ekstra info
+  // "Det sker": fødselsdage, kalender (eget + fælles) og det der ellers skal ske – med billeder
+  const voksen = Data.bruger()?.rolle === 'voksen';
   const foed = await foedselsdageDen(iso);
   const aftaler = (await Data.list('kalender'))
     .filter(a => a.dato === iso && (a.hvem === barn || a.hvem === 'Fælles')).sort(sorterAftaler);
   const info = (await Data.list('info')).filter(x => x.barn === barn && x.dato === iso);
-  const liste = el('ul', 'husk-liste');
+  const liste = el('ul', 'sker-liste');
   for (const f of foed) {
     const li = el('li', 'c-foed');
     li.append(el('span', 'prik'), el('span', 'husk-tekst', foedTekst(f)));
@@ -1211,36 +1212,132 @@ async function tegnBoernetavle(barn) {
     liste.append(li);
   }
   for (const x of info) {
-    const li = el('li', 'husk-info');
-    const slet = knap('', 'slet', async () => { await Data.remove('info', x.id); tegnOverblik(); });
-    slet.innerHTML = IKON_SLET;
-    slet.setAttribute('aria-label', 'Slet ' + x.tekst);
-    li.append(el('span', 'prik'), el('span', 'husk-tekst', x.tekst), slet);
+    const li = el('li', 'sker-info' + (infoBillede(x) ? ' med-billede' : ''));
+    const indhold = voksen ? knap('', 'sker-knap', () => redigerInfo(barn, iso, x)) : el('div', 'sker-knap');
+    if (infoBillede(x)) {
+      const img = el('img', 'sker-billede');
+      img.src = infoBillede(x); img.alt = ''; img.loading = 'lazy';
+      indhold.append(img);
+    } else {
+      indhold.append(el('span', 'prik'));
+    }
+    indhold.append(el('span', 'husk-tekst', x.tekst || ''));
+    li.append(indhold);
     liste.append(li);
   }
-  if (!foed.length && !aftaler.length && !info.length) liste.append(el('li', 'tom-husk', 'Ikke noget særligt at huske.'));
-  const form = el('form', 'tilfoj');
-  const inp = input('text', 'ny-info', '', 'Fx idrætstøj, mormor henter');
-  inp.enterKeyHint = 'done';
-  inp.setAttribute('aria-label', 'Tilføj noget at huske');
-  form.append(inp, el('button', 'knap', 'Tilføj'));
-  form.addEventListener('submit', async e => {
-    e.preventDefault();
-    const tekst = inp.value.trim();
-    if (!tekst) return;
-    inp.value = '';
-    await Data.add('info', { barn, dato: iso, tekst });
-    await tegnOverblik();
-    setTimeout(() => document.getElementById('ny-info')?.focus(), 50);
-  });
-  const huskKort = kort('Husk', liste, form);
+  const tomt = !foed.length && !aftaler.length && !info.length;
+  const skerTitel = iso === idagIso ? 'Det sker i dag' : iso === isoDato(imorgen) ? 'Det sker i morgen' : 'Det sker';
+  let skerKort = null;
+  if (voksen || !tomt) {
+    if (tomt) liste.append(el('li', 'tom-husk', 'Intet særligt endnu.'));
+    const dele = [liste];
+    if (info.some(x => x.piktogram)) dele.push(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
+    if (voksen) dele.push(knap('+ Tilføj', 'lille-knap', () => redigerInfo(barn, iso, {})));
+    skerKort = kort(skerTitel, ...dele);
+  }
 
   const gitter = el('div', 'overblik');
-  gitter.append(huskKort);
+  if (skerKort) gitter.append(skerKort);
   const pligter = await pligtKort(barn);   // fra mere.js
   if (pligter) gitter.append(pligter);
   gitter.append(skemaKort, madKort);
   boks.replaceChildren(strip, hoved, gitter);
+}
+
+// ---------- "Det sker" med billeder (piktogrammer fra ARASAAC eller eget foto) ----------
+// Data: 'info' {barn, dato, tekst, piktogram?: ARASAAC-nummer, billede?: foto}
+const PIKTO_URL = id => 'https://static.arasaac.org/pictograms/' + id + '/' + id + '_300.png';
+const infoBillede = x => (x.piktogram ? PIKTO_URL(x.piktogram) : x.billede || '');
+// ARASAAC kan ikke søges på dansk – genvejene oversætter de almindelige ord
+const PIKTO_GENVEJE = {
+  'Svømning': 'swimming', 'Fodbold': 'football', 'Idræt': 'gym', 'Gymnastik': 'gymnastics', 'Idrætstøj': 'tracksuit',
+  'Madpakke': 'lunch box', 'Tandlæge': 'dentist', 'Læge': 'doctor', 'Frisør': 'hairdresser', 'Fødselsdag': 'birthday',
+  'Gave': 'present', 'Bedstemor': 'grandmother', 'Bedstefar': 'grandfather', 'Ven': 'friend', 'Leg': 'play',
+  'Biograf': 'cinema', 'Bus': 'bus', 'Bil': 'car', 'Tog': 'train', 'Cykel': 'bicycle', 'Tur': 'excursion',
+  'Skole': 'school', 'Ferie': 'holiday', 'Regntøj': 'raincoat', 'Bad': 'shower', 'Sove': 'sleep', 'Besøg': 'visit'
+};
+
+async function soegPiktogrammer(ord) {
+  try {
+    const svar = await fetch('https://api.arasaac.org/v1/pictograms/en/search/' + encodeURIComponent(ord.trim().toLowerCase()));
+    if (!svar.ok) return [];
+    return (await svar.json()).slice(0, 24).map(p => p._id);
+  } catch { return []; }
+}
+
+function redigerInfo(barn, iso, x) {
+  const ny = !x.id;
+  const tekst = input('text', 'info-tekst', x.tekst, 'Fx mormor henter, husk idrætstøj');
+  let piktogram = x.piktogram || null;
+  let billede = x.billede || '';
+
+  const valgt = el('div', 'valgt-billede');
+  const tegnValgt = () => {
+    valgt.replaceChildren();
+    const url = piktogram ? PIKTO_URL(piktogram) : billede;
+    if (!url) return;
+    const img = el('img'); img.src = url; img.alt = 'Valgt billede';
+    valgt.append(img, knap('Fjern billede', 'lille-knap', () => { piktogram = null; billede = ''; tegnValgt(); tegnResultater(sidste); }));
+  };
+
+  const resultater = el('div', 'pikto-grid');
+  let sidste = [];
+  const tegnResultater = ids => {
+    sidste = ids;
+    resultater.replaceChildren(...ids.map(id => {
+      const k = knap('', 'pikto' + (id === piktogram ? ' valgt' : ''), () => {
+        piktogram = id; billede = ''; tegnValgt(); tegnResultater(sidste);
+        if (!tekst.value.trim() && soegeord.dataset.dansk) tekst.value = soegeord.dataset.dansk;
+      });
+      const img = el('img'); img.src = PIKTO_URL(id); img.alt = ''; img.loading = 'lazy';
+      k.append(img);
+      return k;
+    }));
+  };
+  const status = el('p', 'hint');
+  const soegeord = input('text', 'pikto-soeg', '', 'Søg på engelsk, fx dentist');
+  soegeord.enterKeyHint = 'search';
+  const soeg = async (ord, dansk) => {
+    if (!ord) return;
+    soegeord.dataset.dansk = dansk || '';
+    status.textContent = 'Søger…';
+    const ids = await soegPiktogrammer(ord);
+    status.textContent = ids.length ? 'Tryk på et billede for at vælge det.' : 'Ingen billeder fundet. Prøv et andet ord på engelsk.';
+    tegnResultater(ids);
+  };
+  const soegForm = el('form', 'tilfoj');
+  soegForm.append(soegeord, el('button', 'knap', 'Søg'));
+  soegForm.addEventListener('submit', e => { e.preventDefault(); soeg(soegeord.value.trim()); });
+
+  const genveje = el('div', 'forslag');
+  for (const [dansk, engelsk] of Object.entries(PIKTO_GENVEJE)) {
+    genveje.append(knap(dansk, null, () => { soegeord.value = engelsk; soeg(engelsk, dansk); }));
+  }
+
+  const fil = el('label', 'lille-knap fil-knap', 'Tag eller vælg eget foto');
+  const filInput = el('input'); filInput.type = 'file'; filInput.accept = 'image/*';
+  filInput.addEventListener('change', async () => {
+    if (!filInput.files[0]) return;
+    try { billede = await laesBillede(filInput.files[0]); piktogram = null; tegnValgt(); tegnResultater(sidste); } catch { status.textContent = 'Billedet kunne ikke læses.'; }
+  });
+  fil.append(filInput);
+
+  const gem = knap('Gem', 'knap', async () => {
+    const t = tekst.value.trim();
+    if (!t && !piktogram && !billede) { tekst.focus(); return; }
+    const felter = { tekst: t, piktogram: piktogram || null, billede: piktogram ? '' : billede };
+    if (ny) await Data.add('info', { barn, dato: iso, ...felter }); else await Data.update('info', x.id, felter);
+    lukArk(); tegnAlt();
+  });
+  const knapper = el('div', 'ark-knapper');
+  if (!ny) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('info', x.id); lukArk(); tegnAlt(); }));
+  knapper.append(gem);
+
+  tegnValgt();
+  const d = new Date(iso + 'T00:00');
+  aabnArk((ny ? 'Det sker' : 'Ret') + ' · ' + barn + ', ' + DAGE_LANG[(d.getDay() + 6) % 7].toLowerCase(),
+    felt('Hvad sker der?', tekst), valgt, el('label', 'felt-label', 'Billede'), genveje, soegForm, status, resultater, fil,
+    el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'), knapper);
 }
 
 // Vælg et måltid til et barn (direkte fra børnetavlen)
@@ -1397,8 +1494,6 @@ async function tegnOverblik() {
   document.getElementById('familie-overblik').hidden = erBoernetavle;
   document.getElementById('boernetavle').hidden = !erBoernetavle;
   if (erBoernetavle) {
-    // Tegn ikke igen mens der skrives i Husk-feltet
-    if (document.activeElement?.id === 'ny-info' && document.activeElement.value) return;
     return tegnBoernetavle(tavleVisning);
   }
   const idag = idagNr();
@@ -1565,7 +1660,12 @@ document.getElementById('login-form').addEventListener('submit', async e => {
   }
 });
 
-document.getElementById('log-ud').addEventListener('click', () => Data.logud());
+document.getElementById('log-ud').addEventListener('click', () => {
+  const p = Data.bruger();
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('Log ud', 'knap fare', () => Data.logud()), knap('Luk', 'knap', () => lukArk()));
+  aabnArk('Logget ind som ' + p.navn, el('p', 'hint', 'Du forbliver logget ind på denne enhed, indtil du logger ud.'), knapper);
+});
 
 // ---------- Start ----------
 function tegnAlt() {
@@ -1578,7 +1678,9 @@ function tegnAlt() {
 async function startTavle() {
   const profil = Data.bruger();
   const logUd = document.getElementById('log-ud');
-  logUd.textContent = profil.navn + ' · Log ud';
+  logUd.textContent = profil.navn[0];
+  logUd.className = 'bruger-knap ' + (PK[profil.navn] || 'c-faelles');
+  logUd.setAttribute('aria-label', 'Logget ind som ' + profil.navn + '. Tryk for at logge ud');
   logUd.hidden = false;
   await laegStartlisterInd();
   await laegMereStartInd();   // fra mere.js
