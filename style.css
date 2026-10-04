@@ -422,3 +422,46 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .foed-under { font-size: 14px; color: var(--daempet); }
 .foed-naar { font-size: 13px; font-weight: 700; color: var(--daempet); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .foed.idag .foed-naar { color: var(--p2); }
+
+/* Skema: farver, kontakt, forklaring */
+.lektion.vis { grid-template-columns: 96px 1fr; border-left: 6px solid transparent; padding-left: 10px; }
+.lektion.farvet { border-left-color: var(--fk); background: color-mix(in srgb, var(--fk) 20%, var(--flade)); }
+.bt-lektioner .lektion.farvet { background: color-mix(in srgb, var(--fk) 22%, var(--bg)); }
+.lektion.nu { box-shadow: inset 0 0 0 2px var(--accent); }
+.lektion.ret { grid-template-columns: 96px 1fr 40px; }
+.farve-knap { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--linje); background: var(--fk); justify-self: center; }
+.farve-knap.ingen { background: repeating-linear-gradient(45deg, var(--flade) 0 4px, var(--linje) 4px 6px); }
+.forklaring { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 10px; font-size: 14px; color: var(--daempet); }
+.boernetavle .forklaring { margin: 10px 0 0; }
+.fk-punkt { display: inline-flex; align-items: center; gap: 6px; }
+.fk-farve { width: 12px; height: 12px; border-radius: 3px; background: var(--fk); }
+.kontakt-par { grid-template-columns: 70px 1fr; margin-bottom: 10px; background: var(--flade); padding: 8px 12px; border-radius: var(--radius); }
+.kontakt-par input[type="text"] { background: var(--bg); }
+.skema-farver { margin-top: 16px; }
+.lille-titel { font-family: var(--font-titel); font-size: 17px; margin: 0 0 8px; }
+.farve-liste { display: grid; gap: 8px; margin-bottom: 10px; }
+.farve-raekke { display: grid; grid-template-columns: 1fr 40px; gap: 8px; align-items: center; background: var(--flade); border-radius: var(--radius); padding: 10px 12px; }
+.farve-raekke input[type="text"] { min-height: 40px; background: var(--bg); }
+.palette { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; }
+.palette-knap { width: 32px; height: 32px; border-radius: 50%; border: 3px solid transparent; background: var(--fk); padding: 0; }
+.palette-knap.valgt { border-color: var(--fg); }
+.bt-kontakt { color: var(--daempet); }
+
+/* Mad pr. dreng */
+.boernetavle .maaltid {
+  width: 100%; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer;
+  grid-template-columns: 76px 1fr 16px; border-radius: 0;
+}
+.m-pil { color: var(--daempet); font-weight: 700; }
+.eget-tag {
+  display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 6px; vertical-align: 2px;
+  font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+  background: var(--accent-blod); color: var(--accent);
+}
+.barn-mad { grid-column: 2 / -1; padding: 0 12px 8px 0; font-size: 13px; color: var(--daempet); }
+.forslag button.valgt { border-color: var(--accent); background: var(--accent-blod); }
+.terning-knap { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.terning-knap svg { width: 20px; height: 20px; }
+.sekundaer-knap { flex: 0 0 auto; background: transparent; color: var(--fg); border: 1.5px solid var(--linje); }
+.lektion.ret { grid-template-columns: 116px 1fr 36px; gap: 6px; padding-inline: 10px; }
+.lektion.ret input.tid-felt { padding: 0 8px; font-size: 14px; }
