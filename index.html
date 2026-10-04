@@ -69,11 +69,25 @@
       </div>
       <div class="kal-wrap"><div class="kal" id="kal"></div></div>
       <p class="hint">Tryk i et felt for at tilføje en aftale. Tryk på en aftale for at rette den.</p>
+
+      <div class="foed-sektion">
+        <div class="sek-hoved"><h2>Fødselsdage</h2><button type="button" class="lille-knap" id="ny-foed">Tilføj</button></div>
+        <ul class="foed-liste" id="foed-liste"></ul>
+        <button type="button" class="ryd" id="foed-alle" hidden>Vis alle</button>
+      </div>
     </section>
 
     <!-- MADPLAN -->
     <section id="madplan" class="fane" hidden>
       <div class="sek-hoved"><h2>Madplan</h2><span class="taeller" id="ugenr"></span></div>
+      <div class="kal-nav">
+        <button type="button" class="pil" id="mad-forrige" aria-label="Forrige uge">‹</button>
+        <div class="kal-titel">
+          <strong id="mad-titel"></strong>
+          <button type="button" class="lille-knap" id="mad-denne" hidden>Til denne uge</button>
+        </div>
+        <button type="button" class="pil" id="mad-naeste" aria-label="Næste uge">›</button>
+      </div>
       <div class="madplan-knapper">
         <button type="button" class="lille-knap" id="fyld-tomme">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Fyld tomme dage
@@ -83,21 +97,19 @@
         </button>
       </div>
       <button type="button" class="lille-knap vis-maaltider" id="vis-maaltider" aria-pressed="false">Vis morgenmad og frokost</button>
-      <div class="standard-mad" id="standard-mad" hidden>
-        <div class="mad-par"><label for="std-morgen">Standard morgenmad</label><input type="text" id="std-morgen" placeholder="Fx havregryn" autocomplete="off"></div>
-        <div class="mad-par"><label for="std-frokost">Standard frokost</label><input type="text" id="std-frokost" placeholder="Fx madpakke" autocomplete="off"></div>
-        <p class="hint">Bruges de dage, hvor der ikke står noget andet.</p>
-      </div>
       <ol class="uge"></ol>
       <datalist id="retter-forslag"></datalist>
+      <datalist id="morgen-forslag"></datalist>
+      <datalist id="frokost-forslag"></datalist>
       <button type="button" class="ryd" id="ryd-uge" data-tekst="Ryd ugen">Ryd ugen</button>
       <details class="retter-boks">
-        <summary><span>Vores retter <span class="taeller" id="antal-retter"></span></span></summary>
+        <summary><span>Vores lister <span class="taeller" id="antal-retter"></span></span></summary>
+        <div class="seg" id="liste-valg" role="radiogroup" aria-label="Vælg liste"></div>
         <form class="tilfoj" id="ny-ret-form">
-          <input type="text" id="ny-ret" placeholder="Ny ret, fx boller i karry" aria-label="Ny ret" autocomplete="off" enterkeyhint="done">
+          <input type="text" id="ny-ret" placeholder="Tilføj til aftensmad" aria-label="Tilføj til listen" autocomplete="off" enterkeyhint="done">
           <button class="knap">Tilføj</button>
         </form>
-        <div class="forslag" data-forslag="ret"></div>
+        <div class="forslag" id="maaltid-forslag"></div>
       </details>
     </section>
 

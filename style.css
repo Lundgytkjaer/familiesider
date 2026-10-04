@@ -394,3 +394,31 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .husk-liste .slet { width: 40px; height: 40px; }
 .tom-husk { color: var(--daempet); font-size: 15px !important; }
 .boernetavle .tilfoj { margin: 0; }
+
+/* Vare: gemt-besked */
+.gemt-tekst { margin: 10px 0 0; min-height: 1.3em; font-size: 14px; font-weight: 600; color: var(--daempet); }
+
+/* Madplan: terning ved morgen og frokost */
+.mad-par { grid-template-columns: 62px 1fr 40px; }
+.terning.lille { width: 40px; height: 40px; }
+.retter-boks .seg { margin-bottom: 10px; }
+
+/* Fødselsdage */
+.c-foed { --p: var(--p2); }
+.foed-sektion { margin-top: 22px; }
+.foed-liste { list-style: none; margin: 0 0 10px; padding: 0; background: var(--flade); border-radius: var(--radius); overflow: hidden; }
+.foed-liste li + li { border-top: 1px solid var(--linje); }
+.foed-liste .tom { padding: 20px 14px; }
+.foed {
+  width: 100%; display: grid; grid-template-columns: 48px 1fr auto; align-items: center; gap: 12px;
+  min-height: 60px; padding: 8px 14px; border: 0; background: none; text-align: left;
+}
+.foed.idag { background: color-mix(in srgb, var(--p2) 16%, var(--flade)); }
+.foed-dato { display: flex; flex-direction: column; align-items: center; line-height: 1.05; }
+.foed-dato b { font-family: var(--font-titel); font-size: 22px; font-variant-numeric: tabular-nums; }
+.foed-dato small { font-size: 12px; font-weight: 600; color: var(--daempet); }
+.foed-midt { display: flex; flex-direction: column; min-width: 0; }
+.foed-navn { font-weight: 700; overflow-wrap: anywhere; }
+.foed-under { font-size: 14px; color: var(--daempet); }
+.foed-naar { font-size: 13px; font-weight: 700; color: var(--daempet); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.foed.idag .foed-naar { color: var(--p2); }
