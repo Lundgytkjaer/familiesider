@@ -341,3 +341,56 @@ input:focus-visible { outline: none; border-color: var(--accent); }
   max-width: 528px; margin: 0 auto; padding: 12px 14px; border-radius: 12px;
   background: var(--fare); color: #fff; font-weight: 600; text-align: center;
 }
+
+/* Madplan: morgenmad og frokost */
+.vis-maaltider { width: 100%; margin-bottom: 10px; }
+.standard-mad { background: var(--flade); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 10px; display: grid; gap: 8px; }
+.standard-mad .hint { margin: 0; }
+.mad-par { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 8px; }
+.standard-mad .mad-par { grid-template-columns: 140px 1fr; }
+.mad-par label { font-size: 13px; font-weight: 700; color: var(--daempet); }
+.mad-par input[type="text"] { min-height: 40px; padding: 0 10px; border-radius: 10px; font-size: 15px; background: var(--bg); }
+.dag.med-maaltider { padding-bottom: 8px; }
+.ekstra-mad { grid-column: 2 / -1; display: grid; gap: 6px; padding-right: 12px; }
+.dag .ekstra-mad input[type="text"] { min-height: 40px; padding: 0 10px; border: 1.5px solid var(--linje); border-radius: 10px; background: var(--bg); font-size: 15px; }
+
+/* Børnetavle */
+#idag-valg { margin-bottom: 12px; }
+.uge-strip { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 14px; }
+.ugedag {
+  min-height: 58px; padding: 0; border: 0; border-radius: 14px; background: var(--flade);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  color: var(--daempet); font-weight: 700;
+}
+.ugedag .ud-navn { font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
+.ugedag .ud-nr { font-size: 19px; color: var(--fg); font-variant-numeric: tabular-nums; }
+.ugedag.forbi { opacity: .5; }
+.ugedag.idag { box-shadow: inset 0 0 0 2px var(--accent); opacity: 1; }
+.ugedag.valgt { background: var(--accent); color: var(--paa-accent); opacity: 1; }
+.ugedag.valgt .ud-nr { color: var(--paa-accent); }
+.bt-hoved { margin: 0 0 14px; }
+.bt-dag {
+  margin: 0; font-family: var(--font-titel); font-weight: 800; font-size: clamp(38px, 11vw, 52px);
+  line-height: 1; letter-spacing: -.02em; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.bt-idag {
+  font-family: var(--font); font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+  padding: 4px 10px; border-radius: 999px; background: var(--accent-blod); color: var(--accent);
+}
+.bt-dato { margin: 6px 0 0; color: var(--daempet); font-weight: 600; }
+.boernetavle .kort { cursor: default; }
+.bt-tider { display: flex; gap: 14px; margin: 0 0 8px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.bt-lektioner { margin: 0; background: var(--bg); }
+.maaltid { display: grid; grid-template-columns: 76px 1fr; gap: 10px; align-items: baseline; padding-block: 8px; }
+.maaltid + .maaltid { border-top: 1px solid var(--linje); }
+.m-navn { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--daempet); }
+.m-ret { font-weight: 700; font-size: 18px; overflow-wrap: anywhere; }
+.m-ret.tom-ret { font-weight: 500; font-size: 16px; color: var(--daempet); }
+.husk-liste { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 2px; }
+.husk-liste li { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 17px; }
+.husk-liste .prik { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--p, var(--accent)); }
+.husk-liste .husk-info { --p: var(--p2); }
+.husk-tekst { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.husk-liste .slet { width: 40px; height: 40px; }
+.tom-husk { color: var(--daempet); font-size: 15px !important; }
+.boernetavle .tilfoj { margin: 0; }

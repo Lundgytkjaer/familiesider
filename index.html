@@ -24,7 +24,9 @@
 
     <!-- I DAG -->
     <section id="idag" class="fane" hidden>
-      <div class="overblik">
+      <div class="seg" id="idag-valg" role="radiogroup" aria-label="Vis tavle for" hidden></div>
+      <div class="boernetavle" id="boernetavle" hidden></div>
+      <div class="overblik" id="familie-overblik">
         <button type="button" class="kort" data-gaa="kalender">
           <div class="kort-top"><span class="kort-label">Kalender i dag</span><span class="kort-pil">Kalender ›</span></div>
           <ul class="mini" id="ov-kal"></ul>
@@ -79,6 +81,12 @@
         <button type="button" class="lille-knap" id="bland-uge" data-tekst="Bland hele ugen" data-handling="blande">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>Bland hele ugen
         </button>
+      </div>
+      <button type="button" class="lille-knap vis-maaltider" id="vis-maaltider" aria-pressed="false">Vis morgenmad og frokost</button>
+      <div class="standard-mad" id="standard-mad" hidden>
+        <div class="mad-par"><label for="std-morgen">Standard morgenmad</label><input type="text" id="std-morgen" placeholder="Fx havregryn" autocomplete="off"></div>
+        <div class="mad-par"><label for="std-frokost">Standard frokost</label><input type="text" id="std-frokost" placeholder="Fx madpakke" autocomplete="off"></div>
+        <p class="hint">Bruges de dage, hvor der ikke står noget andet.</p>
       </div>
       <ol class="uge"></ol>
       <datalist id="retter-forslag"></datalist>

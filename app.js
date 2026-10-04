@@ -469,17 +469,78 @@ async function tegnMadplan() {
     terning.addEventListener('click', () => rulDage([i]));
 
     li.append(label, felt, terning);
+
+    // Morgenmad og frokost (vises når "Morgen og frokost" er slået til)
+    if (visMaaltider) {
+      li.classList.add('med-maaltider');
+      const ekstra = el('div', 'ekstra-mad');
+      const plan = retter.find(r => r.dag === i) || {};
+      for (const [noegle, navn, std] of [['morgen', 'Morgen', stdMorgen], ['frokost', 'Frokost', stdFrokost]]) {
+        const lbl = el('label', null, navn);
+        const inp = el('input');
+        inp.type = 'text'; inp.id = noegle + '-' + i; inp.autocomplete = 'off'; inp.enterKeyHint = 'done';
+        inp.placeholder = std || '–';
+        inp.value = plan[noegle] || '';
+        lbl.htmlFor = inp.id;
+        inp.addEventListener('change', () => gemMad(i, noegle, inp.value.trim()));
+        inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
+        const par = el('div', 'mad-par');
+        par.append(lbl, inp);
+        ekstra.append(par);
+      }
+      li.append(ekstra);
+    }
     ol.append(li);
   });
   nyeDage = new Set();
 }
 
-async function gemRet(dag, ret) {
+// Gemmer ét måltid (ret = aftensmad, morgen, frokost) for en ugedag
+async function gemMad(dag, felt, vaerdi) {
   const fundet = (await Data.list('madplan')).find(r => r.dag === dag);
-  if (fundet && !ret) await Data.remove('madplan', fundet.id);
-  else if (fundet) await Data.update('madplan', fundet.id, { ret });
-  else if (ret) await Data.add('madplan', { dag, ret });
+  if (fundet) {
+    const ny = { ...fundet, [felt]: vaerdi };
+    if (!ny.ret && !ny.morgen && !ny.frokost) await Data.remove('madplan', fundet.id);
+    else await Data.update('madplan', fundet.id, { [felt]: vaerdi });
+  } else if (vaerdi) {
+    await Data.add('madplan', { dag, [felt]: vaerdi });
+  }
   tegnOverblik();
+}
+const gemRet = (dag, ret) => gemMad(dag, 'ret', ret);
+
+// Standard morgenmad/frokost – bruges når en dag ikke har sit eget
+let visMaaltider = lokal.get('vis-maaltider') === '1';
+let stdMorgen = '', stdFrokost = '';
+async function hentIndstilling(noegle) {
+  return (await Data.list('indstillinger')).find(x => x.noegle === noegle)?.vaerdi || '';
+}
+async function gemIndstilling(noegle, vaerdi) {
+  const f = (await Data.list('indstillinger')).find(x => x.noegle === noegle);
+  if (f) await Data.update('indstillinger', f.id, { vaerdi });
+  else await Data.add('indstillinger', { noegle, vaerdi });
+}
+async function tegnMaaltidsValg() {
+  stdMorgen = await hentIndstilling('std-morgen');
+  stdFrokost = await hentIndstilling('std-frokost');
+  const knapEl = document.getElementById('vis-maaltider');
+  knapEl.setAttribute('aria-pressed', visMaaltider);
+  knapEl.textContent = visMaaltider ? 'Skjul morgenmad og frokost' : 'Vis morgenmad og frokost';
+  document.getElementById('standard-mad').hidden = !visMaaltider;
+  const m = document.getElementById('std-morgen'), f = document.getElementById('std-frokost');
+  if (document.activeElement !== m) m.value = stdMorgen;
+  if (document.activeElement !== f) f.value = stdFrokost;
+}
+document.getElementById('vis-maaltider').addEventListener('click', async () => {
+  visMaaltider = !visMaaltider;
+  lokal.set('vis-maaltider', visMaaltider ? '1' : '');
+  await tegnMaaltidsValg();
+  tegnMadplan();
+});
+for (const [id, noegle] of [['std-morgen', 'std-morgen'], ['std-frokost', 'std-frokost']]) {
+  const inp = document.getElementById(id);
+  inp.addEventListener('change', async () => { await gemIndstilling(noegle, inp.value.trim()); await tegnMaaltidsValg(); tegnMadplan(); tegnOverblik(); });
+  inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
 }
 
 // Terning: vælg tilfældige retter fra "Vores retter" – undgå gentagelser i samme uge
@@ -488,7 +549,7 @@ async function rulDage(dage) {
   const alle = (await Data.list('favoritter')).filter(f => f.type === 'ret').map(f => f.tekst);
   if (!alle.length) { document.querySelector('.retter-boks').open = true; return; }
   const plan = await Data.list('madplan');
-  const brugt = new Set(plan.map(r => r.ret.toLowerCase()));
+  const brugt = new Set(plan.map(r => (r.ret || '').toLowerCase()).filter(Boolean));
   for (const dag of dage) {
     let mulige = alle.filter(r => !brugt.has(r.toLowerCase()));
     if (!mulige.length) mulige = alle;
@@ -694,8 +755,151 @@ document.getElementById('kal-forrige').addEventListener('click', () => { kalUge-
 document.getElementById('kal-naeste').addEventListener('click', () => { kalUge++; tegnKalender(); });
 document.getElementById('kal-idag').addEventListener('click', () => { kalUge = 0; tegnKalender(); });
 
+// ---------- Børnetavle: Olivers og Villads' egen I dag-side ----------
+// Data: 'info' {barn, dato: 'ÅÅÅÅ-MM-DD', tekst} – ekstra ting at huske, som ikke står i kalenderen
+const MDR_LANG = ['januar', 'februar', 'marts', 'april', 'maj', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'december'];
+let tavleVisning = 'familie';   // 'familie' eller et barns navn
+let tavleDag = idagNr();        // valgt ugedag på børnetavlen
+
+function tegnTavleValg() {
+  const seg = document.getElementById('idag-valg');
+  const profil = Data.bruger();
+  const erBarn = profil && profil.rolle === 'barn' && BOERN.includes(profil.navn);
+  seg.hidden = erBarn;
+  if (erBarn) return;
+  seg.replaceChildren(...['familie', ...BOERN].map(v => {
+    const k = knap(v === 'familie' ? 'Familien' : v, null, () => {
+      tavleVisning = v; tavleDag = idagNr(); lokal.set('tavle', v); tegnOverblik();
+    });
+    k.setAttribute('role', 'radio');
+    k.setAttribute('aria-checked', v === tavleVisning);
+    return k;
+  }));
+}
+
+async function tegnBoernetavle(barn) {
+  const boks = document.getElementById('boernetavle');
+  const man = mandagDenneUge();
+  const idag = idagNr();
+  const dato = new Date(man); dato.setDate(man.getDate() + tavleDag);
+  const iso = isoDato(dato);
+
+  // Ugedage med markering
+  const strip = el('div', 'uge-strip');
+  DAGE.forEach((d, i) => {
+    const dd = new Date(man); dd.setDate(man.getDate() + i);
+    const k = knap('', 'ugedag' + (i === idag ? ' idag' : '') + (i === tavleDag ? ' valgt' : '') + (i < idag ? ' forbi' : ''),
+      () => { tavleDag = i; tegnOverblik(); });
+    k.setAttribute('aria-pressed', i === tavleDag);
+    k.setAttribute('aria-label', DAGE_LANG[i] + ' ' + dd.getDate() + '. ' + MDR_LANG[dd.getMonth()]);
+    k.append(el('span', 'ud-navn', d), el('span', 'ud-nr', dd.getDate()));
+    strip.append(k);
+  });
+
+  // Dato
+  const hoved = el('div', 'bt-hoved');
+  const dagNavn = el('p', 'bt-dag', DAGE_LANG[tavleDag]);
+  if (tavleDag === idag) dagNavn.append(el('span', 'bt-idag', 'I dag'));
+  hoved.append(dagNavn, el('p', 'bt-dato', dato.getDate() + '. ' + MDR_LANG[dato.getMonth()] + ' · uge ' + ugenummer(dato)));
+
+  const kort = (titel, ...indhold) => {
+    const k = el('div', 'kort');
+    const top = el('div', 'kort-top');
+    top.append(el('span', 'kort-label', titel));
+    k.append(top, ...indhold);
+    return k;
+  };
+
+  // Skema
+  let skemaKort;
+  if (tavleDag >= 5) {
+    skemaKort = kort('Skole', el('p', 'stor tom-ret', 'Weekend – ingen skole'));
+  } else {
+    const timer = (await dagensTimer(barn, tavleDag)).filter(t => t.fag);
+    if (!timer.length) {
+      skemaKort = kort('Skole', el('p', 'under', 'Intet skema lagt ind for ' + DAGE_LANG[tavleDag].toLowerCase() + '.'));
+    } else {
+      const start = (timer[0].tid.split(/[-–]/)[0] || '').trim();
+      const slut = slutTid(timer[timer.length - 1].tid);
+      const tider = el('p', 'bt-tider');
+      if (start) tider.append(el('span', null, 'Møder ' + start));
+      if (slut) tider.append(el('span', null, 'Fri ' + slut));
+      const ol = el('ol', 'lektioner bt-lektioner');
+      const nu = new Date(); const nuMin = nu.getHours() * 60 + nu.getMinutes();
+      for (const t of timer) {
+        const [fra, til] = tidSomMin(t.tid);
+        const erNu = tavleDag === idag && fra != null && til != null && nuMin >= fra && nuMin < til;
+        const li = el('li', 'lektion' + (erNu ? ' nu' : ''));
+        li.append(el('span', 'nr', t.nr), el('span', 'tid', t.tid.replace('-', '–')), el('span', 'fag', t.fag));
+        ol.append(li);
+      }
+      skemaKort = kort('Skole', tider, ol);
+    }
+  }
+
+  // Mad
+  const plan = (await Data.list('madplan')).find(r => r.dag === tavleDag) || {};
+  const morgen = plan.morgen || await hentIndstilling('std-morgen');
+  const frokost = plan.frokost || await hentIndstilling('std-frokost');
+  const madKort = kort('Mad');
+  for (const [navn, ret] of [['Morgen', morgen], ['Frokost', frokost], ['Aften', plan.ret]]) {
+    const r = el('div', 'maaltid');
+    r.append(el('span', 'm-navn', navn), el('span', 'm-ret' + (ret ? '' : ' tom-ret'), ret || 'Ikke bestemt'));
+    madKort.append(r);
+  }
+
+  // Husk: kalender (eget + fælles) og ekstra info
+  const aftaler = (await Data.list('kalender'))
+    .filter(a => a.dato === iso && (a.hvem === barn || a.hvem === 'Fælles')).sort(sorterAftaler);
+  const info = (await Data.list('info')).filter(x => x.barn === barn && x.dato === iso);
+  const liste = el('ul', 'husk-liste');
+  for (const a of aftaler) {
+    const li = el('li', PK[a.hvem]);
+    li.append(el('span', 'prik'), el('span', 'husk-tekst', (a.tid ? visTid(a.tid) + ' ' : '') + a.titel + (a.hvem === 'Fælles' ? ' · hele familien' : '')));
+    liste.append(li);
+  }
+  for (const x of info) {
+    const li = el('li', 'husk-info');
+    const slet = knap('', 'slet', async () => { await Data.remove('info', x.id); tegnOverblik(); });
+    slet.innerHTML = IKON_SLET;
+    slet.setAttribute('aria-label', 'Slet ' + x.tekst);
+    li.append(el('span', 'prik'), el('span', 'husk-tekst', x.tekst), slet);
+    liste.append(li);
+  }
+  if (!aftaler.length && !info.length) liste.append(el('li', 'tom-husk', 'Ikke noget særligt at huske.'));
+  const form = el('form', 'tilfoj');
+  const inp = input('text', 'ny-info', '', 'Fx idrætstøj, mormor henter');
+  inp.enterKeyHint = 'done';
+  inp.setAttribute('aria-label', 'Tilføj noget at huske');
+  const tilfoej = el('button', 'knap', 'Tilføj');
+  form.append(inp, tilfoej);
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const tekst = inp.value.trim();
+    if (!tekst) return;
+    inp.value = '';
+    await Data.add('info', { barn, dato: iso, tekst });
+    await tegnOverblik();
+    setTimeout(() => document.getElementById('ny-info')?.focus(), 50);
+  });
+  const huskKort = kort('Husk', liste, form);
+
+  const gitter = el('div', 'overblik');
+  gitter.append(huskKort, skemaKort, madKort);
+  boks.replaceChildren(strip, hoved, gitter);
+}
+
 // ---------- I dag – overblik ----------
 async function tegnOverblik() {
+  tegnTavleValg();
+  const erBoernetavle = tavleVisning !== 'familie';
+  document.getElementById('familie-overblik').hidden = erBoernetavle;
+  document.getElementById('boernetavle').hidden = !erBoernetavle;
+  if (erBoernetavle) {
+    // Tegn ikke igen mens der skrives i Husk-feltet
+    if (document.activeElement?.id === 'ny-info' && document.activeElement.value) return;
+    return tegnBoernetavle(tavleVisning);
+  }
   const idag = idagNr();
 
   // Kalender i dag og i morgen
@@ -851,7 +1055,7 @@ document.getElementById('log-ud').addEventListener('click', () => Data.logud());
 
 // ---------- Start ----------
 function tegnAlt() {
-  tegnListe('indkob'); tegnListe('todo'); tegnMadplan(); tegnSkema(); tegnKalender(); tegnOverblik();
+  tegnListe('indkob'); tegnListe('todo'); tegnMaaltidsValg().then(tegnMadplan); tegnSkema(); tegnKalender(); tegnOverblik();
   tegnForslag('indkob'); tegnForslag('todo'); tegnForslag('ret');
 }
 
@@ -861,6 +1065,9 @@ async function startTavle() {
   logUd.textContent = profil.navn + ' · Log ud';
   logUd.hidden = false;
   await laegStartlisterInd();
+  // Drengene ser deres egen tavle; voksne kan vælge
+  if (profil.rolle === 'barn' && BOERN.includes(profil.navn)) tavleVisning = profil.navn;
+  else tavleVisning = ['familie', ...BOERN].includes(lokal.get('tavle')) ? lokal.get('tavle') : 'familie';
   if (!BOERN.includes(skemaBarn)) skemaBarn = BOERN[0];
   tegnNyPrio();
   visFane(lokal.get('fane'));
