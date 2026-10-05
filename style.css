@@ -676,3 +676,7 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 
 .stat-raekke.en { grid-template-columns: 1fr; }
 #ov-mine-pligter .liste.i-kort { margin: 0; }
+
+.tags .over-tid { background: color-mix(in srgb, var(--fare) 16%, var(--flade)); color: var(--fare); }
+.interval-boks { display: grid; gap: 8px; margin-top: 8px; }
+.interval-boks .hint { margin: 0; }

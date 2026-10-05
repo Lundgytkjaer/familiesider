@@ -258,7 +258,9 @@ function redigerRutine(r) {
 // =====================================================================
 // PLIGTER OG BELØNNING
 // Data:
-//   'opgaver'       {barn, navn, gentag: 'dag'|'uge'|'engang', dage: [0-6], kr, stjerner}   (kun voksne kan rette)
+//   'opgaver'       {barn, navn, gentag: 'dag'|'uge'|'interval'|'engang', dage: [0-6], interval: dage, start: dato, regnFra: 'fast'|'klaret', kr, stjerner}
+//                   'interval' = med fast mellemrum (fx sengetøj hver 2. torsdag); 'fast' holder rytmen fra start, 'klaret' regner fra sidst klaret
+//                   (kun voksne kan rette)
 //                   barn kan også være en voksen (egne pligter – vises kun for den voksne selv)
 //   'flueben'       {opgave, barn, periode, dato, navn, kr, stjerner}  – periode = dato / ugens mandag / 'engang'
 //   'beloenninger'  {barn: navn|'Begge', navn, stjerner}               (kun voksne kan rette)
@@ -312,13 +314,47 @@ function saldo(d) {
   };
 }
 
-// Dagens opgaver: hver-dag-opgaver for i dag, ugens opgaver og engangsopgaver der ikke er klaret
+// Pligter med fast mellemrum: næste gang = sidst klaret + mellemrum (eller startdatoen første gang)
+const intervalDage = o => Math.max(1, Math.round(tal(o.interval)) || 14);
+function sidstKlaret(o, d) {
+  const datoer = d.flueben.filter(x => x.opgave === o.id).map(x => x.dato).sort();
+  return datoer[datoer.length - 1] || null;
+}
+// regnFra 'fast' (standard): holder rytmen fra startdatoen (fx hver 2. torsdag), også når den klares for sent.
+// regnFra 'klaret': næste gang regnes fra den dag, den blev klaret.
+const fastRytme = o => o.regnFra !== 'klaret';
+function naesteForfald(o, d) {
+  const n = intervalDage(o);
+  const start = o.start || isoDato(new Date());
+  const sidst = sidstKlaret(o, d);
+  if (!sidst) return start;
+  if (!fastRytme(o)) return plusDage(sidst, n);
+  if (sidst < start) return start;
+  return plusDage(start, (Math.floor(dageMellem(start, sidst) / n) + 1) * n);
+}
+const ugedagNavn = iso => DAGE_LANG[(new Date(iso + 'T00:00').getDay() + 6) % 7].toLowerCase();
+const intervalTekst = o => {
+  const n = intervalDage(o);
+  if (fastRytme(o) && n % 7 === 0 && o.start) return n === 7 ? 'Hver ' + ugedagNavn(o.start) : 'Hver ' + n / 7 + '. ' + ugedagNavn(o.start);
+  return n % 7 === 0 ? (n === 7 ? 'Hver uge' : 'Hver ' + n / 7 + '. uge') : n === 1 ? 'Hver dag' : 'Hver ' + n + '. dag';
+};
+
+// Dagens opgaver: hver-dag-opgaver for i dag, ugens opgaver, pligter med mellemrum der er forfaldne,
+// og engangsopgaver der ikke er klaret
 function dagensOpgaver(d) {
   const nu = new Date();
   const iso = isoDato(nu), dag = idagNr(), man = isoDato(mandagDenneUge());
   const res = [];
   for (const o of d.opgaver) {
     let periode;
+    if (o.gentag === 'interval') {
+      const idagF = d.flueben.find(x => x.opgave === o.id && x.periode === iso);
+      if (idagF) { res.push({ o, periode: iso, f: idagF }); continue; }
+      const forfald = naesteForfald(o, d);
+      if (forfald > iso) continue;
+      res.push({ o, periode: iso, f: null, overTid: dageMellem(forfald, iso) });
+      continue;
+    }
     if (o.gentag === 'uge') periode = man;
     else if (o.gentag === 'engang') periode = 'engang';
     else {
@@ -329,7 +365,7 @@ function dagensOpgaver(d) {
     if (o.gentag === 'engang' && f && f.dato !== iso) continue;   // klaret en tidligere dag
     res.push({ o, periode, f });
   }
-  const orden = { dag: 0, uge: 1, engang: 2 };
+  const orden = { dag: 0, interval: 1, uge: 2, engang: 3 };
   return res.sort((a, b) => Number(!!a.f) - Number(!!b.f) || (orden[a.o.gentag] ?? 0) - (orden[b.o.gentag] ?? 0));
 }
 
@@ -357,6 +393,8 @@ function opgaveLi(barn, r, regel) {
   if (regel.stjerner && tal(r.o.stjerner)) tags.append(el('span', 'stjerne-tag', '★ ' + Math.round(tal(r.o.stjerner))));
   if (r.o.gentag === 'uge') tags.append(el('span', null, 'Ugens opgave'));
   if (r.o.gentag === 'engang') tags.append(el('span', null, 'Én gang'));
+  if (r.o.gentag === 'interval') tags.append(el('span', null, intervalTekst(r.o)));
+  if (r.overTid > 0) tags.append(el('span', 'over-tid', r.overTid === 1 ? '1 dag over tid' : r.overTid + ' dage over tid'));
   if (tags.children.length) tb.append(tags);
   b.append(tjek, tb);
   b.addEventListener('click', () => skiftFlueben(barn, r, regel));
@@ -440,6 +478,23 @@ async function tegnPligter() {
   dele.push(ul);
   if (erMig && !BOERN.includes(barn)) dele.push(el('p', 'hint', 'Dine egne pligter vises kun for dig – også på din I dag-side.'));
 
+  // Kommende pligter med fast mellemrum
+  const idagIso = isoDato(new Date());
+  const kommende = d.opgaver.filter(o => o.gentag === 'interval' && !idag.some(r => r.o.id === o.id))
+    .map(o => ({ o, naeste: naesteForfald(o, d) })).sort((a, b) => a.naeste.localeCompare(b.naeste));
+  if (kommende.length) {
+    dele.push(el('h3', 'lille-titel', 'Kommende'));
+    const kl = el('ul', 'historik');
+    for (const k of kommende) {
+      const n = dageMellem(idagIso, k.naeste);
+      const li = el('li');
+      li.append(el('span', 'h-dato', kortDato(k.naeste)), el('span', 'h-tekst', k.o.navn),
+        el('span', 'h-vaerdi', n === 1 ? 'I morgen' : 'Om ' + n + ' dage'));
+      kl.append(li);
+    }
+    dele.push(kl);
+  }
+
   // Belønninger (kun med stjerner)
   if (d.regel.stjerner) {
     dele.push(el('h3', 'lille-titel', 'Belønninger'));
@@ -498,7 +553,7 @@ async function tegnPligter() {
       }
       dele.push(regelSeg, el('p', 'hint', 'Slå begge fra for pligter uden belønning.'));
 
-      const GENTAG = { dag: 'Hver dag', uge: 'Hver uge', engang: 'Én gang' };
+      const GENTAG = { dag: 'Hver dag', uge: 'Hver uge', engang: 'Én gang', interval: '' };
       dele.push(el('h3', 'lille-titel', erMig ? 'Mine pligter' : 'Pligter for ' + barn));
       const ol = el('ul', 'ret-liste');
       for (const o of d.opgaver) {
@@ -506,6 +561,7 @@ async function tegnPligter() {
         const b = knap('', 'ret-raekke', () => redigerOpgave(o, d.regel));
         const under = [GENTAG[o.gentag] || 'Hver dag'];
         if (o.gentag === 'dag' && o.dage && o.dage.length && o.dage.length < 7) under[0] = o.dage.map(i => DAGE[i]).join(', ');
+        if (o.gentag === 'interval') under[0] = intervalTekst(o) + ' · næste ' + kortDato(naesteForfald(o, d));
         if (d.regel.kr && tal(o.kr)) under.push(kr(tal(o.kr)));
         if (d.regel.stjerner && tal(o.stjerner)) under.push('★ ' + tal(o.stjerner));
         b.append(el('span', 'ret-navn', o.navn), el('span', 'ret-under', under.join(' · ')), el('span', 'm-pil', '›'));
@@ -553,9 +609,42 @@ function redigerOpgave(o, regel) {
       return k;
     }));
   };
-  const gentagValg = chipValg(['dag', 'uge', 'engang'], gentag, v => { gentag = v; tegnDage(); },
-    v => ({ dag: 'Hver dag', uge: 'Én gang om ugen', engang: 'Kun én gang' })[v]);
+  // Med fast mellemrum: antal dage + hvornår første gang
+  let interval = intervalDage(o);
+  const intervalInp = input('text', 'opg-interval', String(interval), '14');
+  intervalInp.inputMode = 'numeric';
+  intervalInp.addEventListener('input', () => { interval = Math.max(1, Math.round(tal(intervalInp.value)) || 1); tegnIntervalChips(); });
+  const intervalChips = el('div', 'seg wrap');
+  const tegnIntervalChips = () => intervalChips.replaceChildren(...[[7, '1 uge'], [14, '2 uger'], [21, '3 uger'], [28, '4 uger']].map(([n, t]) => {
+    const k = knap(t, null, () => { interval = n; intervalInp.value = String(n); tegnIntervalChips(); });
+    k.setAttribute('role', 'radio');
+    k.setAttribute('aria-checked', n === interval);
+    return k;
+  }));
+  tegnIntervalChips();
+  const startInp = input('date', 'opg-start', o.start || isoDato(new Date()));
+  const intervalRaekke = el('div', 'to-felter');
+  intervalRaekke.append(felt('Antal dage imellem', intervalInp), felt(ny ? 'Første gang' : 'Startede', startInp));
+  let regnFra = o.regnFra === 'klaret' ? 'klaret' : 'fast';
+  const regnHint = el('p', 'hint');
+  const tegnRegnHint = () => {
+    const dag = startInp.value ? ugedagNavn(startInp.value) : 'samme dag';
+    regnHint.textContent = regnFra === 'fast'
+      ? 'Holder rytmen: kommer igen på samme dag (' + dag + ') hver gang, også hvis den klares for sent. Glemmes den, bliver den stående, til den er klaret.'
+      : 'Næste gang regnes fra den dag, den sidst blev klaret. Glemmes den, bliver den stående, til den er klaret.';
+  };
+  startInp.addEventListener('change', tegnRegnHint);
+  const regnValg = chipValg(['fast', 'klaret'], regnFra, v => { regnFra = v; tegnRegnHint(); },
+    v => ({ fast: 'Fast dag', klaret: 'Fra sidst klaret' })[v]);
+  tegnRegnHint();
+  const intervalBoks = el('div', 'interval-boks');
+  intervalBoks.append(intervalChips, intervalRaekke, felt('Næste gang', regnValg), regnHint);
+  const visInterval = () => { intervalBoks.hidden = gentag !== 'interval'; };
+
+  const gentagValg = chipValg(['dag', 'uge', 'interval', 'engang'], gentag, v => { gentag = v; tegnDage(); visInterval(); },
+    v => ({ dag: 'Hver dag', uge: 'Én gang om ugen', interval: 'Med fast mellemrum', engang: 'Kun én gang' })[v]);
   tegnDage();
+  visInterval();
 
   // Belønning: kun de typer personen er sat op til
   const typer = ['ingen', ...(regel.kr ? ['penge'] : []), ...(regel.stjerner ? ['stjerner'] : []), ...(regel.kr && regel.stjerner ? ['begge'] : [])];
@@ -584,6 +673,9 @@ function redigerOpgave(o, regel) {
     const felter = {
       navn: n, gentag,
       dage: gentag === 'dag' ? [...dage].sort((a, b) => a - b) : [],
+      interval: gentag === 'interval' ? interval : null,
+      start: gentag === 'interval' ? (startInp.value || isoDato(new Date())) : null,
+      regnFra: gentag === 'interval' ? regnFra : null,
       kr: type === 'penge' || type === 'begge' ? tal(krInp.value) : 0,
       stjerner: type === 'stjerner' || type === 'begge' ? Math.round(tal(stjInp.value)) : 0
     };
@@ -595,7 +687,7 @@ function redigerOpgave(o, regel) {
   if (!ny) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('opgaver', o.id); lukArk(); tegnAlt(); }));
   knapper.append(gem);
   aabnArk(ny ? 'Ny pligt' : 'Ret pligt', felt('Pligt', navn), tilMuligheder.length > 1 ? felt('Til', tilValg) : '',
-    felt('Hvor tit', gentagValg), dageBoks, typeValg, beloebRaekke, knapper);
+    felt('Hvor tit', gentagValg), dageBoks, intervalBoks, typeValg, beloebRaekke, knapper);
   if (ny) setTimeout(() => navn.focus(), 50);
 }
 
