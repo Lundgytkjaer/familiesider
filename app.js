@@ -1883,11 +1883,30 @@ document.getElementById('login-form').addEventListener('submit', async e => {
   }
 });
 
+// ---------- Udseende: automatisk (følg telefonen), lys eller mørk – huskes på enheden ----------
+const TEMA_NAVN = { auto: 'Automatisk', lys: 'Lys', moerk: 'Mørk' };
+function saetTema(tema) {
+  const rod = document.documentElement;
+  if (tema === 'lys') rod.dataset.theme = 'light';
+  else if (tema === 'moerk') rod.dataset.theme = 'dark';
+  else delete rod.dataset.theme;
+  // Farven på telefonens statuslinje
+  const farve = tema === 'lys' ? '#f2f5f3' : tema === 'moerk' ? '#0e1311' : null;
+  document.querySelectorAll('meta[name="theme-color"]').forEach(m => {
+    if (!m.dataset.standard) m.dataset.standard = m.content;
+    m.content = farve || m.dataset.standard;
+  });
+}
+saetTema(lokal.get('tema') || 'auto');
+
 document.getElementById('log-ud').addEventListener('click', () => {
   const p = Data.bruger();
+  const temaValg = chipValg(Object.keys(TEMA_NAVN), lokal.get('tema') || 'auto', v => { lokal.set('tema', v); saetTema(v); }, v => TEMA_NAVN[v]);
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Log ud', 'knap fare', () => Data.logud()), knap('Luk', 'knap', () => lukArk()));
-  aabnArk('Logget ind som ' + p.navn, el('p', 'hint', 'Du forbliver logget ind på denne enhed, indtil du logger ud.'), knapper);
+  aabnArk('Logget ind som ' + p.navn, felt('Udseende', temaValg),
+    el('p', 'hint', 'Automatisk følger telefonens indstilling. Valget gælder kun denne enhed.'),
+    el('p', 'hint', 'Du forbliver logget ind på denne enhed, indtil du logger ud.'), knapper);
 });
 
 // ---------- Start ----------
