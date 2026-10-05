@@ -108,12 +108,12 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>Bland hele ugen
         </button>
       </div>
-      <button type="button" class="lille-knap vis-maaltider" id="vis-maaltider" aria-pressed="false">Vis morgenmad og frokost</button>
       <ol class="uge"></ol>
       <datalist id="retter-forslag"></datalist>
       <datalist id="morgen-forslag"></datalist>
       <datalist id="frokost-forslag"></datalist>
       <button type="button" class="ryd" id="ryd-uge" data-tekst="Ryd ugen">Ryd ugen</button>
+      <div class="fast-plan" id="fast-plan"></div>
       <details class="retter-boks">
         <summary><span>Vores lister <span class="taeller" id="antal-retter"></span></span></summary>
         <div class="seg" id="liste-valg" role="radiogroup" aria-label="Vælg liste"></div>
@@ -181,6 +181,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>
           <span class="mere-navn">Skoleskema</span><span class="under">Drengenes skemaer med farver</span>
         </button>
+        <button type="button" class="kort mere-kort" data-gaa="rutiner">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2.5h6"/></svg>
+          <span class="mere-navn">Rutiner</span><span class="under">Tandbørstning, sengetid og andet med billeder</span>
+        </button>
         <button type="button" class="kort mere-kort" data-gaa="pligter">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
           <span class="mere-navn">Pligter og stjerner</span><span class="under">Lommepenge, stjerner og belønninger</span>
@@ -194,6 +198,13 @@
           <span class="mere-navn">Ugens konkurrence</span><span class="under">Hvem cykler eller går længst?</span>
         </button>
       </div>
+    </section>
+
+    <!-- RUTINER -->
+    <section id="rutiner" class="fane" hidden>
+      <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
+      <div class="sek-hoved"><h2>Rutiner</h2></div>
+      <div id="rutiner-indhold"></div>
     </section>
 
     <!-- PLIGTER -->

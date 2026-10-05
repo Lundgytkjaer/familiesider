@@ -38,9 +38,221 @@ function valgSeg(muligheder, valgt, onValg, tekstFn = v => v, ekstraKlasse = '')
 }
 
 function tegnMere() {
+  tegnRutiner();
   tegnPligter();
   tegnPakkelister();
   tegnKonkurrence();
+}
+
+// =====================================================================
+// RUTINER – faste forløb med trin og billeder (fx tandbørstning, sengetid)
+// Data: 'rutiner' {barn, navn, tid 'TT:MM', dage [0-6], trin: [{tekst, piktogram?, billede?, soeg?}]}
+//       (kun voksne kan rette). Flueben på trin huskes på enheden pr. dag.
+// =====================================================================
+let rutineBarn = BOERN.includes(lokal.get('rutine-barn')) ? lokal.get('rutine-barn') : BOERN[0];
+
+// Startrutiner har kun et engelsk søgeord – piktogrammet slås op første gang det vises
+const piktoOpslag = {};
+const ventende = new Set();
+function trinUrl(t, igen) {
+  if (t.piktogram) return PIKTO_URL(t.piktogram);
+  if (t.billede) return t.billede;
+  if (!t.soeg) return '';
+  if (t.soeg in piktoOpslag) return piktoOpslag[t.soeg] ? PIKTO_URL(piktoOpslag[t.soeg]) : '';
+  if (!ventende.has(t.soeg)) {
+    ventende.add(t.soeg);
+    soegPiktogrammer(t.soeg).then(ids => { piktoOpslag[t.soeg] = ids[0] || null; if (ids[0] && igen) igen(); });
+  }
+  return '';
+}
+const harPiktogram = r => (r.trin || []).some(t => t.piktogram || (t.soeg && piktoOpslag[t.soeg]));
+
+const rutineAktiv = (r, dag) => !r.dage || !r.dage.length || r.dage.includes(dag);
+const tjekNoegle = (r, iso) => 'rutine-' + r.id + '-' + iso;
+function hentTjek(r, iso) { try { return new Set(JSON.parse(lokal.get(tjekNoegle(r, iso)) || '[]')); } catch { return new Set(); } }
+function gemTjek(r, iso, s) { lokal.set(tjekNoegle(r, iso), JSON.stringify([...s])); }
+
+function trinBillede(t, klasse, igen) {
+  const url = trinUrl(t, igen);
+  if (!url) return el('span', klasse + ' tomt-billede', (t.tekst || '?').slice(0, 1).toUpperCase());
+  const img = el('img', klasse);
+  img.src = url; img.alt = ''; img.loading = 'lazy';
+  return img;
+}
+
+// Kort til drengenes tavle
+async function rutineKort(barn, dato) {
+  const dag = (dato.getDay() + 6) % 7;
+  const iso = isoDato(dato);
+  const rutiner = (await Data.list('rutiner')).filter(r => r.barn === barn && rutineAktiv(r, dag))
+    .sort((a, b) => (a.tid || '').localeCompare(b.tid || ''));
+  if (!rutiner.length) return null;
+  const nu = new Date();
+  const nuMin = nu.getHours() * 60 + nu.getMinutes();
+  const tilMin = t => { const [h, mm] = (t || '').split(':').map(Number); return isNaN(h) ? 24 * 60 : h * 60 + (mm || 0); };
+  const erIdag = iso === isoDato(nu);
+  // Den næste rutine i dag: den første der ikke er færdig og ikke er mere end en time over tiden
+  const naeste = erIdag ? rutiner.find(r => hentTjek(r, iso).size < (r.trin || []).length && tilMin(r.tid) >= nuMin - 60) : null;
+
+  const k = el('div', 'kort');
+  const top = el('div', 'kort-top');
+  top.append(el('span', 'kort-label', 'Rutiner'));
+  k.append(top);
+  const ul = el('ul', 'rutine-liste');
+  for (const r of rutiner) {
+    const tjek = hentTjek(r, iso);
+    const antal = (r.trin || []).length;
+    const faerdig = antal && tjek.size >= antal;
+    const li = el('li');
+    const b = knap('', 'rutine-raekke' + (r === naeste ? ' naeste' : '') + (faerdig ? ' faerdig' : ''), () => visRutine(r, iso));
+    const strip = el('span', 'rutine-strip');
+    (r.trin || []).slice(0, 5).forEach(t => strip.append(trinBillede(t, 'mini-billede', () => tegnOverblik())));
+    const info = el('span', 'rutine-info');
+    info.append(el('span', 'rutine-navn', r.navn), strip);
+    b.append(el('span', 'rutine-tid', visTid(r.tid) || ''), info,
+      el('span', 'rutine-status', faerdig ? '✓' : antal ? tjek.size + '/' + antal : ''));
+    li.append(b);
+    ul.append(li);
+  }
+  k.append(ul);
+  if (rutiner.some(harPiktogram)) k.append(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
+  return k;
+}
+
+// Én rutine trin for trin – store billeder man trykker på, når de er klaret
+function visRutine(r, iso) {
+  const tjek = hentTjek(r, iso);
+  const trin = r.trin || [];
+  const grid = el('div', 'trin-grid');
+  const status = el('p', 'rutine-fremskridt');
+  const tegn = () => {
+    grid.replaceChildren(...trin.map((t, i) => {
+      const b = knap('', 'trin' + (tjek.has(i) ? ' klaret' : ''), () => {
+        if (tjek.has(i)) tjek.delete(i); else tjek.add(i);
+        gemTjek(r, iso, tjek);
+        tegn();
+      });
+      b.setAttribute('aria-pressed', tjek.has(i));
+      b.append(el('span', 'trin-nr', i + 1), trinBillede(t, 'trin-billede', tegn), el('span', 'trin-tekst', t.tekst || ''));
+      const flueben = el('span', 'trin-flueben');
+      flueben.innerHTML = IKON_TJEK;
+      b.append(flueben);
+      return b;
+    }));
+    status.textContent = tjek.size >= trin.length && trin.length ? 'Godt klaret! Alle trin er færdige.' : tjek.size + ' af ' + trin.length + ' trin';
+    status.classList.toggle('alle', tjek.size >= trin.length && trin.length > 0);
+  };
+  tegn();
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('Start forfra', 'knap sekundaer-knap', () => { tjek.clear(); gemTjek(r, iso, tjek); tegn(); }),
+    knap('Færdig', 'knap', () => { lukArk(); tegnAlt(); }));
+  aabnArk(r.navn + (r.tid ? ' · ' + visTid(r.tid) : ''), status, grid,
+    trin.some(t => t.piktogram || t.soeg) ? el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA') : '', knapper);
+}
+
+// Siden "Rutiner" under Mere
+async function tegnRutiner() {
+  const boks = document.getElementById('rutiner-indhold');
+  const laast = loggetIndBarn();
+  if (laast) rutineBarn = laast;
+  const barn = rutineBarn;
+  const rutiner = (await Data.list('rutiner')).filter(r => r.barn === barn).sort((a, b) => (a.tid || '').localeCompare(b.tid || ''));
+  const dele = [];
+  if (!laast) dele.push(valgSeg(BOERN, barn, b => { rutineBarn = b; lokal.set('rutine-barn', b); tegnRutiner(); }));
+  const ul = el('ul', 'rutine-liste kort-liste');
+  const iso = isoDato(new Date());
+  for (const r of rutiner) {
+    const li = el('li');
+    const b = knap('', 'rutine-raekke', () => (erVoksen() ? redigerRutine(r) : visRutine(r, iso)));
+    const strip = el('span', 'rutine-strip');
+    (r.trin || []).slice(0, 6).forEach(t => strip.append(trinBillede(t, 'mini-billede', () => tegnRutiner())));
+    const dage = !r.dage || !r.dage.length || r.dage.length === 7 ? 'Hver dag' : r.dage.map(i => DAGE[i]).join(', ');
+    const info = el('span', 'rutine-info');
+    info.append(el('span', 'rutine-navn', r.navn), el('span', 'ret-under', dage + ' · ' + (r.trin || []).length + ' trin'), strip);
+    b.append(el('span', 'rutine-tid', visTid(r.tid) || ''), info, el('span', 'm-pil', '›'));
+    li.append(b);
+    ul.append(li);
+  }
+  if (!rutiner.length) ul.append(el('li', 'tom', 'Ingen rutiner endnu'));
+  dele.push(ul);
+  if (erVoksen()) dele.push(knap('Ny rutine', 'knap bred-knap', () => redigerRutine({ barn, trin: [] })));
+  else dele.push(el('p', 'hint', 'Tryk på en rutine for at se trinene.'));
+  boks.replaceChildren(...dele);
+}
+
+// Ret en rutine (kun voksne). Billedvalg til et trin åbner i samme panel med "Tilbage".
+function redigerRutine(r) {
+  const ny = !r.id;
+  const s = {
+    navn: r.navn || '', tid: r.tid || '', til: r.barn || rutineBarn,
+    dage: new Set(r.dage && r.dage.length ? r.dage : [0, 1, 2, 3, 4, 5, 6]),
+    trin: (r.trin || []).map(t => ({ ...t }))
+  };
+
+  function vis() {
+    const navn = input('text', 'rut-navn', s.navn, 'Fx sengetid');
+    navn.addEventListener('input', () => { s.navn = navn.value; });
+    const tid = input('time', 'rut-tid', s.tid);
+    tid.addEventListener('change', () => { s.tid = tid.value; });
+    const tilValg = chipValg(ny ? [...BOERN, 'Begge'] : [s.til], s.til, v => { s.til = v; });
+    const dageBoks = el('div', 'seg wrap dage-valg');
+    const tegnDage = () => dageBoks.replaceChildren(...DAGE.map((d, i) => {
+      const k = knap(d, null, () => { if (s.dage.has(i)) s.dage.delete(i); else s.dage.add(i); tegnDage(); });
+      k.setAttribute('role', 'checkbox');
+      k.setAttribute('aria-checked', s.dage.has(i));
+      return k;
+    }));
+    tegnDage();
+
+    const trinListe = el('ol', 'trin-ret-liste');
+    s.trin.forEach((t, i) => {
+      const li = el('li');
+      const billedKnap = knap('', 'trin-ret-billede', () => vaelgBillede(i));
+      billedKnap.setAttribute('aria-label', 'Vælg billede til trin ' + (i + 1));
+      billedKnap.append(trinBillede(t, 'mini-billede stor', () => vis()));
+      const tekst = input('text', 'trin-' + i, t.tekst, 'Trin ' + (i + 1));
+      tekst.addEventListener('input', () => { t.tekst = tekst.value; });
+      const op = knap('↑', 'lille-pil', () => { if (i > 0) { [s.trin[i - 1], s.trin[i]] = [s.trin[i], s.trin[i - 1]]; vis(); } });
+      op.setAttribute('aria-label', 'Flyt op');
+      op.disabled = i === 0;
+      const slet = knap('', 'slet', () => { s.trin.splice(i, 1); vis(); });
+      slet.innerHTML = IKON_SLET;
+      slet.setAttribute('aria-label', 'Slet trin');
+      li.append(billedKnap, tekst, op, slet);
+      trinListe.append(li);
+    });
+    const nytTrin = knap('+ Tilføj trin', 'lille-knap', () => { s.trin.push({ tekst: '' }); vis(); setTimeout(() => document.getElementById('trin-' + (s.trin.length - 1))?.focus(), 50); });
+
+    const to = el('div', 'to-felter');
+    to.append(felt('Navn', navn), felt('Tidspunkt', tid));
+    const gem = knap('Gem', 'knap', async () => {
+      if (!s.navn.trim()) { navn.focus(); return; }
+      const felter = {
+        navn: s.navn.trim(), tid: s.tid, dage: [...s.dage].sort((a, b) => a - b),
+        trin: s.trin.filter(t => (t.tekst || '').trim() || t.piktogram || t.billede || t.soeg)
+          .map(t => ({ tekst: (t.tekst || '').trim(), piktogram: t.piktogram || null, billede: t.billede || '', soeg: t.piktogram || t.billede ? '' : (t.soeg || '') }))
+      };
+      if (ny) for (const b of (s.til === 'Begge' ? BOERN : [s.til])) await Data.add('rutiner', { ...felter, barn: b });
+      else await Data.update('rutiner', r.id, felter);
+      lukArk(); tegnAlt();
+    });
+    const knapper = el('div', 'ark-knapper');
+    if (!ny) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('rutiner', r.id); lukArk(); tegnAlt(); }));
+    knapper.append(gem);
+    aabnArk(ny ? 'Ny rutine' : 'Ret rutine', to, felt('Til', tilValg), el('label', 'felt-label', 'Dage'), dageBoks,
+      el('label', 'felt-label', 'Trin'), trinListe, nytTrin, knapper);
+  }
+
+  function vaelgBillede(i) {
+    const t = s.trin[i];
+    const vaelger = billedVaelger(t, dansk => { if (!(t.tekst || '').trim() && dansk) t.tekst = dansk; });
+    const knapper = el('div', 'ark-knapper');
+    knapper.append(knap('Tilbage', 'knap sekundaer-knap', () => vis()),
+      knap('Brug billedet', 'knap', () => { Object.assign(t, vaelger.vaerdi(), { soeg: '' }); vis(); }));
+    aabnArk('Billede til trin ' + (i + 1) + (t.tekst ? ' · ' + t.tekst : ''), ...vaelger.dele, knapper);
+  }
+
+  vis();
 }
 
 // =====================================================================
@@ -596,6 +808,22 @@ async function laegMereStartInd() {
       const l = await Data.add('pakkelister', { navn });
       await Data.addMange('pakkepunkter', ting.map(tekst => ({ liste: l.id, tekst, hvem: '', pakket: false })));
     }
+  }
+
+  if (erVoksen() && !harGjort('start-rutiner') && !(await Data.list('rutiner')).length) {
+    await Data.add('indstillinger', { noegle: 'start-rutiner', vaerdi: '1' });
+    const rutiner = [];
+    for (const barn of BOERN) {
+      rutiner.push(
+        { barn, navn: 'Børste tænder', tid: '07:15', dage: [], trin: [
+          { tekst: 'Tag tandbørsten', soeg: 'toothbrush' }, { tekst: 'Tandpasta på', soeg: 'toothpaste' },
+          { tekst: 'Børst i 2 minutter', soeg: 'brush teeth' }, { tekst: 'Skyl munden', soeg: 'rinse' }] },
+        { barn, navn: 'Sengetid', tid: '20:00', dage: [], trin: [
+          { tekst: 'Nattøj på', soeg: 'pajamas' }, { tekst: 'Børst tænder', soeg: 'brush teeth' },
+          { tekst: 'Tisse', soeg: 'toilet' }, { tekst: 'Læse lidt', soeg: 'read' }, { tekst: 'Sov godt', soeg: 'sleep' }] }
+      );
+    }
+    await Data.addMange('rutiner', rutiner);
   }
 
   // Opgaver og belønninger kan kun voksne lægge ind

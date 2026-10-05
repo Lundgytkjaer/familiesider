@@ -603,3 +603,63 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .pikto { aspect-ratio: 1; max-width: 100%; padding: 4px; border: 2px solid var(--linje); border-radius: 12px; background: #fff; }
 .pikto img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .pikto.valgt { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
+
+/* Fast morgenmad og frokost */
+.fast-plan { margin-top: 18px; }
+.fast-plan .hint { margin-top: 0; }
+.fast-hoved, .fast-dag { display: grid; grid-template-columns: 40px 1fr 1fr; gap: 6px; align-items: center; }
+.fast-hoved { padding: 0 10px 4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--daempet); }
+.fast-uge { margin-bottom: 10px; }
+.fast-dag { padding: 6px 10px; min-height: 52px; }
+.fast-dagnavn { font-weight: 700; font-size: 14px; color: var(--daempet); }
+.fast-felt { display: flex; align-items: center; min-width: 0; }
+.fast-felt input[type="text"] { min-height: 40px; padding: 0 8px; border: 1.5px solid var(--linje); border-radius: 10px; background: var(--bg); font-size: 15px; }
+.fast-felt .terning.lille { width: 32px; height: 40px; flex: none; }
+.fast-vaerdi { font-weight: 600; overflow-wrap: anywhere; }
+
+/* Det sker: billedet kan trykkes på */
+.sker-billede-knap { flex: none; padding: 0; border: 0; background: none; border-radius: 12px; }
+.stort-billede.hvid-bund { background: #fff; max-height: 70vh; object-fit: contain; }
+
+/* Rutiner */
+.rutine-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.kort-liste .rutine-raekke { background: var(--flade); border-radius: var(--radius); }
+.rutine-raekke {
+  width: 100%; display: grid; grid-template-columns: 52px 1fr auto; gap: 10px; align-items: center;
+  padding: 10px 12px; border: 0; border-radius: 14px; background: var(--bg); text-align: left;
+}
+.rutine-raekke.naeste { box-shadow: inset 0 0 0 2px var(--accent); background: var(--accent-blod); }
+.rutine-raekke.faerdig { opacity: .6; }
+.rutine-tid { font-family: var(--font-titel); font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; }
+.rutine-info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rutine-navn { font-weight: 700; font-size: 17px; }
+.rutine-strip { display: flex; gap: 4px; flex-wrap: wrap; }
+.mini-billede { width: 34px; height: 34px; border-radius: 8px; background: #fff; border: 1px solid var(--linje); object-fit: contain; flex: none; }
+.mini-billede.stor { width: 52px; height: 52px; }
+.tomt-billede { display: grid; place-items: center; font-weight: 800; color: var(--daempet); font-size: 14px; }
+.rutine-status { font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+.rutine-fremskridt { margin: 0 0 10px; font-weight: 700; color: var(--daempet); }
+.rutine-fremskridt.alle { color: var(--accent); font-size: 18px; }
+.trin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.trin {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 12px 8px 10px; border: 2px solid var(--linje); border-radius: 18px; background: #fff; color: #16201c;
+}
+.trin-nr { position: absolute; top: 8px; left: 10px; font-weight: 800; font-size: 14px; color: #64706b; }
+.trin-billede { width: 100%; max-width: 140px; aspect-ratio: 1; object-fit: contain; }
+.trin-billede.tomt-billede { background: #f2f5f3; border-radius: 12px; font-size: 40px; }
+.trin-tekst { font-weight: 700; font-size: 16px; text-align: center; }
+.trin-flueben {
+  position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center; border: 2px solid #c9d4cf; background: #fff;
+}
+.trin-flueben svg { width: 18px; height: 18px; color: #fff; opacity: 0; }
+.trin.klaret { border-color: var(--accent); background: #eef6f2; }
+.trin.klaret .trin-billede { opacity: .45; }
+.trin.klaret .trin-flueben { background: var(--accent); border-color: var(--accent); }
+.trin.klaret .trin-flueben svg { opacity: 1; }
+.trin-ret-liste { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
+.trin-ret-liste li { display: grid; grid-template-columns: 56px 1fr 36px 40px; gap: 6px; align-items: center; }
+.trin-ret-billede { padding: 0; border: 0; background: none; }
+.lille-pil { width: 36px; height: 40px; border: 1.5px solid var(--linje); border-radius: 10px; background: var(--flade); font-weight: 700; }
+.lille-pil:disabled { opacity: .3; }
