@@ -284,13 +284,15 @@ function redigerRutine(r) {
 // =====================================================================
 // PLIGTER OG BELØNNING
 // Data:
-//   'opgaver'       {barn, navn, gentag: 'dag'|'uge'|'interval'|'engang', dage: [0-6], interval: dage, start: dato, regnFra: 'fast'|'klaret', kr, stjerner}
+//   'opgaver'       {barn, navn, frivillig?: true (bonus – tæller ikke som pligt), gentag: 'dag'|'uge'|'interval'|'engang', dage: [0-6], interval: dage, start: dato, regnFra: 'fast'|'klaret', kr, stjerner}
 //                   'interval' = med fast mellemrum (fx sengetøj hver 2. torsdag); 'fast' holder rytmen fra start, 'klaret' regner fra sidst klaret
 //                   (kun voksne kan rette)
 //                   barn kan også være en voksen (egne pligter – vises kun for den voksne selv)
 //   'flueben'       {opgave, barn, periode, dato, navn, kr, stjerner}  – periode = dato / ugens mandag / 'engang'
 //   'beloenninger'  {barn: navn|'Begge', navn, stjerner}               (kun voksne kan rette)
-//   'indloesninger' {barn, navn, stjerner, dato}
+//   'indloesninger' {barn, navn, stjerner, dato, status: 'afventer'|'godkendt'|'afvist', besvaret?}
+//                   – børn ønsker (afventer), en voksen godkender/afviser. Uden status = godkendt (gamle rækker).
+//                   Afventende stjerner er reserveret; afviste tæller ikke.
 //   'udbetalinger'  {barn, kr, dato}                                   (kun voksne kan rette)
 //   'personregler'  {navn, kr: true/false, stjerner: true/false}      (kun voksne kan rette)
 //                   – om personen får lommepenge og/eller stjerner. Standard: børn begge dele, voksne ingen.
@@ -334,7 +336,7 @@ async function pligtData(barn) {
 function saldo(d) {
   const man = isoDato(mandagDenneUge());
   return {
-    stjerner: sum(d.flueben, 'stjerner') - sum(d.indl, 'stjerner'),
+    stjerner: sum(d.flueben, 'stjerner') - sum(d.indl.filter(x => x.status !== 'afvist'), 'stjerner'),
     tilGode: sum(d.flueben, 'kr') - sum(d.udb, 'kr'),
     ugeKr: sum(d.flueben.filter(f => f.dato >= man), 'kr')
   };
@@ -392,8 +394,11 @@ function dagensOpgaver(d) {
     res.push({ o, periode, f });
   }
   const orden = { dag: 0, interval: 1, uge: 2, engang: 3 };
-  return res.sort((a, b) => Number(!!a.f) - Number(!!b.f) || (orden[a.o.gentag] ?? 0) - (orden[b.o.gentag] ?? 0));
+  return res.sort((a, b) => Number(!!a.f) - Number(!!b.f) || Number(!!a.o.frivillig) - Number(!!b.o.frivillig)
+    || (orden[a.o.gentag] ?? 0) - (orden[b.o.gentag] ?? 0));
 }
+// Det der skal klares (bonus-pligter tæller ikke med)
+const skalKlares = liste => liste.filter(r => !r.o.frivillig);
 
 async function skiftFlueben(barn, r, regel) {
   if (r.f) await Data.remove('flueben', r.f.id);
@@ -403,8 +408,9 @@ async function skiftFlueben(barn, r, regel) {
     stjerner: regel.stjerner ? Math.round(tal(r.o.stjerner)) : 0
   });
   if (!r.f) {
-    const liste = dagensOpgaver(await pligtData(barn));
-    if (liste.length && liste.every(x => x.f)) fejr('Alle pligter er klaret! 🎉');   // fra sjov.js
+    const liste = skalKlares(dagensOpgaver(await pligtData(barn)));
+    if (r.o.frivillig) fejr('Bonus! ⭐ Sejt gået');   // fra sjov.js
+    else if (liste.length && liste.every(x => x.f)) fejr('Alle pligter er klaret! 🎉');
   }
   tegnAlt();
 }
@@ -421,6 +427,7 @@ function opgaveLi(barn, r, regel) {
   const tags = el('span', 'tags');
   if (regel.kr && tal(r.o.kr)) tags.append(el('span', 'kr-tag', '+' + kr(tal(r.o.kr))));
   if (regel.stjerner && tal(r.o.stjerner)) tags.append(el('span', 'stjerne-tag', '★ ' + Math.round(tal(r.o.stjerner))));
+  if (r.o.frivillig) tags.append(el('span', 'bonus-tag', 'Bonus'));
   if (r.o.gentag === 'uge') tags.append(el('span', null, 'Ugens opgave'));
   if (r.o.gentag === 'engang') tags.append(el('span', null, 'Én gang'));
   if (r.o.gentag === 'interval') tags.append(el('span', null, intervalTekst(r.o)));
@@ -530,6 +537,15 @@ async function tegnPligter() {
     dele.push(kl);
   }
 
+  // Ønsker der venter på en voksen
+  const ventende = d.indl.filter(x => x.status === 'afventer');
+  if (ventende.length) {
+    dele.push(el('h3', 'lille-titel', 'Venter på godkendelse'));
+    const vl = el('ul', 'beloen-liste');
+    for (const x of ventende) vl.append(oenskeLi(x, !erVoksen()));
+    dele.push(vl);
+  }
+
   // Belønninger (kun med stjerner)
   if (d.regel.stjerner) {
     dele.push(el('h3', 'lille-titel', 'Belønninger'));
@@ -541,11 +557,23 @@ async function tegnPligter() {
       info.append(el('span', 'beloen-navn', b.navn),
         el('span', 'beloen-pris', '★ ' + b.stjerner + (nok ? ' · du har nok!' : ' · mangler ' + (b.stjerner - s.stjerner))),
         fremskridt(b.stjerner ? s.stjerner / b.stjerner : 1));
-      const indloes = bekraeftKnap('Indløs', 'indløse', 'lille-knap', async () => {
-        await Data.add('indloesninger', { barn, navn: b.navn, stjerner: b.stjerner, dato: isoDato(new Date()) });
-        tegnAlt();
-      });
-      indloes.disabled = !nok;
+      const venter = d.indl.find(x => x.status === 'afventer' && x.navn === b.navn);
+      let indloes;
+      if (venter) indloes = el('span', 'venter-tag', 'Venter på en voksen');
+      else if (erVoksen()) {
+        indloes = bekraeftKnap('Indløs', 'indløse', 'lille-knap', async () => {
+          await Data.add('indloesninger', { barn, navn: b.navn, stjerner: b.stjerner, dato: isoDato(new Date()), status: 'godkendt' });
+          tegnAlt();
+        });
+        indloes.disabled = !nok;
+      } else {
+        indloes = bekraeftKnap('Ønsk', 'ønske at indløse', 'lille-knap', async () => {
+          await Data.add('indloesninger', { barn, navn: b.navn, stjerner: b.stjerner, dato: isoDato(new Date()), status: 'afventer' });
+          fejr('Ønsket er sendt til mor og far 🎁');   // fra sjov.js
+          tegnAlt();
+        });
+        indloes.disabled = !nok;
+      }
       li.append(info, indloes);
       bl.append(li);
     }
@@ -557,7 +585,9 @@ async function tegnPligter() {
   if (d.regel.stjerner || d.regel.kr) {
     const haendelser = [
       ...d.flueben.filter(f => tal(f.kr) || f.stjerner).map(f => ({ dato: f.dato, tekst: f.navn, vaerdi: [tal(f.kr) ? '+' + kr(tal(f.kr)) : '', f.stjerner ? '+★ ' + f.stjerner : ''].filter(Boolean).join(' ') })),
-      ...d.indl.map(x => ({ dato: x.dato, tekst: 'Indløst: ' + x.navn, vaerdi: '−★ ' + x.stjerner })),
+      ...d.indl.map(x => ({ dato: x.dato,
+        tekst: (x.status === 'afventer' ? 'Ønsket: ' : x.status === 'afvist' ? 'Ikke godkendt: ' : 'Indløst: ') + x.navn,
+        vaerdi: x.status === 'afvist' ? '' : (x.status === 'afventer' ? '(★ ' + x.stjerner + ')' : '−★ ' + x.stjerner) })),
       ...d.udb.map(x => ({ dato: x.dato, tekst: 'Lommepenge udbetalt', vaerdi: kr(tal(x.kr)) }))
     ].sort((a, b) => (b.dato || '').localeCompare(a.dato || '')).slice(0, 8);
     if (haendelser.length) {
@@ -597,6 +627,7 @@ async function tegnPligter() {
         const under = [GENTAG[o.gentag] || 'Hver dag'];
         if (o.gentag === 'dag' && o.dage && o.dage.length && o.dage.length < 7) under[0] = o.dage.map(i => DAGE[i]).join(', ');
         if (o.gentag === 'interval') under[0] = intervalTekst(o) + ' · næste ' + kortDato(naesteForfald(o, d));
+        if (o.frivillig) under.push('Bonus');
         if (d.regel.kr && tal(o.kr)) under.push(kr(tal(o.kr)));
         if (d.regel.stjerner && tal(o.stjerner)) under.push('★ ' + tal(o.stjerner));
         const oNavn = el('span', 'ret-navn');
@@ -626,6 +657,34 @@ async function tegnPligter() {
 
   if (d.opgaver.some(x => x.piktogram)) dele.push(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
   boks.replaceChildren(...dele);
+}
+
+// Ét ønske om at indløse en belønning. Voksne: Godkend/Afvis. Barnet selv: Fortryd.
+function oenskeLi(x, egen) {
+  const li = el('li', 'beloen oenske');
+  const info = el('div', 'beloen-info');
+  info.append(el('span', 'beloen-navn', (egen ? '' : x.barn + ' vil gerne: ') + x.navn), el('span', 'beloen-pris', '★ ' + x.stjerner + ' · ' + kortDato(x.dato)));
+  const knapper = el('div', 'oenske-knapper');
+  if (egen) knapper.append(knap('Fortryd', 'lille-knap', async () => { await Data.remove('indloesninger', x.id); tegnAlt(); }));
+  else knapper.append(
+    knap('Afvis', 'lille-knap', async () => { await Data.update('indloesninger', x.id, { status: 'afvist', besvaret: isoDato(new Date()) }); tegnAlt(); }),
+    knap('Godkend', 'lille-knap godkend', async () => {
+      await Data.update('indloesninger', x.id, { status: 'godkendt', besvaret: isoDato(new Date()) });
+      tegnAlt();
+    }));
+  li.append(info, knapper);
+  return li;
+}
+// Indhold til "Ønsker" på de voksnes I dag (tomt hvis intet venter)
+async function oenskerIndhold() {
+  if (!erVoksen()) return [];
+  const ventende = (await Data.list('indloesninger')).filter(x => x.status === 'afventer').sort((a, b) => a.dato.localeCompare(b.dato));
+  if (!ventende.length) return [];
+  const top = el('div', 'kort-top');
+  top.append(el('span', 'kort-label', '🎁 Ønsker'), el('span', 'kort-pil', ventende.length === 1 ? '1 venter' : ventende.length + ' venter'));
+  const ul = el('ul', 'beloen-liste');
+  ventende.forEach(x => ul.append(oenskeLi(x, false)));
+  return [top, ul];
 }
 
 function redigerOpgave(o, regel) {
@@ -704,6 +763,15 @@ function redigerOpgave(o, regel) {
   };
   visBeloeb();
   const ikon = ikonFelt(o);
+  // Bonus: en opfordring (fx smage nye ting) – giver gerne stjerner, men tæller ikke som pligt
+  let frivillig = !!o.frivillig;
+  const bonusKnap = knap('⭐ Bonus – frivillig, tæller ikke som pligt', null, () => {
+    frivillig = !frivillig; bonusKnap.setAttribute('aria-checked', frivillig);
+  });
+  bonusKnap.setAttribute('role', 'checkbox');
+  bonusKnap.setAttribute('aria-checked', frivillig);
+  const bonusBoks = el('div', 'seg wrap');
+  bonusBoks.append(bonusKnap);
   const typeValg = typer.length > 1 ? felt('Belønning', chipValg(typer, type, v => { type = v; visBeloeb(); }, v => BELOENNING_NAVN[v])) : '';
 
   const gem = knap('Gem', 'knap', async () => {
@@ -717,6 +785,7 @@ function redigerOpgave(o, regel) {
       regnFra: gentag === 'interval' ? regnFra : null,
       kr: type === 'penge' || type === 'begge' ? tal(krInp.value) : 0,
       stjerner: type === 'stjerner' || type === 'begge' ? Math.round(tal(stjInp.value)) : 0,
+      frivillig,
       ...ikon.vaerdi()
     };
     if (ny) for (const b of (til === 'Begge' ? BOERN : [til])) await Data.add('opgaver', { ...felter, barn: b });
@@ -727,7 +796,9 @@ function redigerOpgave(o, regel) {
   if (!ny) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('opgaver', o.id); lukArk(); tegnAlt(); }));
   knapper.append(gem);
   aabnArk(ny ? 'Ny pligt' : 'Ret pligt', felt('Pligt', navn), tilMuligheder.length > 1 ? felt('Til', tilValg) : '',
-    felt('Hvor tit', gentagValg), dageBoks, intervalBoks, typeValg, beloebRaekke, ikon.element, knapper);
+    felt('Hvor tit', gentagValg), dageBoks, intervalBoks, bonusBoks,
+    el('p', 'hint', 'Bonus vises som en opfordring. Den kan give stjerner, men Alfie og streak kræver den ikke.'),
+    typeValg, beloebRaekke, ikon.element, knapper);
   if (ny) setTimeout(() => navn.focus(), 50);
 }
 
@@ -797,7 +868,7 @@ async function tegnPakkelister() {
       grid.append(k);
     }
     if (!lister.length) grid.append(el('p', 'under', 'Ingen pakkelister endnu.'));
-    boks.replaceChildren(grid, knap('Ny pakkeliste', 'knap bred-knap', () => navnPakkeliste({})));
+    boks.replaceChildren(grid, erVoksen() ? knap('Ny pakkeliste', 'knap bred-knap', () => navnPakkeliste({})) : '');
     return;
   }
 
@@ -834,11 +905,12 @@ async function tegnPakkelister() {
       tb.append(tags);
     }
     b.append(tjek, tb);
-    b.addEventListener('click', async () => { await Data.update('pakkepunkter', p.id, { pakket: !p.pakket }); tegnPakkelister(); });
+    if (erVoksen()) b.addEventListener('click', async () => { await Data.update('pakkepunkter', p.id, { pakket: !p.pakket }); tegnPakkelister(); });
     const slet = knap('', 'slet', async () => { await Data.remove('pakkepunkter', p.id); tegnPakkelister(); });
     slet.innerHTML = IKON_SLET;
     slet.setAttribute('aria-label', 'Slet ' + p.tekst);
-    li.append(b, slet);
+    li.append(b);
+    if (erVoksen()) li.append(slet);
     ul.append(li);
   }
   if (!viste.length) ul.append(el('li', 'tom', 'Intet på listen endnu'));
@@ -860,7 +932,8 @@ async function tegnPakkelister() {
 
   const nyLabel = el('p', 'seg-label', 'Ny ting er til:');
   const visLabel = filter ? el('p', 'seg-label', 'Vis:') : '';
-  boks.replaceChildren(top, titel, pakForm, nyLabel, hvemValg, visLabel, filter, ul, fod);
+  if (!erVoksen()) boks.replaceChildren(top, titel, visLabel, filter, ul);
+  else boks.replaceChildren(top, titel, pakForm, nyLabel, hvemValg, visLabel, filter, ul, fod);
 }
 
 function navnPakkeliste(l) {
@@ -926,6 +999,7 @@ function ugeVinder(alle, manIso, sonIso, type) {
 async function tegnKonkurrence() {
   const boks = document.getElementById('konk-indhold');
   if (!konkHvem) konkHvem = DELTAGERE.includes(Data.bruger()?.navn) ? Data.bruger().navn : DELTAGERE[0];
+  if (loggetIndBarn()) konkHvem = loggetIndBarn();   // børn skriver kun egne km
   const man = mandagDenneUge();
   man.setDate(man.getDate() + konkUge * 7);
   const son = new Date(man); son.setDate(man.getDate() + 6);
@@ -971,7 +1045,7 @@ async function tegnKonkurrence() {
   const tilfoej = el('div', 'kort konk-tilfoej');
   tilfoej.append(
     el('span', 'kort-label', 'Tilføj en tur'),
-    valgSeg(DELTAGERE, konkHvem, v => { konkHvem = v; tegnKonkurrence(); }, v => v, 'wrap lille-seg'),
+    loggetIndBarn() ? '' : valgSeg(DELTAGERE, konkHvem, v => { konkHvem = v; tegnKonkurrence(); }, v => v, 'wrap lille-seg'),
     valgSeg(['cykel', 'gaa'], konkNyType, v => { konkNyType = v; tegnKonkurrence(); }, v => (v === 'cykel' ? 'Cyklet' : 'Gået'), 'lille-seg'),
     konkForm.form
   );
@@ -983,7 +1057,8 @@ async function tegnKonkurrence() {
     const slet = knap('', 'slet', async () => { await Data.remove('motion', m.id); tegnKonkurrence(); });
     slet.innerHTML = IKON_SLET;
     slet.setAttribute('aria-label', 'Slet tur');
-    li.append(el('span', 'h-dato', kortDato(m.dato)), el('span', 'h-tekst', m.hvem + ' · ' + (m.type === 'cykel' ? 'cyklet' : 'gået')), el('span', 'h-vaerdi', fmtKm(tal(m.km))), slet);
+    li.append(el('span', 'h-dato', kortDato(m.dato)), el('span', 'h-tekst', m.hvem + ' · ' + (m.type === 'cykel' ? 'cyklet' : 'gået')), el('span', 'h-vaerdi', fmtKm(tal(m.km))),
+      erVoksen() || m.hvem === loggetIndBarn() ? slet : '');
     ture.append(li);
   }
 

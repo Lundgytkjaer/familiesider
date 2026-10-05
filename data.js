@@ -16,7 +16,8 @@ const Data = (() => {
   const lyttere = [];
   let timer;
 
-  const tilPunkt = r => ({ id: r.id, oprettet: r.oprettet, ...r.data });
+  // _af = hvem der oprettede rækken (bruges fx til at børn kun kan slette deres egne indkøbsønsker)
+  const tilPunkt = r => ({ ...r.data, id: r.id, oprettet: r.oprettet, _af: r.oprettet_af });
 
   function gemLokalt(r) {
     const i = raekker.findIndex(x => x.id === r.id);

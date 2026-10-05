@@ -432,6 +432,7 @@ function tegnLideValg() {
 }
 
 async function gemFavorit(type, tekst) {
+  if (erBarn()) return;   // børn tæller ikke hurtigvalg op
   const favs = await Data.list('favoritter');
   const f = favs.find(x => x.type === type && x.tekst.toLowerCase() === tekst.toLowerCase());
   if (f) await Data.update('favoritter', f.id, { brugt: (f.brugt || 0) + 1 });
@@ -530,7 +531,7 @@ async function tegnForslag(type) {
   if (!filter && !st.ret && !erMaaltid && favs.length > VIS_FAERRE) {
     styr(st.alle ? 'Vis færre' : 'Vis alle (' + favs.length + ')', () => { st.alle = !st.alle; tegnForslag(type); });
   }
-  if (!filter && favs.length) {
+  if (!filter && favs.length && !erBarn()) {
     styr(st.ret ? 'Færdig' : 'Ret listen', () => { st.ret = !st.ret; tegnForslag(type); });
   }
 }
@@ -631,6 +632,7 @@ async function tegnMadplan() {
     felt.enterKeyHint = 'done';
     felt.setAttribute('list', 'retter-forslag');
     felt.value = retter.find(r => r.dag === i)?.ret || '';
+    felt.readOnly = erBarn();
     felt.addEventListener('change', async () => {
       const ret = felt.value.trim();
       await gemRet(i, ret);
@@ -1002,7 +1004,7 @@ const kalListe = a => (a._voksne ? 'kalender_voksne' : 'kalender');
 async function gemAftale(a, f, kunVoksne) {
   const ny = kunVoksne ? 'kalender_voksne' : 'kalender';
   if (ny === kalListe(a)) { await Data.update(ny, a.id, f); return; }
-  const { id, oprettet, _voksne, ...gammel } = a;
+  const { id, oprettet, _voksne, _af, ...gammel } = a;
   await Data.add(ny, { ...gammel, ...f });
   await Data.remove(kalListe(a), a.id);
 }
@@ -1217,6 +1219,7 @@ async function tegnKalender() {
 
 // forekomst = den dag man trykkede på (vigtigt for gentagne aftaler)
 function redigerAftale(a, forekomst) {
+  if (erBarn()) { if (a.id) visAftale(a, forekomst); return; }
   const ny = !a.id;
   const serie = !ny && !!a.gentag;
   forekomst = forekomst || a.dato;
@@ -1451,11 +1454,11 @@ async function tegnBoernetavle(barn) {
   const madKort = kort('Mad');
   for (const [felt, navn] of [['morgen', 'Morgen'], ['frokost', 'Frokost'], ['ret', 'Aften']]) {
     const ret = plan[felt];
-    const r = knap('', 'maaltid', () => redigerMaaltid(barn, valgt, felt));
-    r.setAttribute('aria-label', navn + ': ' + (ret || 'ikke bestemt') + '. Tryk for at ændre');
+    const r = erBarn() ? el('div', 'maaltid') : knap('', 'maaltid', () => redigerMaaltid(barn, valgt, felt));
+    if (!erBarn()) r.setAttribute('aria-label', navn + ': ' + (ret || 'ikke bestemt') + '. Tryk for at ændre');
     const retEl = el('span', 'm-ret' + (ret ? '' : ' tom-ret'), ret || 'Ikke bestemt');
     if (plan.eget[felt]) retEl.append(el('span', 'eget-tag', 'Eget valg'));
-    r.append(el('span', 'm-navn', navn), retEl, el('span', 'm-pil', '›'));
+    r.append(el('span', 'm-navn', navn), retEl, erBarn() ? '' : el('span', 'm-pil', '›'));
     madKort.append(r);
   }
 
@@ -1774,6 +1777,7 @@ document.getElementById('foed-alle').addEventListener('click', () => { visAlleFo
 document.getElementById('ny-foed').addEventListener('click', () => redigerFoed({}));
 
 function redigerFoed(f) {
+  if (erBarn()) return;
   const ny = !f.id;
   const navn = input('text', 'foed-navn', f.navn, 'Fx Mormor');
   const knapper = el('div', 'ark-knapper');
@@ -1826,6 +1830,12 @@ async function tegnOverblik() {
   const idag = idagNr();
 
   // Mine egne pligter (kun for voksne – fra mere.js)
+  // Børnenes ønsker om at indløse belønninger – venter på en voksen
+  const oensker = document.getElementById('ov-oensker');
+  const oenskeIndhold = await oenskerIndhold();   // fra mere.js
+  oensker.replaceChildren(...oenskeIndhold);
+  oensker.hidden = !oenskeIndhold.length;
+
   const minePladser = document.getElementById('ov-mine-pligter');
   const mine = await minePligterKort();
   minePladser.replaceChildren(...(mine ? [...mine.childNodes] : []));
@@ -1959,6 +1969,55 @@ window.addEventListener('unhandledrejection', e => {
   visStatus(navigator.onLine ? 'Noget gik galt – ændringen blev måske ikke gemt.' : 'Ingen forbindelse – ændringen blev ikke gemt.');
 });
 
+// ---------- Børn: tavlen er mest til at kigge på ----------
+// Databasen (barn_vagt i SQL) bestemmer, hvad børn må gemme. Her er den venlige udgave på siden:
+// knapper skjules, og prøver man alligevel, kommer en kort besked i stedet for en fejl.
+// Børn må: sætte flueben på egne pligter, ønske at indløse en belønning, skrive egne km,
+// markere hvad de selv kan lide (hjerter) og tilføje til indkøbslisten (og slette det, de selv har tilføjet).
+const erBarn = () => Data.bruger()?.rolle === 'barn';
+function barnMaa(handling, liste, felter, gammel) {
+  const navn = Data.bruger()?.navn;
+  if (handling === 'ny') {
+    if (liste === 'flueben') return felter.barn === navn;
+    if (liste === 'indloesninger') return felter.barn === navn && felter.status === 'afventer';
+    if (liste === 'motion') return felter.hvem === navn;
+    return liste === 'indkob';
+  }
+  if (!gammel) return false;
+  if (handling === 'ret') {
+    if (liste !== 'favoritter' || Object.keys(felter).some(k => k !== 'kanLide')) return false;
+    const foer = new Set(gammel.kanLide || []), efter = new Set(felter.kanLide || []);
+    return [...foer, ...efter].every(n => n === navn || (foer.has(n) && efter.has(n)));
+  }
+  if (liste === 'flueben') return gammel.barn === navn;
+  if (liste === 'motion') return gammel.hvem === navn;
+  if (liste === 'indloesninger') return gammel.barn === navn && gammel.status === 'afventer';
+  if (liste === 'indkob') return gammel._af === Data.bruger()?.id;
+  return false;
+}
+function laasForBoern() {
+  document.body.classList.add('barn');
+  const orig = { add: Data.add, addMange: Data.addMange, update: Data.update, remove: Data.remove };
+  const nej = () => { visStatus('Det kan kun de voksne ændre 🙂'); return null; };
+  const find = async (liste, id) => (await Data.list(liste)).find(x => x.id === id);
+  Data.add = async (liste, f) => (barnMaa('ny', liste, f) ? orig.add(liste, f) : nej());
+  Data.addMange = async (liste, fl) => (fl.every(f => barnMaa('ny', liste, f)) ? orig.addMange(liste, fl) : nej());
+  Data.update = async (liste, id, f) => (barnMaa('ret', liste, f, await find(liste, id)) ? orig.update(liste, id, f) : nej());
+  Data.remove = async (liste, id) => (barnMaa('slet', liste, null, await find(liste, id)) ? orig.remove(liste, id) : nej());
+}
+
+// Visning af en aftale for børn (kun læse)
+function visAftale(a, forekomst) {
+  const dato = new Date((forekomst || a.dato) + 'T00:00');
+  const linjer = [el('p', 'aftale-vis-dato', DAGE_LANG[(dato.getDay() + 6) % 7] + ' ' + dato.getDate() + '. ' + MDR_LANG[dato.getMonth()]
+    + (a.tid ? ' · kl. ' + visTid(a.tid) + (a.slut ? '–' + visTid(a.slut) : '') : ''))];
+  linjer.push(el('p', 'hint', 'Hvem: ' + personerI(a).join(', ')));
+  if (a.note) linjer.push(el('p', null, a.note));
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('Luk', 'knap', () => lukArk()));
+  aabnArk(a.titel, ...linjer, knapper);
+}
+
 // ---------- Login ----------
 const LOGIN_NAVNE = ['Timmo', 'Winnie', 'Oliver', 'Villads'];
 let loginNavn = lokal.get('sidste-navn') || '';
@@ -2044,10 +2103,15 @@ async function startTavle() {
   logUd.className = 'bruger-knap ' + (PK[profil.navn] || 'c-faelles');
   logUd.setAttribute('aria-label', 'Logget ind som ' + profil.navn + '. Tryk for at logge ud');
   logUd.hidden = false;
-  await laegStartlisterInd();
-  await laegMereStartInd();   // fra mere.js
-  for (const r of (await Data.list('madplan')).filter(r => !r.uge)) {
-    await Data.update('madplan', r.id, { uge: isoDato(mandagDenneUge()) });
+  if (erBarn()) {
+    laasForBoern();
+  } else {
+    // Startindhold og flytning af gamle data sker kun, når en voksen er logget ind
+    await laegStartlisterInd();
+    await laegMereStartInd();   // fra mere.js
+    for (const r of (await Data.list('madplan')).filter(r => !r.uge)) {
+      await Data.update('madplan', r.id, { uge: isoDato(mandagDenneUge()) });
+    }
   }
   // Drengene ser deres egen tavle; voksne kan vælge
   if (profil.rolle === 'barn' && BOERN.includes(profil.navn)) tavleVisning = profil.navn;

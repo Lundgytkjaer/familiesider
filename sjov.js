@@ -52,7 +52,7 @@ function fejr(tekst) {
 // ---------- Streak: dage i træk hvor alle dagens hver-dag-pligter blev klaret ----------
 // I dag tæller med, når den er klaret – men bryder ikke rækken, før dagen er gået.
 function streak(d) {
-  const daglige = d.opgaver.filter(o => !['uge', 'engang', 'interval'].includes(o.gentag));
+  const daglige = d.opgaver.filter(o => !o.frivillig && !['uge', 'engang', 'interval'].includes(o.gentag));
   if (!daglige.length) return 0;
   const klaret = new Set(d.flueben.map(f => f.opgave + '|' + f.periode));
   const oprettetIso = o => (o.oprettet ? isoDato(new Date(o.oprettet)) : '0000-00-00');
@@ -96,8 +96,9 @@ function alfieSvg(hvordan) {
   const kinder = hvordan === 'super' || hvordan === 'glad'
     ? `<ellipse cx="33.5" cy="57" rx="3.6" ry="2.2" fill="${LYSROED}" opacity=".6"/><ellipse cx="58.5" cy="57" rx="3.6" ry="2.2" fill="${LYSROED}" opacity=".6"/>` : '';
   const ekstra = {
-    super: `<g class="alfie-hjerter" fill="#ef6b8a"><path d="M86 14 c0 -4 6 -4 6 0 c0 -4 6 -4 6 0 c0 5 -6 8 -6 10 c0 -2 -6 -5 -6 -10z"/>
-             <path d="M100 32 c0 -3 4.5 -3 4.5 0 c0 -3 4.5 -3 4.5 0 c0 3.8 -4.5 6 -4.5 7.5 c0 -1.5 -4.5 -3.7 -4.5 -7.5z"/></g>`,
+    super: `<path d="M46 65 L22 75 L27 84 Z" fill="#ff8a1f" stroke="#b85d0c" stroke-width="1" stroke-linejoin="round"/>
+             <path d="M32 75 l1.6 3 M38 71.5 l1.4 2.6" stroke="#b85d0c" stroke-width="1.2" stroke-linecap="round"/>
+             <path d="M24.5 79.5 l-9 -6 M24.5 79.5 l-10.5 1 M24.5 79.5 l-6 7.5" stroke="#3f9c43" stroke-width="2.8" stroke-linecap="round"/>`,
     sover: `<g class="alfie-zzz" fill="${MORK}" font-family="system-ui, sans-serif" font-weight="800">
              <text x="74" y="26" font-size="12">z</text><text x="84" y="16" font-size="15">z</text><text x="96" y="8" font-size="18">Z</text></g>`,
     venter: `<g transform="translate(6 96) rotate(-20)"><path d="M0 0 l14 -4 l-12 10z" fill="#f08a24"/>
@@ -132,15 +133,15 @@ function alfieSvg(hvordan) {
   </svg>`;
 }
 
-const ALFIE_SIGER = ['Alfie elsker gulerødder 🥕', 'Nus mig bag ørerne!', 'Hop hop! 🐰', 'Alfie har den flotteste manke 🦁',
-  'Har du set min nye hoppe-dans?', 'Mums – frisk hø!', 'Alfie siger hej! 👋', 'Du er sej!'];
+const ALFIE_SIGER = ['Alfie elsker gulerødder 🥕', 'Nus mig bag ørerne!', 'Mums! 🐰', 'Alfie har den flotteste manke 🦁',
+'Mums – frisk hø!', 'Alfie siger hej! 👋', 'Du er sej!'];
 
 // Kort til børnetavlen: Alfie bliver gladere, jo mere der er klaret i dag (pligter + rutinetrin)
 async function alfieKort(barn) {
   const nu = new Date();
   const iso = isoDato(nu);
   const d = await pligtData(barn);
-  const liste = dagensOpgaver(d);
+  const liste = skalKlares(dagensOpgaver(d));   // bonus-pligter tæller ikke med
   const rutiner = (await Data.list('rutiner')).filter(r => r.barn === barn && rutineAktiv(r, idagNr()));
   let ialt = liste.length, klaret = liste.filter(r => r.f).length;
   for (const r of rutiner) {
@@ -154,8 +155,8 @@ async function alfieKort(barn) {
   const hvordan = !mangler ? (aften ? 'sover' : 'super') : klaret ? 'glad' : 'venter';
   const tekst = {
     venter: aften ? 'Alfie venter stadig… ' + mangler + ' ting mangler i dag 🥕' : 'Alfie glæder sig! Klar til at gå i gang? 🥕',
-    glad: mangler === 1 ? 'Kun én ting tilbage – Alfie hopper af glæde!' : 'Godt gået! ' + mangler + ' ting tilbage i dag.',
-    super: 'Alt er klaret! Alfie er super glad 🧡',
+    glad: mangler === 1 ? 'Kun én ting tilbage – så får Alfie en gulerod!' : 'Godt gået! ' + mangler + ' ting tilbage i dag.',
+    super: 'Alt er klaret! Alfie får en gulerod 🥕🧡',
     sover: 'Alt blev klaret i dag. Alfie sover sødt 💤'
   }[hvordan];
 
@@ -167,7 +168,7 @@ async function alfieKort(barn) {
   const boble = el('div', 'alfie-boble', tekst);
   boble.setAttribute('aria-live', 'polite');
   figur.addEventListener('click', () => {
-    figur.classList.remove('hop'); void figur.offsetWidth; figur.classList.add('hop');
+    figur.classList.remove('vip'); void figur.offsetWidth; figur.classList.add('vip');
     boble.textContent = ALFIE_SIGER[Math.floor(Math.random() * ALFIE_SIGER.length)];
   });
   const hoejre = el('div', 'alfie-hoejre');
