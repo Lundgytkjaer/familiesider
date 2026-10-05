@@ -1247,7 +1247,8 @@ async function tegnBoernetavle(barn) {
   for (const x of info) {
     const li = el('li', 'sker-info' + (infoBillede(x) ? ' med-billede' : ''));
     if (infoBillede(x)) {
-      const billedKnap = knap('', 'sker-billede-knap', () => visStortBillede(infoBillede(x), x.tekst));
+      const billedKnap = knap('', 'sker-billede-knap', () => visStortBillede(infoBillede(x), x.tekst,
+        voksen ? { ret: () => redigerInfo(barn, iso, x), slet: async () => { await Data.remove('info', x.id); lukArk(); tegnAlt(); } } : null));
       billedKnap.setAttribute('aria-label', 'Vis billedet stort');
       const img = el('img', 'sker-billede');
       img.src = infoBillede(x); img.alt = ''; img.loading = 'lazy';
@@ -1259,6 +1260,12 @@ async function tegnBoernetavle(barn) {
     const tekstEl = voksen ? knap('', 'sker-knap', () => redigerInfo(barn, iso, x)) : el('span', 'sker-knap');
     tekstEl.append(el('span', 'husk-tekst', x.tekst || ''));
     li.append(tekstEl);
+    if (voksen) {
+      const mere = knap('', 'mere-knap', () => redigerInfo(barn, iso, x));
+      mere.innerHTML = IKON_MERE;
+      mere.setAttribute('aria-label', 'Ret eller slet ' + (x.tekst || 'billedet'));
+      li.append(mere);
+    }
     liste.append(li);
   }
   const tomt = !foed.length && !aftaler.length && !info.length;
@@ -1370,10 +1377,20 @@ function billedVaelger(start = {}, naarValgt = () => {}) {
 }
 
 // Vis et billede stort
-function visStortBillede(url, tekst) {
+// handlinger = {ret, slet} giver voksne knapper under billedet
+function visStortBillede(url, tekst, handlinger = null) {
   const img = el('img', 'stort-billede hvid-bund');
   img.src = url; img.alt = tekst || '';
-  aabnArk(tekst || 'Billede', img);
+  const dele = [img];
+  if (handlinger) {
+    const knapper = el('div', 'ark-knapper');
+    const slet = knap('Slet', 'knap fare', () => bekraeft(slet, handlinger.slet));
+    slet.dataset.tekst = 'Slet';
+    slet.dataset.handling = 'slette';
+    knapper.append(slet, knap('Ret', 'knap', handlinger.ret));
+    dele.push(knapper);
+  }
+  aabnArk(tekst || 'Billede', ...dele);
 }
 
 function redigerInfo(barn, iso, x) {

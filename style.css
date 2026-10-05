@@ -663,3 +663,6 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .trin-ret-billede { padding: 0; border: 0; background: none; }
 .lille-pil { width: 36px; height: 40px; border: 1.5px solid var(--linje); border-radius: 10px; background: var(--flade); font-weight: 700; }
 .lille-pil:disabled { opacity: .3; }
+
+.sker-liste .mere-knap { flex: none; width: 40px; height: 40px; margin-left: auto; }
+.ark-knapper .knap.fare.bekraeft { background: var(--fare); color: #fff; }
