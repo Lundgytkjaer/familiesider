@@ -65,7 +65,7 @@ function trinUrl(t, igen) {
   }
   return '';
 }
-const harPiktogram = r => (r.trin || []).some(t => t.piktogram || (t.soeg && piktoOpslag[t.soeg]));
+const harPiktogram = r => !!r.piktogram || (r.trin || []).some(t => t.piktogram || (t.soeg && piktoOpslag[t.soeg]));
 
 const rutineAktiv = (r, dag) => !r.dage || !r.dage.length || r.dage.includes(dag);
 const tjekNoegle = (r, iso) => 'rutine-' + r.id + '-' + iso;
@@ -78,6 +78,26 @@ function trinBillede(t, klasse, igen) {
   const img = el('img', klasse);
   img.src = url; img.alt = ''; img.loading = 'lazy';
   return img;
+}
+
+// Lille billede/piktogram på en hel rutine eller pligt ({piktogram?, billede?})
+function ikonBillede(x, klasse = 'lille-ikon') {
+  const url = x.piktogram ? PIKTO_URL(x.piktogram) : x.billede || '';
+  if (!url) return '';
+  const img = el('img', klasse);
+  img.src = url; img.alt = ''; img.loading = 'lazy';
+  return img;
+}
+// Fold-ud-felt med billedvælgeren. Samme element kan sættes ind igen, når panelet tegnes om.
+function ikonFelt(start) {
+  const vaelger = billedVaelger(start);
+  const boks = el('details', 'ikon-felt');
+  const titel = el('summary');
+  titel.append(el('span', null, 'Lille billede (valgfrit)'));
+  const vis = ikonBillede(start);
+  if (vis) titel.append(vis);
+  boks.append(titel, ...vaelger.dele);
+  return { element: boks, vaerdi: vaelger.vaerdi };
 }
 
 // Kort til drengenes tavle
@@ -108,7 +128,9 @@ async function rutineKort(barn, dato) {
     const strip = el('span', 'rutine-strip');
     (r.trin || []).slice(0, 5).forEach(t => strip.append(trinBillede(t, 'mini-billede', () => tegnOverblik())));
     const info = el('span', 'rutine-info');
-    info.append(el('span', 'rutine-navn', r.navn), strip);
+    const rNavn = el('span', 'rutine-navn');
+    rNavn.append(ikonBillede(r), r.navn);
+    info.append(rNavn, strip);
     b.append(el('span', 'rutine-tid', visTid(r.tid) || ''), info,
       el('span', 'rutine-status', faerdig ? '✓' : antal ? tjek.size + '/' + antal : ''));
     li.append(b);
@@ -168,7 +190,9 @@ async function tegnRutiner() {
     (r.trin || []).slice(0, 6).forEach(t => strip.append(trinBillede(t, 'mini-billede', () => tegnRutiner())));
     const dage = !r.dage || !r.dage.length || r.dage.length === 7 ? 'Hver dag' : r.dage.map(i => DAGE[i]).join(', ');
     const info = el('span', 'rutine-info');
-    info.append(el('span', 'rutine-navn', r.navn), el('span', 'ret-under', dage + ' · ' + (r.trin || []).length + ' trin'), strip);
+    const rNavn = el('span', 'rutine-navn');
+    rNavn.append(ikonBillede(r), r.navn);
+    info.append(rNavn, el('span', 'ret-under', dage + ' · ' + (r.trin || []).length + ' trin'), strip);
     b.append(el('span', 'rutine-tid', visTid(r.tid) || ''), info, el('span', 'm-pil', '›'));
     li.append(b);
     ul.append(li);
@@ -188,6 +212,7 @@ function redigerRutine(r) {
     dage: new Set(r.dage && r.dage.length ? r.dage : [0, 1, 2, 3, 4, 5, 6]),
     trin: (r.trin || []).map(t => ({ ...t }))
   };
+  const ikon = ikonFelt(r);   // bevares når panelet tegnes om
 
   function vis() {
     const navn = input('text', 'rut-navn', s.navn, 'Fx sengetid');
@@ -228,7 +253,7 @@ function redigerRutine(r) {
     const gem = knap('Gem', 'knap', async () => {
       if (!s.navn.trim()) { navn.focus(); return; }
       const felter = {
-        navn: s.navn.trim(), tid: s.tid, dage: [...s.dage].sort((a, b) => a - b),
+        navn: s.navn.trim(), tid: s.tid, dage: [...s.dage].sort((a, b) => a - b), ...ikon.vaerdi(),
         trin: s.trin.filter(t => (t.tekst || '').trim() || t.piktogram || t.billede || t.soeg)
           .map(t => ({ tekst: (t.tekst || '').trim(), piktogram: t.piktogram || null, billede: t.billede || '', soeg: t.piktogram || t.billede ? '' : (t.soeg || '') }))
       };
@@ -240,7 +265,7 @@ function redigerRutine(r) {
     if (!ny) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('rutiner', r.id); lukArk(); tegnAlt(); }));
     knapper.append(gem);
     aabnArk(ny ? 'Ny rutine' : 'Ret rutine', to, felt('Til', tilValg), el('label', 'felt-label', 'Dage'), dageBoks,
-      el('label', 'felt-label', 'Trin'), trinListe, nytTrin, knapper);
+      el('label', 'felt-label', 'Trin'), trinListe, nytTrin, ikon.element, knapper);
   }
 
   function vaelgBillede(i) {
@@ -396,7 +421,7 @@ function opgaveLi(barn, r, regel) {
   if (r.o.gentag === 'interval') tags.append(el('span', null, intervalTekst(r.o)));
   if (r.overTid > 0) tags.append(el('span', 'over-tid', r.overTid === 1 ? '1 dag over tid' : r.overTid + ' dage over tid'));
   if (tags.children.length) tb.append(tags);
-  b.append(tjek, tb);
+  b.append(tjek, ikonBillede(r.o, 'lille-ikon opg-ikon'), tb);
   b.addEventListener('click', () => skiftFlueben(barn, r, regel));
   li.append(b);
   return li;
@@ -421,6 +446,7 @@ async function pligtKort(barn, titel = 'Pligter i dag') {
   liste.forEach(r => ul.append(opgaveLi(barn, r, d.regel)));
   if (!liste.length) ul.append(el('li', 'tom', 'Ingen pligter i dag'));
   k.append(top, ul);
+  if (liste.some(r => r.o.piktogram)) k.append(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
   return k;
 }
 
@@ -564,7 +590,9 @@ async function tegnPligter() {
         if (o.gentag === 'interval') under[0] = intervalTekst(o) + ' · næste ' + kortDato(naesteForfald(o, d));
         if (d.regel.kr && tal(o.kr)) under.push(kr(tal(o.kr)));
         if (d.regel.stjerner && tal(o.stjerner)) under.push('★ ' + tal(o.stjerner));
-        b.append(el('span', 'ret-navn', o.navn), el('span', 'ret-under', under.join(' · ')), el('span', 'm-pil', '›'));
+        const oNavn = el('span', 'ret-navn');
+        oNavn.append(ikonBillede(o), o.navn);
+        b.append(oNavn, el('span', 'ret-under', under.join(' · ')), el('span', 'm-pil', '›'));
         li.append(b);
         ol.append(li);
       }
@@ -587,6 +615,7 @@ async function tegnPligter() {
     }
   }
 
+  if (d.opgaver.some(x => x.piktogram)) dele.push(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
   boks.replaceChildren(...dele);
 }
 
@@ -665,6 +694,7 @@ function redigerOpgave(o, regel) {
     beloebRaekke.hidden = type === 'ingen';
   };
   visBeloeb();
+  const ikon = ikonFelt(o);
   const typeValg = typer.length > 1 ? felt('Belønning', chipValg(typer, type, v => { type = v; visBeloeb(); }, v => BELOENNING_NAVN[v])) : '';
 
   const gem = knap('Gem', 'knap', async () => {
@@ -677,7 +707,8 @@ function redigerOpgave(o, regel) {
       start: gentag === 'interval' ? (startInp.value || isoDato(new Date())) : null,
       regnFra: gentag === 'interval' ? regnFra : null,
       kr: type === 'penge' || type === 'begge' ? tal(krInp.value) : 0,
-      stjerner: type === 'stjerner' || type === 'begge' ? Math.round(tal(stjInp.value)) : 0
+      stjerner: type === 'stjerner' || type === 'begge' ? Math.round(tal(stjInp.value)) : 0,
+      ...ikon.vaerdi()
     };
     if (ny) for (const b of (til === 'Begge' ? BOERN : [til])) await Data.add('opgaver', { ...felter, barn: b });
     else await Data.update('opgaver', o.id, felter);
@@ -687,7 +718,7 @@ function redigerOpgave(o, regel) {
   if (!ny) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('opgaver', o.id); lukArk(); tegnAlt(); }));
   knapper.append(gem);
   aabnArk(ny ? 'Ny pligt' : 'Ret pligt', felt('Pligt', navn), tilMuligheder.length > 1 ? felt('Til', tilValg) : '',
-    felt('Hvor tit', gentagValg), dageBoks, intervalBoks, typeValg, beloebRaekke, knapper);
+    felt('Hvor tit', gentagValg), dageBoks, intervalBoks, typeValg, beloebRaekke, ikon.element, knapper);
   if (ny) setTimeout(() => navn.focus(), 50);
 }
 

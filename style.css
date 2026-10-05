@@ -692,3 +692,12 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .forslag .prik { width: 8px; height: 8px; border-radius: 50%; background: var(--p); }
 .forslag .lide-knap .hjerte { color: var(--p); font-size: 16px; line-height: 1; }
 .forslag .lide-knap.liker { border-color: var(--p); background: color-mix(in srgb, var(--p) 14%, var(--flade)); }
+
+/* Små billeder på rutiner og pligter */
+.lille-ikon { width: 26px; height: 26px; object-fit: contain; border-radius: 6px; background: #fff; flex: none; vertical-align: middle; margin-right: 6px; }
+.punkt-knap .opg-ikon { width: 32px; height: 32px; margin-right: 0; }
+.rutine-navn .lille-ikon, .ret-navn .lille-ikon { width: 22px; height: 22px; }
+.ikon-felt { border: 1.5px solid var(--linje); border-radius: 14px; padding: 10px 12px; margin: 12px 0 4px; }
+.ikon-felt summary { cursor: pointer; font-weight: 700; display: flex; align-items: center; gap: 8px; min-height: 28px; }
+.ikon-felt summary .lille-ikon { margin-left: auto; }
+.ikon-felt[open] summary { margin-bottom: 8px; }

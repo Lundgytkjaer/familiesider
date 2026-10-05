@@ -990,6 +990,22 @@ document.getElementById('rediger-skema').addEventListener('click', () => { redig
 // ---------- Kalender ----------
 // Data: 'kalender' {dato: 'ÅÅÅÅ-MM-DD', tilDato?, hvem: navn eller [navne], titel, tid: 'TT:MM' eller '', slut?, note?,
 //                   gentag?: 'uge'|'2uger'|'maaned'|'aar', gentagTil?: dato, undtagelser?: [datoer der er sprunget over]}
+// 'kalender_voksne' – samme felter, men kun for voksne. Databasen giver slet ikke børnene disse rækker.
+//                   I koden får de markeringen _voksne: true.
+async function kalenderAftaler() {
+  const [alle, voksne] = await Promise.all([Data.list('kalender'), Data.list('kalender_voksne')]);
+  return [...alle, ...voksne.map(a => ({ ...a, _voksne: true }))];
+}
+const laas = a => (a._voksne ? ' 🔒' : '');   // markering på kun-voksne-aftaler
+const kalListe = a => (a._voksne ? 'kalender_voksne' : 'kalender');
+// Gem ændringer – flytter aftalen til den anden liste, hvis "kun voksne" er ændret
+async function gemAftale(a, f, kunVoksne) {
+  const ny = kunVoksne ? 'kalender_voksne' : 'kalender';
+  if (ny === kalListe(a)) { await Data.update(ny, a.id, f); return; }
+  const { id, oprettet, _voksne, ...gammel } = a;
+  await Data.add(ny, { ...gammel, ...f });
+  await Data.remove(kalListe(a), a.id);
+}
 const PERSONER = ['Fælles', 'Timmo', 'Winnie', 'Oliver', 'Villads'];
 const PK = { 'Fælles': 'c-faelles', Timmo: 'c-timmo', Winnie: 'c-winnie', Oliver: 'c-oliver', Villads: 'c-villads' };
 const MDR = ['jan.', 'feb.', 'mar.', 'apr.', 'maj', 'jun.', 'jul.', 'aug.', 'sep.', 'okt.', 'nov.', 'dec.'];
@@ -1071,7 +1087,7 @@ async function tegnMaaned() {
   document.getElementById('kal-idag').hidden = kalMaaned === 0;
   document.getElementById('kal-dato').textContent = '';
 
-  const aftaler = await Data.list('kalender');
+  const aftaler = await kalenderAftaler();
   const alleFoed = await Data.list('foedselsdage');
   const idagIso = isoDato(new Date());
   if (kalValgtDag.slice(0, 7) !== isoDato(foerste).slice(0, 7)) {
@@ -1103,7 +1119,7 @@ async function tegnMaaned() {
       }
       for (const a of dagens) {
         for (const p of personerI(a)) prikker.append(el('span', 'prik ' + PK[p]));
-        titler.append(el('span', 'md-titel ' + aftaleFarve(a), (a.tid ? visTid(a.tid) + ' ' : '') + a.titel));
+        titler.append(el('span', 'md-titel ' + aftaleFarve(a), (a.tid ? visTid(a.tid) + ' ' : '') + a.titel + laas(a)));
       }
       k.append(prikker, titler);
       g.append(k);
@@ -1126,7 +1142,7 @@ async function tegnMaaned() {
   for (const a of aftalerDen(aftaler, kalValgtDag)) {
     const li = el('li', aftaleFarve(a));
     const b = knap('', 'dag-aftale', () => redigerAftale(a, forekomstStart(a, kalValgtDag)));
-    b.append(el('span', 'prik'), el('span', 'husk-tekst', tidTekst(a) + a.titel + (a.gentag ? ' ↻' : '')), el('span', 'dag-hvem', personerI(a).join(', ')));
+    b.append(el('span', 'prik'), el('span', 'husk-tekst', tidTekst(a) + a.titel + (a.gentag ? ' ↻' : '') + laas(a)), el('span', 'dag-hvem', personerI(a).join(', ')));
     li.append(b);
     ul.append(li);
   }
@@ -1146,7 +1162,7 @@ async function tegnKalender() {
   document.getElementById('kal-idag').hidden = kalUge === 0;
   document.getElementById('kal-dato').textContent = son.getFullYear();
 
-  const aftaler = await Data.list('kalender');
+  const aftaler = await kalenderAftaler();
   const alleFoed = await Data.list('foedselsdage');
   const idagIso = isoDato(new Date());
   const g = document.getElementById('kal');
@@ -1190,7 +1206,7 @@ async function tegnKalender() {
         const b = el('button', 'beg ' + PK[p]);
         b.type = 'button';
         if (a.tid) b.append(el('b', null, visTid(a.tid) + (a.slut ? '–' + visTid(a.slut) : '')));
-        b.append(el('span', null, a.titel + (a.gentag ? ' ↻' : '')));
+        b.append(el('span', null, a.titel + (a.gentag ? ' ↻' : '') + laas(a)));
         b.addEventListener('click', e => { e.stopPropagation(); redigerAftale(a, forekomstStart(a, iso)); });
         celle.append(b);
       }
@@ -1235,6 +1251,17 @@ function redigerAftale(a, forekomst) {
   gentagTilFelt.hidden = !gentag;
   const gentagValg = chipValg(Object.keys(GENTAG_NAVN), gentag, v => { gentag = v; gentagTilFelt.hidden = !v; }, v => GENTAG_NAVN[v]);
 
+  // Kun for voksne (fx skole-hjem-samtale om et barn) – kun voksne kan vælge det
+  const erVoksenNu = Data.bruger()?.rolle === 'voksen';
+  let kunVoksne = !!a._voksne;
+  const voksneKnap = knap('🔒 Kun for voksne – børnene ser den ikke', null, () => {
+    kunVoksne = !kunVoksne; voksneKnap.setAttribute('aria-checked', kunVoksne);
+  });
+  voksneKnap.setAttribute('role', 'checkbox');
+  voksneKnap.setAttribute('aria-checked', kunVoksne);
+  const voksneBoks = el('div', 'seg wrap');
+  voksneBoks.append(voksneKnap);
+
   const fejl = el('p', 'fejl'); fejl.hidden = true;
   const datoRaekke = el('div', 'to-felter');
   datoRaekke.append(felt('Dato', dato), felt('Til dato (flere dage)', tilDato));
@@ -1264,11 +1291,11 @@ function redigerAftale(a, forekomst) {
 
   const knapper = el('div', 'ark-knapper aftale-knapper');
   if (ny) {
-    knapper.append(knap('Gem', 'knap', async () => { const f = felter(); if (!f) return; await Data.add('kalender', f); faerdig(); }));
+    knapper.append(knap('Gem', 'knap', async () => { const f = felter(); if (!f) return; await Data.add(kunVoksne ? 'kalender_voksne' : 'kalender', f); faerdig(); }));
   } else if (!serie) {
     knapper.append(
-      knap('Slet', 'knap fare', async () => { await Data.remove('kalender', a.id); faerdig(); }),
-      knap('Gem', 'knap', async () => { const f = felter(); if (!f) return; await Data.update('kalender', a.id, f); faerdig(); }));
+      knap('Slet', 'knap fare', async () => { await Data.remove(kalListe(a), a.id); faerdig(); }),
+      knap('Gem', 'knap', async () => { const f = felter(); if (!f) return; await gemAftale(a, f, kunVoksne); faerdig(); }));
   } else {
     const undtag = [...(a.undtagelser || [])];
     const forSidste = plusDage(forekomst, -1);
@@ -1276,34 +1303,34 @@ function redigerAftale(a, forekomst) {
       el('p', 'hint bred', 'Aftalen gentages. Gælder ændringen kun ' + forekomst.split('-').reverse().slice(0, 2).join('/') + ' eller også fremover?'),
       knap('Gem kun denne dag', 'knap sekundaer-knap', async () => {
         const f = felter(); if (!f) return;
-        await Data.update('kalender', a.id, { undtagelser: [...undtag, forekomst] });
-        await Data.add('kalender', { ...f, gentag: '', gentagTil: null });
+        await Data.update(kalListe(a), a.id, { undtagelser: [...undtag, forekomst] });
+        await Data.add(kunVoksne ? 'kalender_voksne' : 'kalender', { ...f, gentag: '', gentagTil: null });
         faerdig();
       }),
       knap('Gem fra denne dag', 'knap', async () => {
         const f = felter(); if (!f) return;
         if (forekomst === a.dato) {
-          await Data.update('kalender', a.id, f);
+          await gemAftale(a, f, kunVoksne);
         } else {
-          await Data.update('kalender', a.id, { gentagTil: forSidste });
-          await Data.add('kalender', { ...f, undtagelser: undtag.filter(d => d >= forekomst) });
+          await Data.update(kalListe(a), a.id, { gentagTil: forSidste });
+          await Data.add(kunVoksne ? 'kalender_voksne' : 'kalender', { ...f, undtagelser: undtag.filter(d => d >= forekomst) });
         }
         faerdig();
       }),
       knap('Slet kun denne dag', 'knap fare', async () => {
-        await Data.update('kalender', a.id, { undtagelser: [...undtag, forekomst] });
+        await Data.update(kalListe(a), a.id, { undtagelser: [...undtag, forekomst] });
         faerdig();
       }),
       knap('Slet fra denne dag', 'knap fare', async () => {
-        if (forekomst === a.dato) await Data.remove('kalender', a.id);
-        else await Data.update('kalender', a.id, { gentagTil: forSidste });
+        if (forekomst === a.dato) await Data.remove(kalListe(a), a.id);
+        else await Data.update(kalListe(a), a.id, { gentagTil: forSidste });
         faerdig();
       })
     );
   }
 
   aabnArk(ny ? 'Ny aftale' : 'Ret aftale', felt('Hvad', titel), felt('Hvem', hvemValg), datoRaekke, tidRaekke,
-    felt('Gentages', gentagValg), gentagTilFelt, felt('Note', note), fejl, knapper);
+    felt('Gentages', gentagValg), gentagTilFelt, felt('Note', note), erVoksenNu ? voksneBoks : '', fejl, knapper);
   if (ny) setTimeout(() => titel.focus(), 50);
 }
 
@@ -1438,7 +1465,7 @@ async function tegnBoernetavle(barn) {
   // "Det sker": fødselsdage, kalender (eget + fælles) og det der ellers skal ske – med billeder
   const voksen = Data.bruger()?.rolle === 'voksen';
   const foed = await foedselsdageDen(iso);
-  const aftaler = aftalerDen(await Data.list('kalender'), iso, [barn, 'Fælles']);
+  const aftaler = aftalerDen(await Data.list('kalender'), iso, [barn, 'Fælles']);   // kun-voksne-aftaler vises aldrig på børnetavlen
   const info = (await Data.list('info')).filter(x => x.barn === barn && x.dato === iso);
   const liste = el('ul', 'sker-liste');
   for (const f of foed) {
@@ -1803,7 +1830,7 @@ async function tegnOverblik() {
   minePladser.hidden = !mine;
 
   // Kalender i dag og i morgen
-  const aftaler = await Data.list('kalender');
+  const aftaler = await kalenderAftaler();
   const iDagIso = isoDato(new Date());
   const imorgenDato = new Date(); imorgenDato.setDate(imorgenDato.getDate() + 1);
   const iMorgenIso = isoDato(imorgenDato);
@@ -1819,7 +1846,7 @@ async function tegnOverblik() {
   if (!dagens.length && !foedIdag.length) ovKal.append(el('li', null, 'Intet i kalenderen i dag'));
   for (const a of dagens) {
     const li = el('li', aftaleFarve(a));
-    li.append(el('span', 'prik'), el('span', null, tidTekst(a) + a.titel + ' · ' + personerI(a).join(', ')));
+    li.append(el('span', 'prik'), el('span', null, tidTekst(a) + a.titel + laas(a) + ' · ' + personerI(a).join(', ')));
     ovKal.append(li);
   }
   const morgen = aftalerDen(aftaler, iMorgenIso);
