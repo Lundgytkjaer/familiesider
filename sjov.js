@@ -5,9 +5,11 @@
 // ---------- Konfetti ----------
 const KONFETTI_FARVER = ['#f2a45a', '#a990ff', '#7aa5f5', '#ee86bd', '#5cc3a3', '#ffd34d'];
 let fejrerNu = false;
+let alfieFestTil = 0;   // lige efter en fejring danser Alfie, også om aftenen
 function fejr(tekst) {
   if (fejrerNu) return;
   fejrerNu = true;
+  alfieFestTil = Date.now() + 2 * 60 * 1000;
   setTimeout(() => { fejrerNu = false; }, 2600);
 
   const besked = el('div', 'fejring', tekst);
@@ -98,7 +100,9 @@ function alfieSvg(hvordan) {
   const ekstra = {
     super: `<path d="M46 65 L22 75 L27 84 Z" fill="#ff8a1f" stroke="#b85d0c" stroke-width="1" stroke-linejoin="round"/>
              <path d="M32 75 l1.6 3 M38 71.5 l1.4 2.6" stroke="#b85d0c" stroke-width="1.2" stroke-linecap="round"/>
-             <path d="M24.5 79.5 l-9 -6 M24.5 79.5 l-10.5 1 M24.5 79.5 l-6 7.5" stroke="#3f9c43" stroke-width="2.8" stroke-linecap="round"/>`,
+             <path d="M24.5 79.5 l-9 -6 M24.5 79.5 l-10.5 1 M24.5 79.5 l-6 7.5" stroke="#3f9c43" stroke-width="2.8" stroke-linecap="round"/>
+             <g class="alfie-hjerter" fill="#ef6b8a"><path d="M86 14 c0 -4 6 -4 6 0 c0 -4 6 -4 6 0 c0 5 -6 8 -6 10 c0 -2 -6 -5 -6 -10z"/>
+             <path d="M100 32 c0 -3 4.5 -3 4.5 0 c0 -3 4.5 -3 4.5 0 c0 3.8 -4.5 6 -4.5 7.5 c0 -1.5 -4.5 -3.7 -4.5 -7.5z"/></g>`,
     sover: `<g class="alfie-zzz" fill="${MORK}" font-family="system-ui, sans-serif" font-weight="800">
              <text x="74" y="26" font-size="12">z</text><text x="84" y="16" font-size="15">z</text><text x="96" y="8" font-size="18">Z</text></g>`,
     venter: `<g transform="translate(6 96) rotate(-20)"><path d="M0 0 l14 -4 l-12 10z" fill="#f08a24"/>
@@ -152,7 +156,7 @@ async function alfieKort(barn) {
   if (!ialt) return null;
   const mangler = ialt - klaret;
   const aften = nu.getHours() >= 20;
-  const hvordan = !mangler ? (aften ? 'sover' : 'super') : klaret ? 'glad' : 'venter';
+  const hvordan = !mangler ? (aften && Date.now() > alfieFestTil ? 'sover' : 'super') : klaret ? 'glad' : 'venter';
   const tekst = {
     venter: aften ? 'Alfie venter stadig… ' + mangler + ' ting mangler i dag 🥕' : 'Alfie glæder sig! Klar til at gå i gang? 🥕',
     glad: mangler === 1 ? 'Kun én ting tilbage – så får Alfie en gulerod!' : 'Godt gået! ' + mangler + ' ting tilbage i dag.',
@@ -168,6 +172,14 @@ async function alfieKort(barn) {
   const boble = el('div', 'alfie-boble', tekst);
   boble.setAttribute('aria-live', 'polite');
   figur.addEventListener('click', () => {
+    if (hvordan === 'sover') {
+      // Sovende Alfie vågner et øjeblik og danser
+      figur.innerHTML = alfieSvg('super');
+      boble.textContent = 'Alfie vågnede lige for at danse! 💃';
+      clearTimeout(figur._timer);
+      figur._timer = setTimeout(() => { figur.innerHTML = alfieSvg('sover'); boble.textContent = tekst; }, 5000);
+      return;
+    }
     figur.classList.remove('vip'); void figur.offsetWidth; figur.classList.add('vip');
     boble.textContent = ALFIE_SIGER[Math.floor(Math.random() * ALFIE_SIGER.length)];
   });

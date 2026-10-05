@@ -730,6 +730,9 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .alfie-glad .alfie-hoved { animation: alfie-vip 2.4s ease-in-out infinite; transform-origin: 46px 70px; }
 .alfie-sover .alfie-krop { animation: alfie-aande 3s ease-in-out infinite; transform-origin: 60px 100px; }
 .alfie-sover .alfie-zzz { animation: alfie-svaev 2.4s ease-in-out infinite; }
+.alfie-super .alfie-krop { animation: alfie-hop 1s ease-in-out infinite; }
+.alfie-super .alfie-hjerter { animation: alfie-svaev 1.6s ease-in-out infinite; }
+@keyframes alfie-hop { 0%, 100% { transform: translateY(0); } 40%, 60% { transform: translateY(-9px); } }
 .alfie-figur.vip .alfie-hoved { animation: alfie-vip .6s ease-in-out; transform-origin: 46px 70px; }
 @keyframes alfie-vip { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-4deg); } }
 @keyframes alfie-svaev { 0%, 100% { transform: translateY(0); opacity: 1; } 50% { transform: translateY(-5px); opacity: .7; } }
