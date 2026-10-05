@@ -1620,7 +1620,17 @@ async function tegnOverblik() {
   retEl.textContent = ret || 'Ikke bestemt endnu';
   retEl.classList.toggle('tom-ret', !ret);
   const imorgen = (await madFor(imorgenDato)).ret;
-  document.getElementById('ov-ret-imorgen').textContent = imorgen ? 'I morgen: ' + imorgen : '';
+  // Drengenes egne valg til aftensmad (afvigelser fra familiens)
+  const afvigelser = async dato => (await Promise.all(BOERN.map(async b => [b, await madFor(dato, b)])))
+    .filter(([, m]) => m.eget.ret).map(([b, m]) => b + ': ' + m.ret);
+  const idagAfv = await afvigelser(new Date());
+  const afvEl = document.getElementById('ov-ret-boern');
+  afvEl.replaceChildren(...idagAfv.map(t => el('span', 'afvigelse', t)));
+  afvEl.hidden = !idagAfv.length;
+  const morgenAfv = await afvigelser(imorgenDato);
+  document.getElementById('ov-ret-imorgen').textContent = imorgen || morgenAfv.length
+    ? 'I morgen: ' + (imorgen || 'ikke bestemt') + (morgenAfv.length ? ' (' + morgenAfv.join(', ') + ')' : '')
+    : '';
 
   // Skole: i dag, eller næste skoledag i weekenden / efter skole
   let dag = idag, label = 'Skole i dag';
