@@ -150,7 +150,8 @@ function visRutine(r, iso) {
   const tegn = () => {
     grid.replaceChildren(...trin.map((t, i) => {
       const b = knap('', 'trin' + (tjek.has(i) ? ' klaret' : ''), () => {
-        if (tjek.has(i)) tjek.delete(i); else tjek.add(i);
+        if (tjek.has(i)) tjek.delete(i);
+        else { tjek.add(i); if (tjek.size >= trin.length) fejr(r.navn + ' er klaret! 🎉'); }
         gemTjek(r, iso, tjek);
         tegn();
       });
@@ -401,6 +402,10 @@ async function skiftFlueben(barn, r, regel) {
     kr: regel.kr ? tal(r.o.kr) : 0,
     stjerner: regel.stjerner ? Math.round(tal(r.o.stjerner)) : 0
   });
+  if (!r.f) {
+    const liste = dagensOpgaver(await pligtData(barn));
+    if (liste.length && liste.every(x => x.f)) fejr('Alle pligter er klaret! 🎉');   // fra sjov.js
+  }
   tegnAlt();
 }
 
@@ -438,6 +443,8 @@ async function pligtKort(barn, titel = 'Pligter i dag') {
   if (d.regel.kr) status.push(kr(s.tilGode));
   const k = el('div', 'kort');
   const top = el('div', 'kort-top');
+  const st = streak(d);
+  if (st >= 2) status.unshift('🔥 ' + st);
   top.append(el('span', 'kort-label', titel),
     knap((status.length ? status.join(' · ') + ' ' : 'Alle ') + '›', 'kort-pil link-knap', () => {
       pligtBarn = barn; visFane('pligter'); tegnPligter(); window.scrollTo(0, 0);
@@ -487,6 +494,8 @@ async function tegnPligter() {
     }
     dele.push(stat);
   }
+  const st = streak(d);
+  if (st >= 1) dele.push(el('p', 'streak-linje', streakTekst(st) + (st >= 2 ? ' – sejt!' : '')));
 
   if (erVoksen() && d.regel.kr && s.tilGode > 0) {
     dele.push(bekraeftKnap('Udbetal ' + kr(s.tilGode), 'udbetale', 'ryd udbetal', async () => {

@@ -1515,6 +1515,8 @@ async function tegnBoernetavle(barn) {
   }
 
   const gitter = el('div', 'overblik');
+  const alfie = await alfieKort(barn);   // fra sjov.js
+  if (alfie) gitter.append(alfie);
   if (skerKort) gitter.append(skerKort);
   const rutiner = await rutineKort(barn, valgt);   // fra mere.js
   if (rutiner) gitter.append(rutiner);
