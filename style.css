@@ -680,3 +680,15 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .tags .over-tid { background: color-mix(in srgb, var(--fare) 16%, var(--flade)); color: var(--fare); }
 .interval-boks { display: grid; gap: 8px; margin-top: 8px; }
 .interval-boks .hint { margin: 0; }
+
+/* Hvem kan lide hvad (Vores lister) */
+.lide-valg { display: grid; gap: 6px; margin: 4px 0 10px; }
+.lide-valg .hint { margin: 0; }
+.lide-titel { font-size: 13px; font-weight: 700; color: var(--daempet); }
+.lide-valg .seg button[class*="c-"][aria-checked="true"] { background: var(--p); border-color: var(--p); color: #fff; }
+.lide-valg .alle-kan-lide { justify-self: start; }
+.lide-valg .alle-kan-lide[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.forslag .prikker { display: inline-flex; gap: 2px; margin-left: 2px; }
+.forslag .prik { width: 8px; height: 8px; border-radius: 50%; background: var(--p); }
+.forslag .lide-knap .hjerte { color: var(--p); font-size: 16px; line-height: 1; }
+.forslag .lide-knap.liker { border-color: var(--p); background: color-mix(in srgb, var(--p) 14%, var(--flade)); }

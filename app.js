@@ -394,6 +394,43 @@ function tegnListeValg() {
 }
 const VIS_FAERRE = 10;
 
+// Hvem kan lide hvad: favoritter får {kanLide: [navne]}.
+// "Alle" = dem der har markeret mindst én ret på listen – så tæller man ikke med, før man er gået i gang.
+const Lide = { person: null, kunAlle: false };
+const kanLide = f => Array.isArray(f.kanLide) ? f.kanLide : [];
+function lideAktive(favs) {
+  const s = new Set();
+  favs.forEach(f => kanLide(f).forEach(n => s.add(n)));
+  return PERSONER.filter(p => s.has(p));
+}
+function alleKanLide(favs) {
+  const aktive = lideAktive(favs);
+  if (!aktive.length) return [];
+  return favs.filter(f => aktive.every(n => kanLide(f).includes(n)));
+}
+function tegnLideValg() {
+  const boks = document.getElementById('lide-valg');
+  const mig = Data.bruger()?.navn;
+  const voksen = Data.bruger()?.rolle === 'voksen';
+  const folk = voksen ? ['Oliver', 'Villads', 'Timmo', 'Winnie'].filter(p => PERSONER.includes(p)) : [mig];
+  if (Lide.person && !folk.includes(Lide.person)) Lide.person = null;
+  const seg = el('div', 'seg wrap');
+  seg.setAttribute('role', 'radiogroup');
+  for (const p of folk) {
+    const k = knap(p === mig ? 'Mig' : p, PK[p] || null, () => {
+      Lide.person = Lide.person === p ? null : p;
+      tegnLideValg(); tegnForslag(listeType);
+    });
+    k.setAttribute('role', 'radio');
+    k.setAttribute('aria-checked', Lide.person === p);
+    seg.append(k);
+  }
+  const hint = Lide.person
+    ? 'Tryk på det, ' + (Lide.person === mig ? 'du' : Lide.person) + ' kan lide. Tryk på navnet igen, når du er færdig.'
+    : 'Vælg en person og markér det, de kan lide. Terningen vælger så det, flest kan lide, først.';
+  boks.replaceChildren(el('div', 'lide-titel', 'Hvem kan lide hvad?'), seg, el('p', 'hint', hint));
+}
+
 async function gemFavorit(type, tekst) {
   const favs = await Data.list('favoritter');
   const f = favs.find(x => x.type === type && x.tekst.toLowerCase() === tekst.toLowerCase());
@@ -413,6 +450,37 @@ async function tegnForslag(type) {
     if (type !== listeType) return;
     document.getElementById('antal-retter').textContent = '(' + favs.length + ')';
     favs.sort((a, b) => a.tekst.localeCompare(b.tekst, 'da'));
+    const faelles = alleKanLide(favs);
+    if (st.ret) Lide.person = null;
+    if (Lide.person) Lide.kunAlle = false;
+    if (!faelles.length) Lide.kunAlle = false;
+    // Markér-tilstand: tryk for at slå hjerte til/fra for den valgte person
+    if (Lide.person && !st.ret) {
+      const p = Lide.person;
+      boks.classList.remove('ret-tilstand');
+      boks.replaceChildren(...favs.map(f => {
+        const liker = kanLide(f).includes(p);
+        const k = el('button', 'lide-knap ' + PK[p] + (liker ? ' liker' : ''));
+        k.type = 'button';
+        k.append(el('span', 'hjerte', liker ? '♥' : '♡'), f.tekst);
+        k.setAttribute('aria-pressed', liker);
+        k.addEventListener('click', async () => {
+          const ny = liker ? kanLide(f).filter(n => n !== p) : [...kanLide(f), p];
+          await Data.update('favoritter', f.id, { kanLide: ny });
+          tegnForslag(type);
+        });
+        return k;
+      }));
+      return;
+    }
+    if (Lide.kunAlle && !st.ret) favs = faelles;
+    tegnLideValg();
+    if (faelles.length && !st.ret) {
+      const fk = knap((Lide.kunAlle ? '♥ Viser kun dem alle kan lide' : '♥ Kun dem alle kan lide') + ' (' + faelles.length + ')',
+        'lille-knap alle-kan-lide', () => { Lide.kunAlle = !Lide.kunAlle; tegnForslag(type); });
+      fk.setAttribute('aria-pressed', Lide.kunAlle);
+      document.getElementById('lide-valg').append(fk);
+    }
   } else {
     filter = document.getElementById('ny-' + type).value.trim().toLowerCase();
     const paaListen = new Set((await Data.list(type)).filter(p => !p.klaret).map(p => p.tekst.toLowerCase()));
@@ -426,7 +494,18 @@ async function tegnForslag(type) {
   boks.replaceChildren();
 
   for (const f of favs.slice(0, max)) {
-    if (erMaaltid && !st.ret) { boks.append(el('span', 'tag', f.tekst)); continue; }
+    if (erMaaltid && !st.ret) {
+      const tag = el('span', 'tag', f.tekst);
+      const hvem = PERSONER.filter(p => kanLide(f).includes(p));
+      if (hvem.length) {
+        const prikker = el('span', 'prikker');
+        prikker.append(...hvem.map(p => { const s = el('span', 'prik ' + PK[p]); s.title = p; return s; }));
+        prikker.setAttribute('aria-label', 'Kan lide: ' + hvem.join(', '));
+        tag.append(prikker);
+      }
+      boks.append(tag);
+      continue;
+    }
     const k = el('button');
     k.type = 'button';
     k.append(el('span', 'plus', st.ret ? '✕' : '+'), f.tekst);
@@ -657,13 +736,19 @@ async function rulDage(dage, felter = ['ret']) {
   const favs = await Data.list('favoritter');
   if (felter.includes('ret') && !favs.some(f => f.type === 'ret')) { document.querySelector('.retter-boks').open = true; return; }
   for (const felt of felter) {
-    const alle = favs.filter(f => f.type === felt).map(f => f.tekst);
+    const liste = favs.filter(f => f.type === felt);
+    const alle = liste.map(f => f.tekst);
     if (!alle.length) continue;
+    // Det flest kan lide vælges først: først det alle kan lide, så det næstflest kan lide osv.
+    const aktive = lideAktive(liste);
+    const point = new Map(liste.map(f => [f.tekst, kanLide(f).filter(n => aktive.includes(n)).length]));
     const plan = await madplanForUge(madUgeIso());
     const brugt = new Set(plan.map(r => (r[felt] || '').toLowerCase()).filter(Boolean));
     for (const dag of dage) {
-      let mulige = alle.filter(r => !brugt.has(r.toLowerCase()));
-      if (!mulige.length) mulige = alle;
+      const ubrugte = alle.filter(r => !brugt.has(r.toLowerCase()));
+      const kilde = ubrugte.length ? ubrugte : alle;
+      const bedst = Math.max(...kilde.map(r => point.get(r)));
+      const mulige = kilde.filter(r => point.get(r) === bedst);
       const valgt = mulige[Math.floor(Math.random() * mulige.length)];
       brugt.add(valgt.toLowerCase());
       await gemMad(dag, felt, valgt);
