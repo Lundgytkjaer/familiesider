@@ -522,7 +522,7 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .stat { background: var(--flade); border-radius: var(--radius); padding: 14px; display: flex; flex-direction: column; gap: 2px; }
 .stat-tal { font-family: var(--font-titel); font-weight: 800; font-size: 28px; line-height: 1.05; font-variant-numeric: tabular-nums; }
 .stat-navn { font-size: 13px; color: var(--daempet); font-weight: 600; }
-.stat:first-child .stat-tal { color: var(--p2); }
+.stjerne-stat .stat-tal { color: var(--p2); }
 .udbetal { margin-bottom: 4px; }
 .tags .kr-tag { background: var(--accent-blod); color: var(--accent); }
 .tags .stjerne-tag { background: color-mix(in srgb, var(--p2) 20%, var(--flade)); color: var(--p2); }
@@ -673,3 +673,6 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .aftale-knapper { flex-wrap: wrap; }
 .aftale-knapper .knap { flex: 1 1 45%; }
 .aftale-knapper .bred { flex: 1 1 100%; margin: 0; }
+
+.stat-raekke.en { grid-template-columns: 1fr; }
+#ov-mine-pligter .liste.i-kort { margin: 0; }

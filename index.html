@@ -23,7 +23,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-05b">
+  <link rel="stylesheet" href="style.css?v=2026-10-05c">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -45,6 +45,8 @@
           <ul class="mini" id="ov-kal"></ul>
           <p class="under" id="ov-kal-imorgen"></p>
         </button>
+
+        <div class="kort" id="ov-mine-pligter" hidden></div>
 
         <button type="button" class="kort" data-gaa="madplan">
           <div class="kort-top"><span class="kort-label">Aftensmad i dag</span><span class="kort-pil">Madplan ›</span></div>
@@ -196,7 +198,7 @@
         </button>
         <button type="button" class="kort mere-kort" data-gaa="pligter">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
-          <span class="mere-navn">Pligter og stjerner</span><span class="under">Lommepenge, stjerner og belønninger</span>
+          <span class="mere-navn">Pligter</span><span class="under">Med eller uden lommepenge og stjerner</span>
         </button>
         <button type="button" class="kort mere-kort" data-gaa="pakkelister">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="7" width="16" height="13" rx="2"/><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M4 12h16"/></svg>
@@ -219,7 +221,7 @@
     <!-- PLIGTER -->
     <section id="pligter" class="fane" hidden>
       <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
-      <div class="sek-hoved"><h2>Pligter og stjerner</h2></div>
+      <div class="sek-hoved"><h2>Pligter</h2></div>
       <div id="pligter-indhold"></div>
     </section>
 
@@ -289,8 +291,8 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="data.js?v=2026-10-05b"></script>
-<script src="app.js?v=2026-10-05b"></script>
-<script src="mere.js?v=2026-10-05b"></script>
+<script src="data.js?v=2026-10-05c"></script>
+<script src="app.js?v=2026-10-05c"></script>
+<script src="mere.js?v=2026-10-05c"></script>
 </body>
 </html>

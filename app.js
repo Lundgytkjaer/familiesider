@@ -1711,6 +1711,12 @@ async function tegnOverblik() {
   }
   const idag = idagNr();
 
+  // Mine egne pligter (kun for voksne – fra mere.js)
+  const minePladser = document.getElementById('ov-mine-pligter');
+  const mine = await minePligterKort();
+  minePladser.replaceChildren(...(mine ? [...mine.childNodes] : []));
+  minePladser.hidden = !mine;
+
   // Kalender i dag og i morgen
   const aftaler = await Data.list('kalender');
   const iDagIso = isoDato(new Date());
