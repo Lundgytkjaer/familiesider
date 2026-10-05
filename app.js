@@ -903,7 +903,8 @@ async function gemSkemaFelt(liste, noegle, felter) {
 document.getElementById('rediger-skema').addEventListener('click', () => { redigerer = !redigerer; tegnSkema(); });
 
 // ---------- Kalender ----------
-// Data: 'kalender' {dato: 'ÅÅÅÅ-MM-DD', hvem, titel, tid: 'TT:MM' eller ''}
+// Data: 'kalender' {dato: 'ÅÅÅÅ-MM-DD', tilDato?, hvem: navn eller [navne], titel, tid: 'TT:MM' eller '', slut?, note?,
+//                   gentag?: 'uge'|'2uger'|'maaned'|'aar', gentagTil?: dato, undtagelser?: [datoer der er sprunget over]}
 const PERSONER = ['Fælles', 'Timmo', 'Winnie', 'Oliver', 'Villads'];
 const PK = { 'Fælles': 'c-faelles', Timmo: 'c-timmo', Winnie: 'c-winnie', Oliver: 'c-oliver', Villads: 'c-villads' };
 const MDR = ['jan.', 'feb.', 'mar.', 'apr.', 'maj', 'jun.', 'jul.', 'aug.', 'sep.', 'okt.', 'nov.', 'dec.'];
@@ -914,6 +915,47 @@ function isoDato(d) {
 }
 const visTid = t => (t || '').replace(':', '.');
 const sorterAftaler = (a, b) => (a.tid || '').localeCompare(b.tid || '');
+
+// ----- Gentagelser, flere dage og flere personer -----
+const GENTAG_NAVN = { '': 'Nej', uge: 'Hver uge', '2uger': 'Hver 2. uge', maaned: 'Hver måned', aar: 'Hvert år' };
+const personerI = a => (Array.isArray(a.hvem) ? a.hvem : [a.hvem || 'Fælles']);
+const tilDag = iso => new Date(iso + 'T12:00');   // kl. 12 undgår fejl ved skift til/fra sommertid
+const dageMellem = (fra, til) => Math.round((tilDag(til) - tilDag(fra)) / 86400000);
+const plusDage = (iso, n) => { const d = tilDag(iso); d.setDate(d.getDate() + n); return isoDato(d); };
+const tidTekst = a => (a.tid ? visTid(a.tid) + (a.slut ? '–' + visTid(a.slut) : '') + ' ' : '');
+const aftaleFarve = (a, foretruk = []) => PK[personerI(a).find(p => foretruk.includes(p)) || personerI(a)[0]] || 'c-faelles';
+
+// Startdatoen for den gang aftalen finder sted, som dækker dagen iso – eller null hvis den ikke sker den dag
+function forekomstStart(a, iso) {
+  if (!a.dato || iso < a.dato) return null;
+  const varighed = a.tilDato && a.tilDato > a.dato ? dageMellem(a.dato, a.tilDato) : 0;
+  let start = null;
+  if (!a.gentag) {
+    start = a.dato;
+  } else if (a.gentag === 'uge' || a.gentag === '2uger') {
+    const skridt = a.gentag === 'uge' ? 7 : 14;
+    const n = dageMellem(a.dato, iso);
+    start = plusDage(a.dato, n - (n % skridt));
+  } else {
+    const s = tilDag(a.dato);
+    for (let k = 0; k <= varighed; k++) {
+      const kandidat = plusDage(iso, -k);
+      if (kandidat < a.dato) break;
+      const c = tilDag(kandidat);
+      if (c.getDate() === s.getDate() && (a.gentag === 'maaned' || c.getMonth() === s.getMonth())) { start = kandidat; break; }
+    }
+    if (!start) return null;
+  }
+  if (dageMellem(start, iso) > varighed) return null;
+  if (a.gentag && a.gentagTil && start > a.gentagTil) return null;
+  if ((a.undtagelser || []).includes(start)) return null;
+  return start;
+}
+// Dagens aftaler – evt. kun for bestemte personer
+function aftalerDen(aftaler, iso, hvem = null) {
+  return aftaler.filter(a => forekomstStart(a, iso) !== null && (!hvem || personerI(a).some(p => hvem.includes(p))))
+    .sort(sorterAftaler);
+}
 
 // Uge- eller månedsvisning (huskes på denne enhed)
 let kalVisning = lokal.get('kal-visning') === 'maaned' ? 'maaned' : 'uge';
@@ -959,7 +1001,7 @@ async function tegnMaaned() {
     g.append(el('div', 'md-ugenr', ugenummer(dag)));
     for (let i = 0; i < 7; i++) {
       const iso = isoDato(dag);
-      const dagens = aftaler.filter(a => a.dato === iso).sort(sorterAftaler);
+      const dagens = aftalerDen(aftaler, iso);
       const foed = alleFoed.filter(f => isoDato(datoIAar(f, dag.getFullYear())) === iso);
       const k = knap('', 'md-dag' + (dag.getMonth() !== foerste.getMonth() ? ' anden' : '') +
         (iso === idagIso ? ' idag' : '') + (iso === kalValgtDag ? ' valgt' : '') + (i >= 5 ? ' weekend' : ''),
@@ -975,8 +1017,8 @@ async function tegnMaaned() {
         titler.append(el('span', 'md-titel c-foed', f.navn));
       }
       for (const a of dagens) {
-        prikker.append(el('span', 'prik ' + PK[a.hvem]));
-        titler.append(el('span', 'md-titel ' + PK[a.hvem], (a.tid ? visTid(a.tid) + ' ' : '') + a.titel));
+        for (const p of personerI(a)) prikker.append(el('span', 'prik ' + PK[p]));
+        titler.append(el('span', 'md-titel ' + aftaleFarve(a), (a.tid ? visTid(a.tid) + ' ' : '') + a.titel));
       }
       k.append(prikker, titler);
       g.append(k);
@@ -996,10 +1038,10 @@ async function tegnMaaned() {
     li.append(el('span', 'prik'), el('span', 'husk-tekst', foedTekst(f)));
     ul.append(li);
   }
-  for (const a of aftaler.filter(a => a.dato === kalValgtDag).sort(sorterAftaler)) {
-    const li = el('li', PK[a.hvem]);
-    const b = knap('', 'dag-aftale', () => redigerAftale(a));
-    b.append(el('span', 'prik'), el('span', 'husk-tekst', (a.tid ? visTid(a.tid) + ' ' : '') + a.titel), el('span', 'dag-hvem', a.hvem));
+  for (const a of aftalerDen(aftaler, kalValgtDag)) {
+    const li = el('li', aftaleFarve(a));
+    const b = knap('', 'dag-aftale', () => redigerAftale(a, forekomstStart(a, kalValgtDag)));
+    b.append(el('span', 'prik'), el('span', 'husk-tekst', tidTekst(a) + a.titel + (a.gentag ? ' ↻' : '')), el('span', 'dag-hvem', personerI(a).join(', ')));
     li.append(b);
     ul.append(li);
   }
@@ -1059,12 +1101,12 @@ async function tegnKalender() {
         }
       }
 
-      for (const a of aftaler.filter(a => a.dato === iso && a.hvem === p).sort(sorterAftaler)) {
+      for (const a of aftalerDen(aftaler, iso, [p])) {
         const b = el('button', 'beg ' + PK[p]);
         b.type = 'button';
-        if (a.tid) b.append(el('b', null, visTid(a.tid)));
-        b.append(el('span', null, a.titel));
-        b.addEventListener('click', e => { e.stopPropagation(); redigerAftale(a); });
+        if (a.tid) b.append(el('b', null, visTid(a.tid) + (a.slut ? '–' + visTid(a.slut) : '')));
+        b.append(el('span', null, a.titel + (a.gentag ? ' ↻' : '')));
+        b.addEventListener('click', e => { e.stopPropagation(); redigerAftale(a, forekomstStart(a, iso)); });
         celle.append(b);
       }
       g.append(celle);
@@ -1072,30 +1114,111 @@ async function tegnKalender() {
   }
 }
 
-function redigerAftale(a) {
+// forekomst = den dag man trykkede på (vigtigt for gentagne aftaler)
+function redigerAftale(a, forekomst) {
   const ny = !a.id;
+  const serie = !ny && !!a.gentag;
+  forekomst = forekomst || a.dato;
+  const varighed = a.tilDato && a.dato ? Math.max(0, dageMellem(a.dato, a.tilDato)) : 0;
+
   const titel = input('text', 'aftale-titel', a.titel, 'Fx fodbold, tandlæge, fødselsdag');
-  let hvem = a.hvem || 'Fælles';
-  const hvemValg = chipValg(PERSONER, hvem, v => { hvem = v; });
-  const dato = input('date', 'aftale-dato', a.dato);
+
+  // Hvem: én eller flere
+  const valgte = new Set(personerI(a));
+  const hvemValg = el('div', 'seg wrap');
+  const tegnHvem = () => hvemValg.replaceChildren(...PERSONER.map(p => {
+    const k = knap(p, null, () => {
+      if (valgte.has(p)) valgte.delete(p); else valgte.add(p);
+      tegnHvem();
+    });
+    k.setAttribute('role', 'checkbox');
+    k.setAttribute('aria-checked', valgte.has(p));
+    return k;
+  }));
+  tegnHvem();
+
+  const start = serie ? forekomst : a.dato;
+  const dato = input('date', 'aftale-dato', start);
+  const tilDato = input('date', 'aftale-tildato', varighed ? plusDage(start, varighed) : '');
   const tid = input('time', 'aftale-tid', a.tid);
-  const toFelter = el('div', 'to-felter');
-  toFelter.append(felt('Dato', dato), felt('Tid (valgfri)', tid));
+  const slut = input('time', 'aftale-slut', a.slut);
+  const note = input('text', 'aftale-note', a.note, 'Fx sted, husk madpakke');
 
-  const gem = knap('Gem', 'knap', async () => {
+  let gentag = a.gentag || '';
+  const gentagTil = input('date', 'aftale-gentagtil', a.gentagTil || '');
+  const gentagTilFelt = felt('Gentages til og med (valgfri)', gentagTil);
+  gentagTilFelt.hidden = !gentag;
+  const gentagValg = chipValg(Object.keys(GENTAG_NAVN), gentag, v => { gentag = v; gentagTilFelt.hidden = !v; }, v => GENTAG_NAVN[v]);
+
+  const fejl = el('p', 'fejl'); fejl.hidden = true;
+  const datoRaekke = el('div', 'to-felter');
+  datoRaekke.append(felt('Dato', dato), felt('Til dato (flere dage)', tilDato));
+  const tidRaekke = el('div', 'to-felter');
+  tidRaekke.append(felt('Fra kl. (valgfri)', tid), felt('Til kl.', slut));
+
+  // Samler felterne – eller null hvis noget mangler
+  function felter() {
     const t = titel.value.trim();
-    if (!t) { titel.focus(); return; }
-    if (!dato.value) { dato.focus(); return; }
-    const felter = { titel: t, hvem, dato: dato.value, tid: tid.value };
-    if (ny) await Data.add('kalender', felter); else await Data.update('kalender', a.id, felter);
-    lukArk();
-    tegnAlt();
-  });
-  const knapper = el('div', 'ark-knapper');
-  if (!ny) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('kalender', a.id); lukArk(); tegnAlt(); }));
-  knapper.append(gem);
+    if (!t) { titel.focus(); return null; }
+    if (!dato.value) { dato.focus(); return null; }
+    if (tilDato.value && tilDato.value < dato.value) { fejl.textContent = 'Til-datoen er før datoen.'; fejl.hidden = false; return null; }
+    const hvem = PERSONER.filter(p => valgte.has(p));
+    return {
+      titel: t,
+      hvem: hvem.length === 0 ? 'Fælles' : hvem.length === 1 ? hvem[0] : hvem,
+      dato: dato.value,
+      tilDato: tilDato.value && tilDato.value > dato.value ? tilDato.value : null,
+      tid: tid.value,
+      slut: tid.value ? slut.value : '',
+      note: note.value.trim(),
+      gentag,
+      gentagTil: gentag ? gentagTil.value || null : null
+    };
+  }
+  const faerdig = () => { lukArk(); tegnAlt(); };
 
-  aabnArk(ny ? 'Ny aftale' : 'Ret aftale', felt('Hvad', titel), felt('Hvem', hvemValg), toFelter, knapper);
+  const knapper = el('div', 'ark-knapper aftale-knapper');
+  if (ny) {
+    knapper.append(knap('Gem', 'knap', async () => { const f = felter(); if (!f) return; await Data.add('kalender', f); faerdig(); }));
+  } else if (!serie) {
+    knapper.append(
+      knap('Slet', 'knap fare', async () => { await Data.remove('kalender', a.id); faerdig(); }),
+      knap('Gem', 'knap', async () => { const f = felter(); if (!f) return; await Data.update('kalender', a.id, f); faerdig(); }));
+  } else {
+    const undtag = [...(a.undtagelser || [])];
+    const forSidste = plusDage(forekomst, -1);
+    knapper.append(
+      el('p', 'hint bred', 'Aftalen gentages. Gælder ændringen kun ' + forekomst.split('-').reverse().slice(0, 2).join('/') + ' eller også fremover?'),
+      knap('Gem kun denne dag', 'knap sekundaer-knap', async () => {
+        const f = felter(); if (!f) return;
+        await Data.update('kalender', a.id, { undtagelser: [...undtag, forekomst] });
+        await Data.add('kalender', { ...f, gentag: '', gentagTil: null });
+        faerdig();
+      }),
+      knap('Gem fra denne dag', 'knap', async () => {
+        const f = felter(); if (!f) return;
+        if (forekomst === a.dato) {
+          await Data.update('kalender', a.id, f);
+        } else {
+          await Data.update('kalender', a.id, { gentagTil: forSidste });
+          await Data.add('kalender', { ...f, undtagelser: undtag.filter(d => d >= forekomst) });
+        }
+        faerdig();
+      }),
+      knap('Slet kun denne dag', 'knap fare', async () => {
+        await Data.update('kalender', a.id, { undtagelser: [...undtag, forekomst] });
+        faerdig();
+      }),
+      knap('Slet fra denne dag', 'knap fare', async () => {
+        if (forekomst === a.dato) await Data.remove('kalender', a.id);
+        else await Data.update('kalender', a.id, { gentagTil: forSidste });
+        faerdig();
+      })
+    );
+  }
+
+  aabnArk(ny ? 'Ny aftale' : 'Ret aftale', felt('Hvad', titel), felt('Hvem', hvemValg), datoRaekke, tidRaekke,
+    felt('Gentages', gentagValg), gentagTilFelt, felt('Note', note), fejl, knapper);
   if (ny) setTimeout(() => titel.focus(), 50);
 }
 
@@ -1230,8 +1353,7 @@ async function tegnBoernetavle(barn) {
   // "Det sker": fødselsdage, kalender (eget + fælles) og det der ellers skal ske – med billeder
   const voksen = Data.bruger()?.rolle === 'voksen';
   const foed = await foedselsdageDen(iso);
-  const aftaler = (await Data.list('kalender'))
-    .filter(a => a.dato === iso && (a.hvem === barn || a.hvem === 'Fælles')).sort(sorterAftaler);
+  const aftaler = aftalerDen(await Data.list('kalender'), iso, [barn, 'Fælles']);
   const info = (await Data.list('info')).filter(x => x.barn === barn && x.dato === iso);
   const liste = el('ul', 'sker-liste');
   for (const f of foed) {
@@ -1240,8 +1362,9 @@ async function tegnBoernetavle(barn) {
     liste.append(li);
   }
   for (const a of aftaler) {
-    const li = el('li', PK[a.hvem]);
-    li.append(el('span', 'prik'), el('span', 'husk-tekst', (a.tid ? visTid(a.tid) + ' ' : '') + a.titel + (a.hvem === 'Fælles' ? ' · hele familien' : '')));
+    const li = el('li', aftaleFarve(a, [barn]));
+    const kunFaelles = !personerI(a).includes(barn);
+    li.append(el('span', 'prik'), el('span', 'husk-tekst', tidTekst(a) + a.titel + (kunFaelles ? ' · hele familien' : '') + (a.note ? ' – ' + a.note : '')));
     liste.append(li);
   }
   for (const x of info) {
@@ -1595,7 +1718,7 @@ async function tegnOverblik() {
   const iMorgenIso = isoDato(imorgenDato);
   const ovKal = document.getElementById('ov-kal');
   ovKal.replaceChildren();
-  const dagens = aftaler.filter(a => a.dato === iDagIso).sort(sorterAftaler);
+  const dagens = aftalerDen(aftaler, iDagIso);
   const foedIdag = await foedselsdageDen(iDagIso);
   for (const f of foedIdag) {
     const li = el('li', 'c-foed');
@@ -1604,14 +1727,14 @@ async function tegnOverblik() {
   }
   if (!dagens.length && !foedIdag.length) ovKal.append(el('li', null, 'Intet i kalenderen i dag'));
   for (const a of dagens) {
-    const li = el('li', PK[a.hvem]);
-    li.append(el('span', 'prik'), el('span', null, (a.tid ? visTid(a.tid) + ' ' : '') + a.titel + ' · ' + a.hvem));
+    const li = el('li', aftaleFarve(a));
+    li.append(el('span', 'prik'), el('span', null, tidTekst(a) + a.titel + ' · ' + personerI(a).join(', ')));
     ovKal.append(li);
   }
-  const morgen = aftaler.filter(a => a.dato === iMorgenIso).sort(sorterAftaler);
+  const morgen = aftalerDen(aftaler, iMorgenIso);
   const morgenTekster = [
     ...(await foedselsdageDen(iMorgenIso)).map(foedTekst),
-    ...morgen.map(a => (a.tid ? visTid(a.tid) + ' ' : '') + a.titel + ' (' + a.hvem + ')')
+    ...morgen.map(a => tidTekst(a) + a.titel + ' (' + personerI(a).join(', ') + ')')
   ];
   document.getElementById('ov-kal-imorgen').textContent = morgenTekster.length ? 'I morgen: ' + morgenTekster.join(', ') : '';
 

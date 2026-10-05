@@ -669,3 +669,7 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 
 .ov-afvigelser { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 0; }
 .afvigelse { padding: 2px 10px; border-radius: 999px; background: var(--bg); font-size: 14px; font-weight: 600; }
+
+.aftale-knapper { flex-wrap: wrap; }
+.aftale-knapper .knap { flex: 1 1 45%; }
+.aftale-knapper .bred { flex: 1 1 100%; margin: 0; }
