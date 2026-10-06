@@ -225,7 +225,7 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .madplan-knapper .lille-knap { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .madplan-knapper .lille-knap.bekraeft { border-color: var(--fare); color: var(--fare); }
 .madplan-knapper svg, .terning svg { width: 18px; height: 18px; }
-.dag { display: grid; grid-template-columns: 58px 1fr 48px; align-items: center; padding-left: 14px; min-height: var(--raekke); }
+.dag { display: grid; grid-template-columns: 58px 1fr 40px 48px; align-items: center; padding-left: 14px; min-height: var(--raekke); }
 .terning { width: 48px; height: var(--raekke); border: 0; background: none; color: var(--daempet); display: grid; place-items: center; }
 .terning:active svg { transform: rotate(90deg); }
 .dag.ny { animation: blink .9s ease; }
@@ -339,8 +339,9 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .status {
   position: fixed; left: 16px; right: 16px; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); z-index: 25;
   max-width: 528px; margin: 0 auto; padding: 12px 14px; border-radius: 12px;
-  background: var(--fare); color: #fff; font-weight: 600; text-align: center;
+  background: var(--fg); color: var(--bg); font-weight: 600; text-align: center; box-shadow: 0 8px 24px rgb(0 0 0 / .25);
 }
+.status.fejl-status { background: var(--fare); color: #fff; }
 
 /* Madplan: morgenmad og frokost */
 .vis-maaltider { width: 100%; margin-bottom: 10px; }
@@ -1016,3 +1017,12 @@ body:not(.barn) .kun-barn { display: none !important; }
 .hjaelp-intro { margin: 0; font-size: 16px; line-height: 1.45; }
 .hjaelp-kort h3 { font-family: var(--font-titel); font-size: 18px; margin: 0 0 6px; }
 .hjaelp-kort ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; line-height: 1.45; }
+
+/* Madplan: fast aftensmad hver uge (↻) og kopiér sidste uge */
+.gentag-knap { width: 40px; height: 40px; border: 0; border-radius: 50%; background: none; color: var(--daempet); font-size: 18px; font-weight: 700; opacity: .55; }
+.gentag-knap.aktiv { opacity: 1; color: var(--accent); background: var(--accent-blod); }
+.dag.fra-fast input[type="text"] { color: var(--accent); }
+body.barn .gentag-knap:not(.aktiv) { visibility: hidden; }
+body.barn .gentag-knap { pointer-events: none; }
+.madplan-knapper { flex-wrap: wrap; }
+.madplan-knapper .lille-knap { flex: 1 1 auto; white-space: nowrap; }

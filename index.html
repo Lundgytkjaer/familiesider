@@ -23,7 +23,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-06r">
+  <link rel="stylesheet" href="style.css?v=2026-10-06s">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -116,6 +116,7 @@
         <button type="button" class="pil" id="mad-naeste" aria-label="Næste uge">›</button>
       </div>
       <div class="madplan-knapper">
+        <button type="button" class="lille-knap" id="kopier-uge">⧉ Kopiér sidste uge</button>
         <button type="button" class="lille-knap" id="fyld-tomme">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Fyld tomme dage
         </button>
@@ -123,7 +124,8 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>Bland hele ugen
         </button>
       </div>
-      <ol class="uge"></ol>
+      <ol class="uge" id="mad-uge"></ol>
+      <p class="hint kun-voksen">↻ = retten kommer igen samme dag hver uge.</p>
       <datalist id="retter-forslag"></datalist>
       <datalist id="morgen-forslag"></datalist>
       <datalist id="frokost-forslag"></datalist>
@@ -400,11 +402,11 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="data.js?v=2026-10-06r"></script>
-<script src="dage.js?v=2026-10-06r"></script>
-<script src="vejr.js?v=2026-10-06r"></script>
-<script src="app.js?v=2026-10-06r"></script>
-<script src="mere.js?v=2026-10-06r"></script>
-<script src="sjov.js?v=2026-10-06r"></script>
+<script src="data.js?v=2026-10-06s"></script>
+<script src="dage.js?v=2026-10-06s"></script>
+<script src="vejr.js?v=2026-10-06s"></script>
+<script src="app.js?v=2026-10-06s"></script>
+<script src="mere.js?v=2026-10-06s"></script>
+<script src="sjov.js?v=2026-10-06s"></script>
 </body>
 </html>
