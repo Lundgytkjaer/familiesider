@@ -347,7 +347,7 @@ function saldo(d) {
 // Pligter med fast mellemrum: næste gang = sidst klaret + mellemrum (eller startdatoen første gang)
 const intervalDage = o => Math.max(1, Math.round(tal(o.interval)) || 14);
 function sidstKlaret(o, d) {
-  const datoer = d.flueben.filter(x => x.opgave === o.id).map(x => x.dato).sort();
+  const datoer = d.flueben.filter(x => x.opgave === o.id && !x.sprunget).map(x => x.dato).sort();
   return datoer[datoer.length - 1] || null;
 }
 // regnFra 'fast' (standard): holder rytmen fra startdatoen (fx hver 2. torsdag), også når den klares for sent.
@@ -376,6 +376,9 @@ function dagensOpgaver(d) {
   const iso = isoDato(nu), dag = idagNr(), man = isoDato(mandagDenneUge());
   const res = [];
   for (const o of d.opgaver) {
+    // Bonus sprunget over i dag ("Ikke i dag") – vises nederst med Fortryd; i morgen er den der igen
+    const sprunget = o.frivillig && d.flueben.find(x => x.opgave === o.id && x.sprunget && x.dato === iso);
+    if (sprunget) { res.push({ o, periode: 'sprunget-' + iso, f: null, sprunget }); continue; }
     let periode;
     if (o.gentag === 'interval') {
       const idagF = d.flueben.find(x => x.opgave === o.id && x.periode === iso);
@@ -396,11 +399,17 @@ function dagensOpgaver(d) {
     res.push({ o, periode, f });
   }
   const orden = { dag: 0, interval: 1, uge: 2, engang: 3 };
-  return res.sort((a, b) => Number(!!a.f) - Number(!!b.f) || Number(!!a.o.frivillig) - Number(!!b.o.frivillig)
+  return res.sort((a, b) => Number(!!a.sprunget) - Number(!!b.sprunget) || Number(!!a.f) - Number(!!b.f) || Number(!!a.o.frivillig) - Number(!!b.o.frivillig)
     || (orden[a.o.gentag] ?? 0) - (orden[b.o.gentag] ?? 0));
 }
 // Det der skal klares (bonus-pligter tæller ikke med)
 const skalKlares = liste => liste.filter(r => !r.o.frivillig);
+// Spring en bonus over i dag (barnet må selv – gemmes som et flueben uden belønning)
+async function springOver(barn, r) {
+  const iso = isoDato(new Date());
+  await Data.add('flueben', { opgave: r.o.id, barn, periode: 'sprunget-' + iso, dato: iso, navn: r.o.navn, kr: 0, stjerner: 0, sprunget: true });
+  tegnAlt();
+}
 
 async function skiftFlueben(barn, r, regel) {
   if (r.f) await Data.remove('flueben', r.f.id);
@@ -418,6 +427,12 @@ async function skiftFlueben(barn, r, regel) {
 }
 
 function opgaveLi(barn, r, regel) {
+  if (r.sprunget) {
+    const li = el('li', 'punkt sprunget');
+    li.append(el('span', 'sprunget-tekst', r.o.navn + ' – ikke i dag'),
+      knap('Fortryd', 'lille-knap', async () => { await Data.remove('flueben', r.sprunget.id); tegnAlt(); }));
+    return li;
+  }
   const li = el('li', 'punkt' + (r.f ? ' faerdig' : ''));
   const b = el('button', 'punkt-knap');
   b.type = 'button';
@@ -438,6 +453,7 @@ function opgaveLi(barn, r, regel) {
   b.append(tjek, ikonBillede(r.o, 'lille-ikon opg-ikon'), tb);
   b.addEventListener('click', () => skiftFlueben(barn, r, regel));
   li.append(b);
+  if (r.o.frivillig && !r.f) li.append(knap('Ikke i dag', 'lille-knap spring-knap', () => springOver(barn, r)));
   return li;
 }
 
@@ -552,33 +568,7 @@ async function tegnPligter() {
   if (d.regel.stjerner) {
     dele.push(el('h3', 'lille-titel', 'Belønninger'));
     const bl = el('ul', 'beloen-liste');
-    for (const b of [...d.beloenninger].sort((a, c) => a.stjerner - c.stjerner)) {
-      const li = el('li', 'beloen');
-      const nok = s.stjerner >= b.stjerner;
-      const info = el('div', 'beloen-info');
-      info.append(el('span', 'beloen-navn', b.navn),
-        el('span', 'beloen-pris', '★ ' + b.stjerner + (nok ? ' · du har nok!' : ' · mangler ' + (b.stjerner - s.stjerner))),
-        fremskridt(b.stjerner ? s.stjerner / b.stjerner : 1));
-      const venter = d.indl.find(x => x.status === 'afventer' && x.navn === b.navn);
-      let indloes;
-      if (venter) indloes = el('span', 'venter-tag', 'Venter på en voksen');
-      else if (erVoksen()) {
-        indloes = bekraeftKnap('Indløs', 'indløse', 'lille-knap', async () => {
-          await Data.add('indloesninger', { barn, navn: b.navn, stjerner: b.stjerner, dato: isoDato(new Date()), status: 'godkendt' });
-          tegnAlt();
-        });
-        indloes.disabled = !nok;
-      } else {
-        indloes = bekraeftKnap('Ønsk', 'ønske at indløse', 'lille-knap', async () => {
-          await Data.add('indloesninger', { barn, navn: b.navn, stjerner: b.stjerner, dato: isoDato(new Date()), status: 'afventer' });
-          fejr('Ønsket er sendt til mor og far 🎁');   // fra sjov.js
-          tegnAlt();
-        });
-        indloes.disabled = !nok;
-      }
-      li.append(info, indloes);
-      bl.append(li);
-    }
+    for (const b of [...d.beloenninger].sort((a, c) => a.stjerner - c.stjerner)) bl.append(beloenLi(barn, b, d, s));
     if (!d.beloenninger.length) bl.append(el('li', 'tom', 'Ingen belønninger endnu'));
     dele.push(bl);
   }
@@ -659,6 +649,54 @@ async function tegnPligter() {
 
   if (d.opgaver.some(x => x.piktogram)) dele.push(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
   boks.replaceChildren(...dele);
+}
+
+// Én belønning med fremdrift og knap: voksne "Indløs", børn "Ønsk" (eller "Venter på en voksen")
+function beloenLi(barn, b, d, s) {
+  const li = el('li', 'beloen');
+  const nok = s.stjerner >= b.stjerner;
+  const info = el('div', 'beloen-info');
+  info.append(el('span', 'beloen-navn', b.navn),
+    el('span', 'beloen-pris', '★ ' + b.stjerner + (nok ? ' · du har nok!' : ' · mangler ' + (b.stjerner - s.stjerner))),
+    fremskridt(b.stjerner ? s.stjerner / b.stjerner : 1));
+  const venter = d.indl.find(x => x.status === 'afventer' && x.navn === b.navn);
+  let indloes;
+  if (venter) indloes = el('span', 'venter-tag', 'Venter på en voksen');
+  else if (erVoksen()) {
+    indloes = bekraeftKnap('Indløs', 'indløse', 'lille-knap', async () => {
+      await Data.add('indloesninger', { barn, navn: b.navn, stjerner: b.stjerner, dato: isoDato(new Date()), status: 'godkendt' });
+      tegnAlt();
+    });
+    indloes.disabled = !nok;
+  } else {
+    indloes = bekraeftKnap('Ønsk', 'ønske at indløse', 'lille-knap', async () => {
+      await Data.add('indloesninger', { barn, navn: b.navn, stjerner: b.stjerner, dato: isoDato(new Date()), status: 'afventer' });
+      fejr('Ønsket er sendt til mor og far 🎁');   // fra sjov.js
+      tegnAlt();
+    });
+    indloes.disabled = !nok;
+  }
+  li.append(info, indloes);
+  return li;
+}
+
+// Belønninger på børnetavlen: stjerner + de næste belønninger, så barnet ikke skal ind under Mere
+async function beloenningKort(barn) {
+  const d = await pligtData(barn);
+  if (!d.regel.stjerner || !d.beloenninger.length) return null;
+  const s = saldo(d);
+  const k = el('div', 'kort');
+  const top = el('div', 'kort-top');
+  top.append(el('span', 'kort-label', 'Belønninger'), el('span', 'kort-pil stjerne-saldo', '★ ' + s.stjerner));
+  const ul = el('ul', 'beloen-liste i-kort');
+  d.indl.filter(x => x.status === 'afventer').forEach(x => ul.append(oenskeLi(x, !erVoksen())));
+  // Dem man har råd til + de næste to, man sparer op til
+  const sorteret = [...d.beloenninger].sort((a, c) => a.stjerner - c.stjerner)
+    .filter(b => !d.indl.some(x => x.status === 'afventer' && x.navn === b.navn));
+  const vis = [...sorteret.filter(b => b.stjerner <= s.stjerner), ...sorteret.filter(b => b.stjerner > s.stjerner).slice(0, 2)];
+  vis.forEach(b => ul.append(beloenLi(barn, b, d, s)));
+  k.append(top, ul);
+  return k;
 }
 
 // Ét ønske om at indløse en belønning. Voksne: Godkend/Afvis. Barnet selv: Fortryd.

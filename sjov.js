@@ -223,6 +223,124 @@ function raketSvg(hvordan) {
   </svg>`;
 }
 
+// Fælles ansigtsdele til de nye makkere (øjne/mund efter humør), centreret i (cx, cy)
+function ansigt(hvordan, cx, cy, af = 7, farve = '#2b3442') {
+  const o = {
+    venter: `<circle cx="${cx - af}" cy="${cy}" r="3" fill="${farve}"/><circle cx="${cx + af}" cy="${cy}" r="3" fill="${farve}"/>`,
+    glad: `<circle cx="${cx - af}" cy="${cy - 1}" r="3.3" fill="${farve}"/><circle cx="${cx + af}" cy="${cy - 1}" r="3.3" fill="${farve}"/>
+           <circle cx="${cx - af + 1}" cy="${cy - 2}" r="1" fill="#fff"/><circle cx="${cx + af + 1}" cy="${cy - 2}" r="1" fill="#fff"/>`,
+    super: `<path d="M${cx - af - 4} ${cy + 1} q4 -6 8 0 M${cx + af - 4} ${cy + 1} q4 -6 8 0" stroke="${farve}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
+    sover: `<path d="M${cx - af - 4} ${cy} q4 4 8 0 M${cx + af - 4} ${cy} q4 4 8 0" stroke="${farve}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`
+  }[hvordan];
+  const m = hvordan === 'venter' ? `<path d="M${cx - 3} ${cy + 9} h6" stroke="${farve}" stroke-width="1.8" stroke-linecap="round"/>`
+    : hvordan === 'sover' ? `<circle cx="${cx}" cy="${cy + 9}" r="1.8" fill="${farve}"/>`
+    : hvordan === 'super' ? `<path d="M${cx - 6} ${cy + 7} q6 8 12 0 z" fill="${farve}"/>`
+    : `<path d="M${cx - 5} ${cy + 7} q5 5 10 0" stroke="${farve}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`;
+  return o + m;
+}
+const ZZZ = (x, y, farve = '#2b3442') => `<g class="alfie-zzz" fill="${farve}" font-family="system-ui, sans-serif" font-weight="800">
+  <text x="${x}" y="${y}" font-size="11">z</text><text x="${x + 9}" y="${y - 11}" font-size="14">z</text><text x="${x + 19}" y="${y - 23}" font-size="17">Z</text></g>`;
+const KONFETTI = (pkt) => `<g class="alfie-hjerter">${pkt.map(([x, y], i) => i % 2
+  ? `<rect x="${x}" y="${y}" width="5" height="3" rx="1" fill="${['#ef6b8a', '#ffd34d', '#7aa5f5', '#a990ff', '#5cc3a3', '#f2a45a'][i % 6]}" transform="rotate(${i * 37} ${x} ${y})"/>`
+  : `<circle cx="${x}" cy="${y}" r="2.4" fill="${['#ef6b8a', '#ffd34d', '#7aa5f5', '#a990ff', '#5cc3a3', '#f2a45a'][i % 6]}"/>`).join('')}</g>`;
+
+// ---------- Globussen Gløbe – kan alle lande (næsten) ----------
+function globusSvg(hvordan) {
+  const flag = (x, y, a, b) => `<g transform="translate(${x} ${y})"><path d="M0 0 v16" stroke="#7a5b2e" stroke-width="1.4"/><rect x="0.7" y="0" width="12" height="8" fill="${a}"/><rect x="0.7" y="3" width="12" height="2" fill="${b}"/></g>`;
+  const ekstra = {
+    super: `<g class="alfie-hjerter">${flag(4, 8, '#c8102e', '#fff')}${flag(100, 4, '#0052b4', '#ffd34d')}${flag(106, 34, '#009246', '#fff')}${flag(8, 40, '#ffd34d', '#c8102e')}</g>`,
+    sover: ZZZ(88, 34),
+    venter: `<text x="96" y="30" font-size="16" font-weight="800" fill="#2b3442" font-family="system-ui, sans-serif" opacity=".55">?</text>`,
+    glad: ''
+  }[hvordan];
+  return `<svg viewBox="0 0 120 112" class="alfie-svg alfie-${hvordan}" aria-hidden="true">
+    <ellipse cx="60" cy="106" rx="26" ry="4" fill="#000" opacity=".08"/>
+    <g class="alfie-krop">
+      <path d="M44 104 h32 l-4 -8 h-24 z" fill="#c9a227"/><rect x="57" y="84" width="6" height="13" fill="#c9a227"/>
+      <path d="M26 46 a34 34 0 0 0 58 30" stroke="#c9a227" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+      <g class="alfie-hoved">
+        <circle cx="58" cy="48" r="30" fill="#4aa3df"/>
+        <g class="globus-land" fill="#5cb85c">
+          <path d="M36 32 q8 -8 18 -4 q4 6 -2 10 q-6 2 -6 8 q-6 2 -10 -4 q-4 -6 0 -10z"/>
+          <path d="M66 22 q10 0 14 8 q-2 6 -8 6 q-4 4 -2 10 q-6 4 -10 -2 q0 -8 -4 -12 q2 -8 10 -10z"/>
+          <path d="M44 62 q8 -2 12 4 q2 8 -6 10 q-8 -2 -6 -14z"/>
+          <path d="M74 58 q8 0 8 8 q-6 6 -12 2 q0 -6 4 -10z"/>
+        </g>
+        <circle cx="58" cy="48" r="30" fill="none" stroke="#2f7fb8" stroke-width="2"/>
+        ${hvordan === 'sover' ? `<path d="M40 22 q18 -24 36 -2 z" fill="#5b7bd6"/><circle cx="78" cy="19" r="3.5" fill="#fff"/>` : ''}
+        <g>${ansigt(hvordan, 58, 46, 9, '#1d2a3a')}</g>
+      </g>
+    </g>
+    ${ekstra}
+  </svg>`;
+}
+
+// ---------- Fodbolden Bobby ----------
+function fodboldSvg(hvordan) {
+  const MORK = '#2b3442';
+  const ekstra = {
+    super: `<g class="alfie-hjerter"><text x="78" y="22" font-size="17" font-weight="900" fill="#e5484d" font-family="system-ui, sans-serif">MÅL!</text></g>${KONFETTI([[12, 12], [24, 24], [100, 40], [8, 36], [110, 30], [30, 6]])}`,
+    sover: ZZZ(84, 40),
+    venter: '',
+    glad: ''
+  }[hvordan];
+  const net = hvordan === 'super'
+    ? `<g stroke="#c9ccd3" stroke-width="1" opacity=".9">${[20, 32, 44, 56, 68, 80, 92].map(x => `<path d="M${x} 30 V98"/>`).join('')}${[30, 42, 54, 66, 78, 90].map(y => `<path d="M20 ${y} H92"/>`).join('')}</g>
+       <path d="M18 98 V28 H94 V98" stroke="#fff" stroke-width="4" fill="none"/><path d="M18 98 V28 H94 V98" stroke="#c9ccd3" stroke-width="1" fill="none"/>` : '';
+  return `<svg viewBox="0 0 120 112" class="alfie-svg alfie-${hvordan}" aria-hidden="true">
+    <path d="M0 100 q60 -8 120 0 v12 H0z" fill="#7cc36b"/>
+    ${net}
+    <ellipse cx="58" cy="102" rx="24" ry="4" fill="#000" opacity=".1"/>
+    <g class="alfie-krop">
+      <g class="alfie-hoved">
+        <circle cx="58" cy="68" r="30" fill="#fff" stroke="#c9ccd3" stroke-width="1.5"/>
+        <path d="M58 40 l10 7 -4 12 h-12 l-4 -12z" fill="${MORK}" opacity=".9"/>
+        <path d="M30 60 l8 -3 4 9 -6 7 -7 -3z M86 60 l-8 -3 -4 9 6 7 7 -3z M44 92 l3 -8 h22 l3 8 q-14 6 -28 0z" fill="${MORK}" opacity=".85"/>
+        <g transform="translate(0 6)">${ansigt(hvordan, 58, 66, 9)}</g>
+      </g>
+    </g>
+    ${ekstra}
+  </svg>`;
+}
+
+// ---------- Robotten Bit – kører på high fives ----------
+function robotSvg(hvordan) {
+  const niveau = { venter: 0.2, glad: 0.6, super: 1, sover: 0.6 }[hvordan];
+  const batFarve = niveau < 0.3 ? '#e5484d' : niveau < 1 ? '#f2b33d' : '#43b65a';
+  const oejeFarve = hvordan === 'sover' ? '#7d8a99' : '#2ee6f0';
+  const oejne = hvordan === 'super'
+    ? `<path d="M44 38 q5 -6 10 0 M66 38 q5 -6 10 0" stroke="${oejeFarve}" stroke-width="3" fill="none" stroke-linecap="round"/>`
+    : hvordan === 'sover' ? `<path d="M44 37 h10 M66 37 h10" stroke="${oejeFarve}" stroke-width="3" stroke-linecap="round"/>`
+    : `<rect x="44" y="31" width="10" height="${hvordan === 'venter' ? 6 : 10}" rx="2" fill="${oejeFarve}"/><rect x="66" y="31" width="10" height="${hvordan === 'venter' ? 6 : 10}" rx="2" fill="${oejeFarve}"/>`;
+  const mund = hvordan === 'super' ? `<path d="M50 47 q10 8 20 0" stroke="${oejeFarve}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`
+    : `<g fill="${oejeFarve}" opacity="${hvordan === 'sover' ? .5 : 1}">${[50, 55, 60, 65].map((x, i) => `<rect x="${x}" y="${hvordan === 'venter' && i % 2 ? 48 : 46}" width="3.5" height="3" rx="1"/>`).join('')}</g>`;
+  const ekstra = {
+    super: `<g class="alfie-hjerter" fill="#ffd34d"><path d="M14 30 l8 -12 -2 9 h6 l-8 12 2 -9z"/><path d="M100 46 l7 -10 -2 8 h5 l-7 10 2 -8z"/></g>`,
+    sover: ZZZ(86, 26),
+    venter: '', glad: ''
+  }[hvordan];
+  return `<svg viewBox="0 0 120 112" class="alfie-svg alfie-${hvordan}" aria-hidden="true">
+    <ellipse cx="60" cy="106" rx="26" ry="4" fill="#000" opacity=".08"/>
+    <g class="alfie-krop">
+      <rect x="44" y="92" width="12" height="12" rx="3" fill="#5a6b7d"/><rect x="64" y="92" width="12" height="12" rx="3" fill="#5a6b7d"/>
+      <path d="M40 66 q-12 6 -14 ${hvordan === 'super' ? -14 : 8}" stroke="#8a9bb0" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M80 66 q12 6 14 ${hvordan === 'super' ? -14 : 8}" stroke="#8a9bb0" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <rect x="38" y="58" width="44" height="36" rx="8" fill="#a9b8c9"/>
+      <rect x="49" y="66" width="22" height="12" rx="2" fill="#2b3442"/><rect x="71" y="69" width="2.5" height="6" rx="1" fill="#2b3442"/>
+      <rect x="51" y="68" width="${(18 * niveau).toFixed(1)}" height="8" rx="1" fill="${batFarve}"/>
+      <g class="alfie-hoved">
+        <path d="M60 18 v-8" stroke="#8a9bb0" stroke-width="3"/>
+        <circle cx="60" cy="8" r="4.5" fill="${hvordan === 'super' ? '#ff4d6d' : hvordan === 'sover' ? '#7d8a99' : '#ffd34d'}" class="${hvordan === 'super' ? 'robot-lys' : ''}"/>
+        <rect x="34" y="18" width="52" height="40" rx="10" fill="#c3d0de"/>
+        <rect x="40" y="25" width="40" height="28" rx="6" fill="#2b3442"/>
+        <circle cx="31" cy="38" r="4" fill="#8a9bb0"/><circle cx="89" cy="38" r="4" fill="#8a9bb0"/>
+        ${oejne}${mund}
+      </g>
+    </g>
+    ${ekstra}
+  </svg>`;
+}
+
 // ---------- Makkere: Alfie, Tanken Tut og Raketten Rolf – barnet vælger selv (personvalg.ven) ----------
 const MAKKERE = {
   alfie: {
@@ -254,6 +372,40 @@ const MAKKERE = {
     syg: 'Rolf bliver på jorden sammen med dig i dag. God bedring 🤒',
     vaagner: 'Rolf tog lige en ekstra tur rundt om månen! 🌙',
     siger: ['Houston, vi har en… god dag! 🛰️', 'Næste stop: Mars! 🔴', 'Hvem har spist min rum-is? 🍦', '10… 9… 8… åh nej, jeg glemte madpakken!', 'Jeg kører på sodavand og gode vibes', 'Du er sej!']
+  },
+  globus: {
+    navn: 'Globussen Gløbe', svg: globusSvg,
+    venter: (m, aften) => aften ? 'Gløbe venter stadig… ' + m + ' ting tilbage i dag 🌍' : 'Gløbe er klar til verdensturné! Klar til at gå i gang? 🌍',
+    glad: m => m === 1 ? 'Kun én ting tilbage – så snurrer Gløbe rundt!' : 'Godt gået! ' + m + ' ting tilbage, så har du rejst jorden rundt.',
+    super: 'Alt er klaret! Gløbe vifter med flag fra hele verden 🎌',
+    sover: 'Alt blev klaret. Gløbe sover – det er nat på denne side af jorden 💤',
+    syg: 'Gløbe holder fri sammen med dig. God bedring 🤒',
+    vaagner: 'Gløbe vågnede – nu er det dag i Australien! 🦘',
+    siger: ['Vidste du, at Rusland har 11 tidszoner? ⏰', 'Vatikanstaten er verdens mindste land!', 'Hvad er hovedstaden i Australien? (Canberra!) 🦘',
+      'Nepals flag er det eneste, der ikke er firkantet 🇳🇵', 'Afrika har 54 lande – kan du nævne 10?', 'Canada har flest søer i hele verden 🛶',
+      'Jeg bliver svimmel, når jeg snurrer 😵‍💫', 'Australien er både et land og et kontinent!']
+  },
+  fodbold: {
+    navn: 'Fodbolden Bobby', svg: fodboldSvg,
+    venter: (m, aften) => aften ? 'Bobby ligger stadig på banen… ' + m + ' ting tilbage i dag ⚽' : 'Bobby er klar til kampstart! Fløjt i fløjten? ⚽',
+    glad: m => m === 1 ? 'Kun én ting tilbage – så er det MÅL!' : 'Flot afleveret! ' + m + ' ting tilbage i dag.',
+    super: 'MÅÅÅL! Alt er klaret – publikum jubler 🏆',
+    sover: 'Alt blev klaret. Bobby hviler sig i bolddepotet 💤',
+    syg: 'Bobby sidder på bænken sammen med dig i dag. God bedring 🤒',
+    vaagner: 'Bobby vågnede til forlænget spilletid! ⏱️',
+    siger: ['GOOOOOL! ⚽', 'Jeg er rund – derfor ruller jeg altid videre', 'VAR har tjekket: Du er sej! 📺', 'Hvem tager straffesparket?',
+      'Jeg bliver sparket hele dagen – og jeg ELSKER det', 'Ingen offside her! 🚩', 'Næste stop: VM-finalen! 🏆']
+  },
+  robot: {
+    navn: 'Robotten Bit', svg: robotSvg,
+    venter: (m, aften) => aften ? 'Bits batteri er lavt… ' + m + ' ting tilbage i dag 🔋' : 'Bit har lavt batteri 🔋 Hver ting du klarer, lader ham op!',
+    glad: m => m === 1 ? 'Kun én ting tilbage – så er batteriet 100%!' : 'Batteriet lader! ' + m + ' ting tilbage.',
+    super: 'Alt er klaret! Bit er fuldt opladet og danser robotdans 🤖⚡',
+    sover: 'Alt blev klaret. Bit er i strømsparetilstand 💤',
+    syg: 'Bit kører i hvile-tilstand sammen med dig. God bedring 🤒',
+    vaagner: 'Bit genstartede lige for at lave robotdans! 🤖',
+    siger: ['Bip bop! 🤖', 'Beregner… 2 + 2 = fisk. FEJL! Det er 4', 'Mit batteri kører på high fives ✋', 'Loading… 99%… stadig 99%…',
+      'Jeg har ingen næse, men jeg kan lugte kage 🍰', 'Hvis det ikke virker: sluk og tænd igen', 'Jeg drømmer om elektriske får 🐑']
   }
 };
 const makkerFor = valg => MAKKERE[valg?.ven] || MAKKERE.alfie;

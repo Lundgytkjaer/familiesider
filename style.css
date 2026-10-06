@@ -828,3 +828,17 @@ body.barn .uge input[readonly] { background: transparent; }
 .makker-navn { font-weight: 800; font-size: 13px; text-align: center; }
 .raket-flamme { transform-origin: 60px 86px; animation: flamme .25s ease-in-out infinite alternate; }
 @keyframes flamme { from { transform: scaleY(.85); } to { transform: scaleY(1.1); } }
+
+.makker-globus { background: linear-gradient(135deg, color-mix(in srgb, #4aa3df 18%, var(--flade)), var(--flade)); }
+.makker-fodbold { background: linear-gradient(135deg, color-mix(in srgb, #7cc36b 20%, var(--flade)), var(--flade)); }
+.makker-robot { background: linear-gradient(135deg, color-mix(in srgb, #2ee6f0 14%, var(--flade)), var(--flade)); }
+.alfie-super .globus-land { animation: globus-snur 1.6s linear infinite; transform-origin: 58px 48px; }
+@keyframes globus-snur { from { transform: translateX(-3px); } 50% { transform: translateX(3px); } to { transform: translateX(-3px); } }
+.robot-lys { animation: robot-blink .5s steps(2) infinite; }
+@keyframes robot-blink { 50% { opacity: .2; } }
+
+/* Bonus: "Ikke i dag" */
+.punkt .spring-knap { flex: none; align-self: center; margin-right: 8px; min-height: 30px; padding: 0 10px; font-size: 12px; opacity: .85; }
+.punkt.sprunget { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; opacity: .6; }
+.sprunget-tekst { font-size: 14px; font-style: italic; }
+.stjerne-saldo { color: #e0a100; font-weight: 800; }

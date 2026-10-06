@@ -46,8 +46,26 @@ const slutTid = tid => ((tid || '').split(/[-–]/)[1] || '').trim();
 // ---------- Faner ----------
 const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr'];
 const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr'];   // sider man når via "Mere"
+// Børn ser kun de faner, de voksne har slået til for dem (personvalg.faner). Tavlen ("I dag") er der altid.
+const BOERNE_FANER = ['kalender', 'madplan', 'mere'];   // standard for børn
+const VALGBARE_FANER = { kalender: 'Kalender', madplan: 'Madplan', indkob: 'Indkøb', todo: 'To do', mere: 'Mere' };
+let tilladteFaner = null;   // null = alle (voksne)
+async function anvendFaner() {
+  const p = Data.bruger();
+  if (!p || p.rolle !== 'barn') { tilladteFaner = null; }
+  else {
+    const valg = await valgFor(p.navn);   // fra dage.js
+    tilladteFaner = ['idag', ...(Array.isArray(valg.faner) ? valg.faner : BOERNE_FANER)];
+  }
+  const knapper = [...document.querySelectorAll('.bundmenu [data-fane]')];
+  knapper.forEach(b => { b.hidden = !!tilladteFaner && !tilladteFaner.includes(b.dataset.fane); });
+  document.querySelector('.bundmenu-indre').style.gridTemplateColumns = 'repeat(' + knapper.filter(b => !b.hidden).length + ', 1fr)';
+  const aaben = document.querySelector('.fane:not([hidden])')?.id;
+  if (aaben && tilladteFaner && !tilladteFaner.includes(UNDER_MERE.includes(aaben) ? 'mere' : aaben)) visFane('idag');
+}
 function visFane(navn) {
   if (!FANER.includes(navn)) navn = 'idag';
+  if (tilladteFaner && !tilladteFaner.includes(UNDER_MERE.includes(navn) ? 'mere' : navn)) navn = 'idag';
   document.querySelectorAll('.fane').forEach(s => (s.hidden = s.id !== navn));
   const iMenu = UNDER_MERE.includes(navn) ? 'mere' : navn;
   document.querySelectorAll('[data-fane]').forEach(b => b.setAttribute('aria-selected', b.dataset.fane === iMenu));
@@ -1579,6 +1597,8 @@ async function tegnBoernetavle(barn) {
   if (rutiner) gitter.append(rutiner);
   const pligter = await pligtKort(barn);   // fra mere.js
   if (pligter) gitter.append(pligter);
+  const beloen = await beloenningKort(barn);   // fra mere.js
+  if (beloen) gitter.append(beloen);
   gitter.append(skemaKort, madKort);
   // Vejr (og evt. sol) for den viste dag – efter barnets egne valg; hentes i baggrunden
   const barnValg = await valgFor(barn);
@@ -2156,9 +2176,27 @@ async function tilpasVisning(hvem = Data.bruger()?.navn) {
     k.setAttribute('aria-checked', valg[felt]);
     seg.append(k);
   }
+  // Voksne vælger, hvilke faner et barn kan se (tavlen er der altid)
+  if (!erBarn() && BOERN.includes(hvem)) {
+    const faner = new Set(Array.isArray(valg.faner) ? valg.faner : BOERNE_FANER);
+    const fseg = el('div', 'seg wrap tilpas-valg');
+    for (const [f, navn] of Object.entries(VALGBARE_FANER)) {
+      const k = knap(navn, null, async () => {
+        if (faner.has(f)) faner.delete(f); else faner.add(f);
+        k.setAttribute('aria-checked', faner.has(f));
+        await saetValg(hvem, 'faner', Object.keys(VALGBARE_FANER).filter(x => faner.has(x)));
+      });
+      k.setAttribute('role', 'checkbox');
+      k.setAttribute('aria-checked', faner.has(f));
+      fseg.append(k);
+    }
+    dele.push(seg);
+    dele.push(el('label', 'felt-label', 'Faner ' + hvem + ' kan se (tavlen er der altid)'), fseg,
+      el('p', 'hint', 'Belønninger, pligter og rutiner ligger på tavlen. "Mere" giver adgang til fx Ugens konkurrence og Vejret.'));
+  }
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Færdig', 'knap', () => lukArk()));
-  aabnArk('Vis ' + (hvem === mig ? 'for mig' : 'for ' + hvem), ...dele, seg,
+  aabnArk('Vis ' + (hvem === mig ? 'for mig' : 'for ' + hvem), ...dele, ...(dele.includes(seg) ? [] : [seg]),
     el('p', 'hint', hvem === mig ? 'Gælder kalenderen og din I dag-side på alle dine enheder.' : 'Gælder ' + hvem + 's tavle og kalender.'), knapper);
 }
 document.getElementById('kal-tilpas').addEventListener('click', () => tilpasVisning());
@@ -2258,6 +2296,7 @@ function tegnAlt() {
   tegnFoedselsdage();
   tegnMere();   // fra mere.js
   tegnVejr();   // fra vejr.js (tegner kun, når siden er åben)
+  anvendFaner();
 }
 
 async function startTavle() {
