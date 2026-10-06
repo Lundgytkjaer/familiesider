@@ -143,7 +143,7 @@ async function rutineKort(barn, dato) {
   const klaret = rutiner.reduce((n, r) => n + Math.min(hentTjek(r, iso).size, (r.trin || []).length), 0);
   // Rutiner er en guide (der skal ikke registreres noget): flisen viser den rutine, der er nu, eller den næste
   const t = { noegle: 'rutiner', ikon: '🪥', titel: 'Rutiner' };
-  const omTekst = m => 'om ' + (m >= 60 ? Math.floor(m / 60) + ' t' + (m % 60 ? ' ' + (m % 60) + ' min' : '') : m + ' min');
+  const omTekst = m => (m < 60 ? 'om ' + m + ' min' : m < 90 ? 'om ca. 1 time' : 'om ca. ' + Math.round(m / 60) + ' timer');
   const nuR = erIdag ? rutiner.filter(r => r.tid && tilMin(r.tid) - 15 <= nuMin && nuMin - tilMin(r.tid) <= 45).pop() : null;
   const naesteR = rutiner.find(r => !erIdag || !r.tid || tilMin(r.tid) - 15 > nuMin);
   if (nuR) Object.assign(t, { stor: 'Nu: ' + nuR.navn, lille: (r => r ? 'Bagefter: ' + r.navn + ' ' + visTid(r.tid) : (nuR.trin || []).length + ' trin – tryk for at se dem')(rutiner.find(r => r !== nuR && tilMin(r.tid) > tilMin(nuR.tid))) });
@@ -312,7 +312,7 @@ function redigerRutine(r) {
 // =====================================================================
 let pligtBarn = lokal.get('pligt-barn') || BOERN[0];
 let pligtRet = false;
-const BELOENNING_NAVN = { ingen: 'Ingen', penge: 'Penge', stjerner: 'Stjerner', begge: 'Penge og stjerner' };
+const BELOENNING_NAVN = { ingen: 'Ingenting', penge: 'Penge', stjerner: 'Stjerner', begge: 'Penge og stjerner' };
 
 // Hvem man kan se pligter for: et barn ser kun sig selv; en voksen ser drengene og sig selv
 function pligtPersoner() {
@@ -376,7 +376,12 @@ function naesteForfald(o, d) {
   const n = intervalDage(o);
   const start = o.start || isoDato(new Date());
   const sidst = sidstKlaret(o, d);
-  if (!sidst) return start;
+  if (!sidst) {
+    // Aldrig klaret: datoer i rytmen fra før pligten blev oprettet tæller ikke som "over tid"
+    const oprettet = o.oprettet ? isoDato(new Date(o.oprettet)) : start;
+    if (start >= oprettet || !fastRytme(o)) return start >= oprettet ? start : oprettet;
+    return plusDage(start, Math.ceil(dageMellem(start, oprettet) / n) * n);
+  }
   if (!fastRytme(o)) return plusDage(sidst, n);
   if (sidst < start) return start;
   return plusDage(start, (Math.floor(dageMellem(start, sidst) / n) + 1) * n);
@@ -418,7 +423,7 @@ function dagensOpgaver(d) {
     res.push({ o, periode, f });
   }
   const orden = { dag: 0, interval: 1, uge: 2, engang: 3 };
-  return res.sort((a, b) => Number(!!a.sprunget) - Number(!!b.sprunget) || Number(!!a.f) - Number(!!b.f) || Number(!!a.o.frivillig) - Number(!!b.o.frivillig)
+  return res.sort((a, b) => Number(!!a.sprunget) - Number(!!b.sprunget) || Number(!!a.o.frivillig) - Number(!!b.o.frivillig)
     || (orden[a.o.gentag] ?? 0) - (orden[b.o.gentag] ?? 0));
 }
 // Det der skal klares (bonus-pligter tæller ikke med)
@@ -464,7 +469,7 @@ function opgaveLi(barn, r, regel) {
   if (regel.kr && tal(r.o.kr)) tags.append(el('span', 'kr-tag', '+' + kr(tal(r.o.kr))));
   if (regel.stjerner && tal(r.o.stjerner)) tags.append(el('span', 'stjerne-tag', '★ ' + Math.round(tal(r.o.stjerner))));
   if (r.o.frivillig) tags.append(el('span', 'bonus-tag', 'Bonus'));
-  if (r.o.gentag === 'uge') tags.append(el('span', null, 'Ugens opgave'));
+  if (r.o.gentag === 'uge') tags.append(el('span', null, 'Én gang om ugen'));
   if (r.o.gentag === 'engang') tags.append(el('span', null, 'Én gang'));
   if (r.o.gentag === 'interval') tags.append(el('span', null, intervalTekst(r.o)));
   if (r.overTid > 0) tags.append(el('span', 'over-tid', r.overTid === 1 ? '1 dag over tid' : r.overTid + ' dage over tid'));
@@ -531,7 +536,7 @@ async function tegnPligter() {
 
   if (personer.length > 1) {
     dele.push(valgSeg(personer, barn, b => { pligtBarn = b; lokal.set('pligt-barn', b); tegnPligter(); },
-      v => (v === Data.bruger()?.navn && !BOERN.includes(v) ? 'Mig' : v)));
+      v => v));
   }
 
   // Status – kun for det personen er sat op til
@@ -553,7 +558,7 @@ async function tegnPligter() {
   if (st >= 1) dele.push(el('p', 'streak-linje', streakTekst(st) + (st >= 2 ? ' – sejt!' : '')));
 
   if (erVoksen() && (d.regel.kr || d.regel.stjerner || d.opgaver.length)) {
-    dele.push(knap('Justér stjerner, kr eller streak', 'lille-knap juster-knap', () => justerSaldo(barn, d, s, st)));
+    dele.push(knap('Justér stjerner, kr eller dage i træk', 'lille-knap juster-knap', () => justerSaldo(barn, d, s, st)));
   }
 
   if (erVoksen() && d.regel.kr && s.tilGode > 0) {
@@ -615,7 +620,7 @@ async function tegnPligter() {
       ...d.indl.map(x => ({ dato: x.dato,
         tekst: (x.status === 'afventer' ? 'Ønsket: ' : x.status === 'afvist' ? 'Ikke godkendt: ' : 'Indløst: ') + x.navn,
         vaerdi: x.status === 'afvist' ? '' : (x.status === 'afventer' ? '(★ ' + x.stjerner + ')' : '−★ ' + x.stjerner) })),
-      ...d.udb.map(x => ({ dato: x.dato, tekst: 'Lommepenge udbetalt', vaerdi: kr(tal(x.kr)) })),
+      ...d.udb.map(x => ({ dato: x.dato, tekst: 'Lommepenge udbetalt', vaerdi: '−' + kr(tal(x.kr)) })),
       ...d.just.map(x => ({ dato: x.dato, tekst: 'Justering' + (x.tekst ? ': ' + x.tekst : ''),
         vaerdi: [tal(x.kr) ? (tal(x.kr) > 0 ? '+' : '') + kr(tal(x.kr)) : '', tal(x.stjerner) ? (tal(x.stjerner) > 0 ? '+★ ' : '−★ ') + Math.abs(tal(x.stjerner)) : ''].filter(Boolean).join(' ') }))
     ].sort((a, b) => (b.dato || '').localeCompare(a.dato || '')).slice(0, 8);
@@ -647,7 +652,7 @@ async function tegnPligter() {
       }
       dele.push(regelSeg, el('p', 'hint', 'Slå begge fra for pligter uden belønning.'));
 
-      const GENTAG = { dag: 'Hver dag', uge: 'Hver uge', engang: 'Én gang', interval: '' };
+      const GENTAG = { dag: 'Hver dag', uge: 'Én gang om ugen', engang: 'Kun én gang', interval: '' };
       dele.push(el('h3', 'lille-titel', erMig ? 'Mine pligter' : 'Pligter for ' + barn));
       const ol = el('ul', 'ret-liste');
       for (const o of d.opgaver) {
@@ -704,8 +709,9 @@ async function ugeOverblik(uge = 0) {
     const fb = d.flueben.filter(f => iUgen(f) && !f.sprunget);
     const erBonus = f => !!d.opgaver.find(o => o.id === f.opgave)?.frivillig;
     const just = d.just.filter(iUgen);
-    const stj = sum(fb, 'stjerner') + sum(just, 'stjerner');
-    const kroner = sum(fb, 'kr') + sum(just, 'kr');
+    const stj = sum(fb, 'stjerner');
+    const kroner = sum(fb, 'kr');
+    const justStj = sum(just, 'stjerner'), justKr = sum(just, 'kr');
     const indl = d.indl.filter(x => iUgen(x) && (x.status || 'godkendt') === 'godkendt');
     const k = el('div', 'kort uge-kort ' + PK[barn]);
     k.append(el('span', 'uge-navn', barn));
@@ -713,8 +719,9 @@ async function ugeOverblik(uge = 0) {
     const linje = (tekst, vaerdi) => { const li = el('li'); li.append(el('span', null, tekst), el('b', null, vaerdi)); linjer.append(li); };
     linje('Pligter klaret', String(fb.filter(f => !erBonus(f)).length));
     if (fb.some(erBonus)) linje('Bonus klaret', String(fb.filter(erBonus).length));
-    if (d.regel.stjerner) linje('Stjerner tjent', '★ ' + stj);
-    if (d.regel.kr) linje('Lommepenge tjent', kr(kroner));
+    if (d.regel.stjerner) linje('Stjerner tjent på pligter', '★ ' + stj);
+    if (d.regel.kr) linje('Lommepenge tjent på pligter', kr(kroner));
+    if (justStj || justKr) linje('Justeret af en voksen', [justKr ? (justKr > 0 ? '+' : '') + kr(justKr) : '', justStj ? (justStj > 0 ? '+★ ' : '−★ ') + Math.abs(justStj) : ''].filter(Boolean).join(' '));
     if (indl.length) linje('Belønninger indløst', indl.map(x => x.navn).join(', '));
     const st = streak(d);
     if (uge === 0 && st >= 1) linje('Dage i træk', '🔥 ' + st);
@@ -732,7 +739,7 @@ async function ugeOverblik(uge = 0) {
   }
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Færdig', 'knap', () => lukArk()));
-  aabnArk('Uge ' + ugenummer(man) + ' · ' + man.getDate() + '/' + (man.getMonth() + 1) + '–' + son.getDate() + '/' + (son.getMonth() + 1),
+  aabnArk('Ugens overblik · uge ' + ugenummer(man) + ' · ' + ugeSpan(man),
     valg, kortene, el('p', 'hint', '"Til gode" er alt, der ikke er udbetalt endnu – også fra tidligere uger.'), knapper);
 }
 
@@ -765,7 +772,7 @@ function justerSaldo(barn, d, s, st) {
   });
   const knapper = el('div', 'ark-knapper');
   knapper.append(gem);
-  aabnArk('Justér for ' + (barn === Data.bruger()?.navn ? 'mig' : barn),
+  aabnArk('Justér for ' + barn,
     el('p', 'hint', 'Nu: ' + [d.regel.stjerner ? '★ ' + s.stjerner : '', d.regel.kr ? kr(s.tilGode) + ' til gode' : '', streakTekst(st)].filter(Boolean).join(' · ')),
     raekke.children.length ? raekke : '', raekke.children.length ? felt('Hvorfor (valgfri)', tekst) : '',
     felt('Dage i træk 🔥', streakInp),
@@ -790,7 +797,7 @@ function beloenLi(barn, b, d, s) {
     });
     indloes.disabled = !nok;
   } else {
-    indloes = bekraeftKnap('Ønsk', 'ønske at indløse', 'lille-knap', async () => {
+    indloes = bekraeftKnap('Ønsk', 'ønske', 'lille-knap', async () => {
       await Data.add('indloesninger', { barn, navn: b.navn, stjerner: b.stjerner, dato: isoDato(new Date()), status: 'afventer' });
       fejr('Ønsket er sendt til mor og far 🎁');   // fra sjov.js
       tegnAlt();
@@ -832,7 +839,7 @@ async function beloenningKort(barn) {
   const raad = sorteret.filter(b => b.stjerner <= s.stjerner);
   const naesteB = sorteret.find(b => b.stjerner > s.stjerner);
   k.tavle = { noegle: 'beloenninger', ikon: '🎁', titel: 'Belønninger', stor: '★ ' + s.stjerner + (tjentIdag ? '  +' + tjentIdag + ' i dag' : ''),
-    lille: venter.length ? 'Ønske venter på en voksen 🎁' : raad.length ? 'Du har råd til ' + (raad.length === 1 ? raad[0].navn : raad.length + ' ting') + '!'
+    lille: venter.length ? 'Ønske venter på en voksen 🎁' : raad.length ? 'Nok stjerner til ' + (raad.length === 1 ? '"' + raad[0].navn + '"' : raad.length + ' belønninger') + ' 🎉'
       : naesteB ? 'Mangler ★ ' + (naesteB.stjerner - s.stjerner) + ' til ' + naesteB.navn + (kanNaas ? ' · ★ ' + kanNaas + ' at hente i dag' : '') : '',
     andel: naesteB ? s.stjerner / naesteB.stjerner : 1 };
   return k;
@@ -846,7 +853,7 @@ function oenskeLi(x, egen) {
   const knapper = el('div', 'oenske-knapper');
   if (egen) knapper.append(knap('Fortryd', 'lille-knap', async () => { await Data.remove('indloesninger', x.id); tegnAlt(); }));
   else knapper.append(
-    knap('Afvis', 'lille-knap', async () => { await Data.update('indloesninger', x.id, { status: 'afvist', besvaret: isoDato(new Date()) }); tegnAlt(); }),
+    bekraeftKnap('Afvis', 'afvise', 'lille-knap', async () => { await Data.update('indloesninger', x.id, { status: 'afvist', besvaret: isoDato(new Date()) }); tegnAlt(); }),
     knap('Godkend', 'lille-knap godkend', async () => {
       await Data.update('indloesninger', x.id, { status: 'godkendt', besvaret: isoDato(new Date()) });
       tegnAlt();
@@ -871,7 +878,7 @@ function redigerOpgave(o, regel) {
   const navn = input('text', 'opg-navn', o.navn, 'Fx tøm opvaskemaskinen');
   let til = o.barn || pligtBarn;
   const tilMuligheder = !ny ? [o.barn] : BOERN.includes(til) ? [...BOERN, 'Begge'] : [til];
-  const tilValg = chipValg(tilMuligheder, til, v => { til = v; }, v => (v === Data.bruger()?.navn && !BOERN.includes(v) ? 'Mig' : v));
+  const tilValg = chipValg(tilMuligheder, til, v => { til = v; }, v => (v === 'Begge' ? 'Begge børn' : v));
 
   let gentag = o.gentag || 'dag';
   const dage = new Set(o.dage && o.dage.length ? o.dage : [0, 1, 2, 3, 4, 5, 6]);
@@ -951,7 +958,7 @@ function redigerOpgave(o, regel) {
   bonusKnap.setAttribute('aria-checked', frivillig);
   const bonusBoks = el('div', 'seg wrap');
   bonusBoks.append(bonusKnap);
-  const typeValg = typer.length > 1 ? felt('Belønning', chipValg(typer, type, v => { type = v; visBeloeb(); }, v => BELOENNING_NAVN[v])) : '';
+  const typeValg = typer.length > 1 ? felt('Pligten giver', chipValg(typer, type, v => { type = v; visBeloeb(); }, v => BELOENNING_NAVN[v])) : '';
 
   const gem = knap('Gem', 'knap', async () => {
     const n = navn.value.trim();
@@ -1057,13 +1064,12 @@ async function tegnPakkelister() {
     }
     if (!lister.length) grid.append(el('p', 'under', 'Ingen pakkelister endnu.'));
     boks.replaceChildren(grid, erVoksen() ? knap('Ny pakkeliste', 'knap bred-knap', () => navnPakkeliste({})) : '');
+    opdaterTilbage();
     return;
   }
 
   const mine = punkter.filter(p => p.liste === valgt.id);
   const pakket = mine.filter(p => p.pakket).length;
-  const top = el('div', 'pak-top');
-  top.append(knap('‹ Alle lister', 'lille-knap', () => { pakValgt = ''; lokal.set('pak-valgt', ''); tegnPakkelister(); }));
   const titel = el('div', 'pak-titel');
   titel.append(el('h3', 'lille-titel', valgt.navn), el('span', 'under', pakket + ' af ' + mine.length + ' pakket'), fremskridt(mine.length ? pakket / mine.length : 0));
 
@@ -1120,8 +1126,9 @@ async function tegnPakkelister() {
 
   const nyLabel = el('p', 'seg-label', 'Ny ting er til:');
   const visLabel = filter ? el('p', 'seg-label', 'Vis:') : '';
-  if (!erVoksen()) boks.replaceChildren(top, titel, visLabel, filter, ul);
-  else boks.replaceChildren(top, titel, pakForm, nyLabel, hvemValg, visLabel, filter, ul, fod);
+  if (!erVoksen()) boks.replaceChildren(titel, visLabel, filter, ul);
+  else boks.replaceChildren(titel, pakForm, nyLabel, hvemValg, visLabel, filter, ul, fod);
+  opdaterTilbage();   // fra app.js – tilbage-knappen bliver til "Alle pakkelister"
 }
 
 function navnPakkeliste(l) {
@@ -1271,7 +1278,7 @@ async function tegnKonkurrence() {
   // Uge-navigation
   const nav = el('div', 'kal-nav');
   const titel = el('div', 'kal-titel');
-  titel.append(el('strong', null, 'Uge ' + ugenummer(man) + ' · ' + man.getDate() + '. ' + MDR[man.getMonth()] + '–' + son.getDate() + '. ' + MDR[son.getMonth()]));
+  titel.append(el('strong', null, 'Uge ' + ugenummer(man) + ' · ' + ugeSpan(man)));
   if (konkUge !== 0) titel.append(knap('Til denne uge', 'lille-knap', () => { konkUge = 0; tegnKonkurrence(); }));
   const forrige = knap('‹', 'pil', () => { konkUge--; tegnKonkurrence(); });
   forrige.setAttribute('aria-label', 'Forrige uge');

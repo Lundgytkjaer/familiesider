@@ -89,7 +89,8 @@ async function vejrStribe(iso, medSol, medVejr = true) {
   k.addEventListener('click', () => { visFane('vejr'); window.scrollTo(0, 0); });
   if (dag) {
     const erIdag = iso === isoDato(new Date());
-    k.append(el('span', 'vl-vejr', vejrIkon(dag.kode) + ' ' + (erIdag ? grader(data.current.temperature_2m) + ' nu · ' : '')
+    // I dag: vejret lige nu (samme ikon som på familiens overblik); andre dage: dagens vejr
+    k.append(el('span', 'vl-vejr', vejrIkon(erIdag ? data.current.weather_code : dag.kode) + ' ' + (erIdag ? grader(data.current.temperature_2m) + ' nu · ' : '')
       + grader(dag.min) + '–' + grader(dag.max) + (dag.kort.length ? ' · ' + dag.kort.slice(0, 2).join(' · ') : '')));
   }
   if (sol) k.append(solSpan(sol));   // fra dage.js

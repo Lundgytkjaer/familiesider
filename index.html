@@ -23,7 +23,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-06q">
+  <link rel="stylesheet" href="style.css?v=2026-10-06r">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -77,7 +77,7 @@
 
     <!-- KALENDER -->
     <section id="kalender" class="fane" hidden>
-      <div class="sek-hoved"><h2>Kalender</h2><span class="taeller" id="kal-dato"></span><button type="button" class="lille-knap" id="kal-tilpas">Tilpas</button></div>
+      <div class="sek-hoved"><h2>Kalender</h2><span class="taeller" id="kal-dato"></span><button type="button" class="lille-knap ny-knap kun-voksen" id="kal-ny">+ Ny aftale</button><button type="button" class="lille-knap" id="kal-tilpas">Tilpas</button></div>
       <div class="seg" id="kal-visning" role="radiogroup" aria-label="Visning"></div>
       <div class="kal-nav">
         <button type="button" class="pil" id="kal-forrige" aria-label="Forrige uge">‹</button>
@@ -89,7 +89,7 @@
       </div>
       <div id="kal-uge-del">
         <div class="kal-wrap"><div class="kal" id="kal"></div></div>
-        <p class="hint">Tryk i et felt for at tilføje en aftale. Tryk på en aftale for at rette den.</p>
+        <p class="hint kun-voksen">Tryk i et tomt felt for at tilføje en aftale der. Tryk på en aftale for at rette den. ↻ gentages · 🔒 kun voksne · 👤 kun dig · 🌴 ferie/fri</p>
       </div>
       <div id="kal-maaned-del" hidden>
         <div class="maaned" id="maaned"></div>
@@ -97,7 +97,7 @@
       </div>
 
       <div class="foed-sektion">
-        <div class="sek-hoved"><h2>Fødselsdage</h2><button type="button" class="lille-knap" id="ny-foed">Tilføj</button></div>
+        <div class="sek-hoved"><h2>Fødselsdage og mærkedage</h2><button type="button" class="lille-knap kun-voksen" id="ny-foed">Tilføj</button></div>
         <ul class="foed-liste" id="foed-liste"></ul>
         <button type="button" class="ryd" id="foed-alle" hidden>Vis alle</button>
       </div>
@@ -106,6 +106,7 @@
     <!-- MADPLAN -->
     <section id="madplan" class="fane" hidden>
       <div class="sek-hoved"><h2>Madplan</h2><span class="taeller" id="ugenr"></span></div>
+      <h3 class="lille-titel mad-titel" id="aftensmad-titel">Aftensmad</h3>
       <div class="kal-nav">
         <button type="button" class="pil" id="mad-forrige" aria-label="Forrige uge">‹</button>
         <div class="kal-titel">
@@ -150,7 +151,7 @@
       <div class="forslag" data-forslag="indkob"></div>
       <div class="seg" id="butik-filter" role="radiogroup" aria-label="Vis varer fra butik" hidden></div>
       <ul class="liste" data-liste="indkob"></ul>
-      <p class="hint">Tryk på ⋯ for at sætte butik, tilbud eller billede på en vare.</p>
+      <p class="hint kun-voksen">Tryk på ⋯ for at sætte butik, tilbud eller billede på en vare.</p>
       <button type="button" class="ryd" data-liste="indkob" data-tekst="Ryd det købte">Ryd det købte</button>
     </section>
 
@@ -168,7 +169,7 @@
       </div>
       <div class="forslag" data-forslag="todo"></div>
       <ul class="liste" data-liste="todo"></ul>
-      <p class="hint">Tryk på prioriteten for at skifte den.</p>
+      <p class="hint kun-voksen">Tryk på prioriteten for at skifte den.</p>
       <button type="button" class="ryd" data-liste="todo" data-tekst="Ryd det klarede">Ryd det klarede</button>
     </section>
 
@@ -216,6 +217,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a4 4 0 0 1-.6-7.96A5.5 5.5 0 0 1 17 8.5a3.75 3.75 0 0 1 .5 7.47V16H7z"/><path d="M8 21l1-1.5M12 21l1-1.5M16 21l1-1.5"/></svg>
           <span class="mere-navn">Vejret</span><span class="under">I dag og de næste 7 dage</span>
         </button>
+        <button type="button" class="kort mere-kort" data-gaa="hjaelp">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8 1c0 1.7-2.4 2.2-2.4 3.7M12 17.2v.1"/></svg>
+          <span class="mere-navn">Sådan virker det</span><span class="under">Kort guide til Familietavlen</span>
+        </button>
       </div>
     </section>
 
@@ -240,11 +245,101 @@
       <div id="pak-indhold"></div>
     </section>
 
-    <!-- KONKURRENCE -->
+    <!-- VEJRET -->
     <section id="vejr" class="fane" hidden>
       <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
       <div class="sek-hoved"><h2>Vejret</h2></div>
       <div id="vejr-indhold"><p class="hint">Henter vejret…</p></div>
+    </section>
+
+    <!-- HJÆLP -->
+    <section id="hjaelp" class="fane" hidden>
+      <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
+      <div class="sek-hoved"><h2>Sådan virker Familietavlen</h2></div>
+      <div class="hjaelp">
+        <p class="hjaelp-intro">Familietavlen samler familiens hverdag ét sted. Alt gemmes med det samme og kan ses på alle familiens telefoner, tablets og computere.</p>
+
+        <div class="kort hjaelp-kort kun-barn">
+          <h3>Til dig, der er barn 🙂</h3>
+          <ul>
+            <li><b>Din tavle</b> under I dag viser dagen: hvad der sker, dine pligter, skole, mad og meget mere. Tryk på en firkant for at se det hele.</li>
+            <li><b>Pligter:</b> tryk på en pligt, når den er klaret. Så får du stjerner eller lommepenge – og din makker bliver glad.</li>
+            <li><b>Belønninger:</b> har du stjerner nok, kan du trykke <b>Ønsk</b>. Så siger mor eller far ja eller nej.</li>
+            <li><b>Makker:</b> tryk på din makker for en sjov bemærkning. Vil du have en anden, så tryk <b>Skift makker</b>.</li>
+          </ul>
+        </div>
+
+        <div class="kort hjaelp-kort">
+          <h3>I dag</h3>
+          <ul>
+            <li><b>Familien</b> viser dagens kalender, aftensmad, skole, to do og indkøb. Tryk på et kort for at komme videre.</li>
+            <li class="kun-voksen"><b>Børnenes tavler:</b> vælg barnet øverst. <b>Tavle</b> viser alt som firkanter – tryk for at åbne. <b>Liste</b> viser det hele under hinanden.</li>
+            <li class="kun-voksen">På et barns tavle kan voksne tilføje noter under <b>Det sker</b> (fx "husk idrætstøj", evt. hver uge) og trykke <b>Syg / fri</b> på skolekortet.</li>
+            <li class="kun-voksen">Når et barn ønsker en belønning, står det øverst på Familien under <b>🎁 Ønsker</b> – tryk Godkend eller Afvis.</li>
+          </ul>
+        </div>
+
+        <div class="kort hjaelp-kort kun-voksen">
+          <h3>Kalender</h3>
+          <ul>
+            <li>Tryk <b>+ Ny aftale</b> eller i et tomt felt. Tryk på en aftale for at rette eller slette den.</li>
+            <li>En aftale kan være for flere personer, vare flere dage og gentages. <b>🌴 Ferie / fri</b> gør, at skolen vises som fri.</li>
+            <li><b>🔒 Kun voksne</b> kan børnene ikke se. <b>👤 Kun mig</b> kan kun du se.</li>
+            <li>Fødselsdage, årsdage og mærkedage står nederst og kommer automatisk i kalenderen.</li>
+          </ul>
+        </div>
+
+        <div class="kort hjaelp-kort kun-voksen">
+          <h3>Madplan</h3>
+          <ul>
+            <li>Skriv aftensmaden ud for dagen – eller tryk på terningen. <b>Fyld tomme dage</b> og <b>Bland hele ugen</b> vælger det, flest kan lide, først.</li>
+            <li><b>Vores lister</b> er retter, morgenmad og frokost, vi plejer at få. Under <b>Hvem kan lide hvad?</b> vælger du en person og trykker hjerter.</li>
+            <li><b>Børnenes faste morgenmad og frokost</b> gælder hver uge. En enkelt dag ændres ved at trykke på maden på barnets tavle.</li>
+          </ul>
+        </div>
+
+        <div class="kort hjaelp-kort kun-voksen">
+          <h3>Indkøb og To do</h3>
+          <ul>
+            <li>Skriv, eller tryk på et forslag. Tryk på en ting for at krydse den af. <b>Ryd det købte</b> fjerner det afkrydsede.</li>
+            <li>Indkøb: tryk på <b>⋯</b> for butik, tilbud, note og billede. Børnene kan også skrive ønsker på indkøbslisten.</li>
+            <li>To do: farven viser, hvor meget det haster – rød haster, gul snart, grå engang.</li>
+          </ul>
+        </div>
+
+        <div class="kort hjaelp-kort kun-voksen">
+          <h3>Pligter og belønninger</h3>
+          <ul>
+            <li>Under <b>Mere → Pligter</b> laves pligterne og belønningerne (tryk <b>Ret pligter og belønninger</b>). Pligter kan være hver dag, én gang om ugen, med fast mellemrum eller én gang. <b>Bonus</b> er frivillig.</li>
+            <li>Børnene krydser af på deres tavle og tjener stjerner og/eller lommepenge. Stjerner bruges på belønninger.</li>
+            <li><b>📊 Ugens overblik</b> viser, hvad hvert barn har tjent. <b>Udbetal</b> trækker lommepengene fra. <b>Justér</b> retter stjerner, kroner eller dage i træk.</li>
+          </ul>
+        </div>
+
+        <div class="kort hjaelp-kort">
+          <h3>Mere</h3>
+          <ul>
+            <li><b>Rutiner</b> er en guide med billeder (fx tandbørstning og sengetid) – der skal ikke krydses noget af.</li>
+            <li><b>Skoleskema</b>, <b>Pakkelister</b>, <b>Ugens konkurrence</b> (hvem cykler eller går længst) og <b>Vejret</b>.</li>
+          </ul>
+        </div>
+
+        <div class="kort hjaelp-kort">
+          <h3>Indstillinger</h3>
+          <ul>
+            <li>Tryk på den runde knap med dit forbogstav øverst til højre: hvad der vises (helligdage, vejr …)<span class="kun-voksen">, hvilke faner børnene kan se, by til vejret</span>, lys eller mørk – og log ud.</li>
+          </ul>
+        </div>
+
+        <div class="kort hjaelp-kort">
+          <h3>Godt at vide</h3>
+          <ul>
+            <li>Har du slettet noget ved en fejl, så tryk <b>Fortryd</b> nederst på skærmen (i 8 sekunder).</li>
+            <li class="kun-voksen">Børn kan kun krydse af, ønske belønninger, skrive km og tilføje til indkøb. Resten kan kun voksne ændre.</li>
+            <li>Telefon og tablet: åbn siden i Safari → Del → <b>Føj til hjemmeskærm</b>, så den virker som en app.</li>
+          </ul>
+        </div>
+      </div>
     </section>
 
     <section id="konkurrence" class="fane" hidden>
@@ -305,11 +400,11 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="data.js?v=2026-10-06q"></script>
-<script src="dage.js?v=2026-10-06q"></script>
-<script src="vejr.js?v=2026-10-06q"></script>
-<script src="app.js?v=2026-10-06q"></script>
-<script src="mere.js?v=2026-10-06q"></script>
-<script src="sjov.js?v=2026-10-06q"></script>
+<script src="data.js?v=2026-10-06r"></script>
+<script src="dage.js?v=2026-10-06r"></script>
+<script src="vejr.js?v=2026-10-06r"></script>
+<script src="app.js?v=2026-10-06r"></script>
+<script src="mere.js?v=2026-10-06r"></script>
+<script src="sjov.js?v=2026-10-06r"></script>
 </body>
 </html>

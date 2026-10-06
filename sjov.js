@@ -522,7 +522,9 @@ async function nedtaellingKort(barn) {
     for (const a of aftalerDen(aftaler, iso, [barn, 'Fælles'])) {
       if (forekomstStart(a, iso) !== iso || set.has(a.titel)) continue;
       set.add(a.titel);
-      ting.push({ n: i, ikon: '🌴', tekst: a.titel.toLowerCase().startsWith('fri') ? a.titel.toLowerCase() : a.titel });
+      // "til efterårsferie" med lille e (navne som "Legoland" beholder stort bogstav)
+      const lille = /ferie$|^fri/i.test(a.titel.trim()) ? a.titel.trim()[0].toLowerCase() + a.titel.trim().slice(1) : a.titel;
+      ting.push({ n: i, ikon: '🌴', tekst: lille });
     }
   }
 

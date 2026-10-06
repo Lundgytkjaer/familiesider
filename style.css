@@ -10,7 +10,7 @@
   --paa-accent: #ffffff;
   --fare: #b8402c;
   --p1: #c8432f;
-  --p2: #c98410;
+  --p2: #b08a00;
   --p3: #9aa5a0;
   --c-faelles: #1d6b58;
   --c-timmo: #2f63c8;
@@ -27,7 +27,7 @@
   :root:not([data-theme="light"]) {
     --bg: #0e1311; --flade: #19201d; --fg: #e7eeea; --daempet: #93a09a;
     --accent: #5cc3a3; --accent-blod: #1d3a30; --linje: #26302c; --paa-accent: #08221a; --fare: #ef7d68;
-    --p1: #f07a63; --p2: #e8b04a; --p3: #5f6b66;
+    --p1: #f07a63; --p2: #e9c246; --p3: #5f6b66;
     --c-faelles: #5cc3a3; --c-timmo: #7aa5f5; --c-winnie: #ee86bd; --c-oliver: #f2a45a; --c-villads: #a990ff; --tilbud: #ff6b5e;
     color-scheme: dark;
   }
@@ -35,7 +35,7 @@
 :root[data-theme="dark"] {
   --bg: #0e1311; --flade: #19201d; --fg: #e7eeea; --daempet: #93a09a;
   --accent: #5cc3a3; --accent-blod: #1d3a30; --linje: #26302c; --paa-accent: #08221a; --fare: #ef7d68;
-  --p1: #f07a63; --p2: #e8b04a; --p3: #5f6b66;
+  --p1: #f07a63; --p2: #e9c246; --p3: #5f6b66;
   --c-faelles: #5cc3a3; --c-timmo: #7aa5f5; --c-winnie: #ee86bd; --c-oliver: #f2a45a; --c-villads: #a990ff; --tilbud: #ff6b5e;
   color-scheme: dark;
 }
@@ -91,7 +91,7 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .knap:active { transform: scale(.96); }
 .ryd {
   width: 100%; min-height: 44px; border: 1.5px solid var(--linje); border-radius: var(--radius);
-  background: transparent; font-weight: 600; font-size: 15px; color: var(--daempet);
+  background: var(--flade); font-weight: 600; font-size: 15px; color: var(--fg);
 }
 .ryd.bekraeft { border-color: var(--fare); color: var(--fare); }
 
@@ -204,7 +204,7 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .beg {
   display: block; width: 100%; padding: 3px 4px 3px 5px; border: 0; border-left: 3px solid var(--p); border-radius: 5px;
   background: color-mix(in srgb, var(--p) 16%, var(--flade)); text-align: left;
-  font-size: 12px; line-height: 1.2; overflow-wrap: break-word; hyphens: auto;
+  font-size: 12px; line-height: 1.2; overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto;
 }
 .beg b { display: block; font-size: 11px; font-variant-numeric: tabular-nums; }
 
@@ -983,3 +983,36 @@ body.barn .uge input[readonly] { background: transparent; }
 }
 .fortryd-tekst { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fortryd-knap { flex: none; min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent); color: var(--paa-accent); font-weight: 800; }
+
+
+/* ---------- Gennemgang okt. 2026: rød tråd ---------- */
+/* Kun for voksne / kun for børn (selve rettighederne styres af databasen) */
+body.barn .kun-voksen { display: none !important; }
+body:not(.barn) .kun-barn { display: none !important; }
+/* Bekræft-knapper ("Tryk igen for at …") */
+.knap.bekraeft { background: var(--fare); color: #fff; }
+.udbetal { width: 100%; margin: 0 0 12px; }
+.beloen .lille-knap { max-width: 140px; white-space: normal; line-height: 1.15; padding-block: 6px; }
+/* Kalender: "+ Ny aftale" */
+.sek-hoved .ny-knap { margin-left: auto; border-color: var(--accent); color: var(--accent); }
+.sek-hoved .ny-knap + #kal-tilpas { margin-left: 8px; }
+/* Madplan */
+.mad-titel { margin: 4px 0 8px; }
+.fast-dag.idag { background: var(--accent-blod); border-radius: 12px; }
+#fast-plan { margin-bottom: 18px; }
+/* "Fjern fra listen"-tilstand */
+.ret-hint { margin: 0 0 10px; padding: 10px 12px; border-radius: 12px; font-weight: 600; font-size: 14px;
+  background: color-mix(in srgb, var(--fare) 12%, var(--flade)); color: var(--fare); }
+/* Børnetavlen: skift mellem tavle og liste */
+.visning-knap { flex: none; min-height: 36px; font-size: 13px; }
+/* Familiens overblik: kortenes indhold starter øverst, også når kortene står side om side */
+.overblik > .kort { align-self: start; }
+@media (min-width: 900px) { .overblik > button.kort { display: flex; flex-direction: column; justify-content: flex-start; } }
+/* Indstillinger */
+.indst-titel { margin-top: 18px; }
+.indst-bund { margin-top: 16px; }
+/* Hjælp */
+.hjaelp { display: grid; gap: 12px; }
+.hjaelp-intro { margin: 0; font-size: 16px; line-height: 1.45; }
+.hjaelp-kort h3 { font-family: var(--font-titel); font-size: 18px; margin: 0 0 6px; }
+.hjaelp-kort ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; line-height: 1.45; }

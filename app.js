@@ -42,10 +42,20 @@ function tidSomMin(tid) {
   return [tilMin(dele[0] || ''), tilMin(dele[1] || '')];
 }
 const slutTid = tid => ((tid || '').split(/[-–]/)[1] || '').trim();
+// Klokkeslæt vises altid med punktum, som resten af appen: 08.00–08.45
+const visTider = s => (s || '').replace(/:/g, '.').replace(/\s*[-–]\s*/, '–');
+// Ugens dage som tekst: "5.–11. okt." eller "28. sep.–4. okt." (bruges alle steder, hvor en uge vises)
+function ugeSpan(man) {
+  const son = new Date(man); son.setDate(man.getDate() + 6);
+  return man.getDate() + (man.getMonth() !== son.getMonth() ? '. ' + MDR[man.getMonth()] : '.') + '–' + son.getDate() + '. ' + MDR[son.getMonth()];
+}
+// "6. okt." – kort dato i tekst
+const kortDag = iso => { const d = new Date(iso + 'T00:00'); return d.getDate() + '. ' + MDR[d.getMonth()]; };
 
 // ---------- Faner ----------
-const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr'];
-const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr'];   // sider man når via "Mere"
+const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp'];
+const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp'];   // sider man når via "Mere"
+const FANE_NAVN = { idag: 'I dag', kalender: 'Kalender', madplan: 'Madplan', indkob: 'Indkøb', todo: 'To do', mere: 'Mere' };
 // Børn ser kun de faner, de voksne har slået til for dem (personvalg.faner). Tavlen ("I dag") er der altid.
 const BOERNE_FANER = ['kalender', 'madplan', 'mere'];   // standard for børn
 const VALGBARE_FANER = { kalender: 'Kalender', madplan: 'Madplan', indkob: 'Indkøb', todo: 'To do', mere: 'Mere' };
@@ -63,18 +73,39 @@ async function anvendFaner() {
   const aaben = document.querySelector('.fane:not([hidden])')?.id;
   if (aaben && tilladteFaner && !tilladteFaner.includes(UNDER_MERE.includes(aaben) ? 'mere' : aaben)) visFane('idag');
 }
+// Tilbage-knappen på undersiderne går derhen, man kom fra (fx "‹ I dag", når man trykkede på vejret på tavlen)
+let aktivFane = null, tilbageTil = null;
 function visFane(navn) {
   if (typeof lukZoom === 'function') lukZoom();
   if (!FANER.includes(navn)) navn = 'idag';
-  if (tilladteFaner && !tilladteFaner.includes(UNDER_MERE.includes(navn) ? 'mere' : navn)) navn = 'idag';
+  if (navn !== 'hjaelp' && tilladteFaner && !tilladteFaner.includes(UNDER_MERE.includes(navn) ? 'mere' : navn)) navn = 'idag';
+  const fra = aktivFane;
+  if (!UNDER_MERE.includes(navn)) tilbageTil = null;
+  else if (fra && fra !== navn && !UNDER_MERE.includes(fra)) tilbageTil = fra === 'mere' ? null : fra;
+  aktivFane = navn;
   document.querySelectorAll('.fane').forEach(s => (s.hidden = s.id !== navn));
   const iMenu = UNDER_MERE.includes(navn) ? 'mere' : navn;
   document.querySelectorAll('[data-fane]').forEach(b => b.setAttribute('aria-selected', b.dataset.fane === iMenu));
   lokal.set('fane', navn);
+  opdaterTilbage();
   if (navn === 'vejr' && typeof tegnVejr === 'function') tegnVejr();   // fra vejr.js
 }
+function opdaterTilbage() {
+  const pakAaben = aktivFane === 'pakkelister' && typeof pakValgt !== 'undefined' && pakValgt;
+  document.querySelectorAll('.tilbage').forEach(b => {
+    b.textContent = b.closest('.fane')?.id === 'pakkelister' && pakAaben ? '‹ Alle pakkelister' : '‹ ' + (tilbageTil ? FANE_NAVN[tilbageTil] : 'Mere');
+  });
+}
 document.querySelectorAll('[data-fane]').forEach(b => b.addEventListener('click', () => { visFane(b.dataset.fane); window.scrollTo(0, 0); }));
-document.querySelectorAll('[data-gaa]').forEach(b => b.addEventListener('click', () => { visFane(b.dataset.gaa); window.scrollTo(0, 0); }));
+document.querySelectorAll('[data-gaa]').forEach(b => b.addEventListener('click', () => {
+  if (b.classList.contains('tilbage')) {
+    // I en åben pakkeliste går "tilbage" til oversigten over pakkelister
+    if (aktivFane === 'pakkelister' && typeof pakValgt !== 'undefined' && pakValgt) {
+      pakValgt = ''; lokal.set('pak-valgt', ''); tegnPakkelister(); opdaterTilbage();
+    } else visFane(tilbageTil || 'mere');
+  } else visFane(b.dataset.gaa);
+  window.scrollTo(0, 0);
+}));
 
 // ---------- "Tryk igen"-bekræftelse ----------
 function bekraeft(knap, handling) {
@@ -93,6 +124,7 @@ function bekraeft(knap, handling) {
 // ---------- Ark (bundpanel) ----------
 const arkEl = document.getElementById('ark');
 function aabnArk(titel, ...indhold) {
+  if (typeof fortrydEl !== 'undefined' && fortrydEl) fortrydEl.hidden = true;
   document.getElementById('ark-titel').textContent = titel;
   document.getElementById('ark-indhold').replaceChildren(...indhold);
   arkEl.hidden = false;
@@ -376,8 +408,8 @@ document.querySelectorAll('form.tilfoj[data-liste]').forEach(form => {
     if (!tekst) return;
     const felter = { tekst, klaret: false };
     if (form.dataset.liste === 'todo') felter.prio = nyPrio;
-    await Data.add(form.dataset.liste, felter);
-    await gemFavorit(form.dataset.liste, tekst);
+    const nyt = await tilfoejUdenDublet(form.dataset.liste, felter);
+    if (nyt) await gemFavorit(form.dataset.liste, tekst);
     felt.value = '';
     felt.focus();
     tegnAlt();
@@ -385,6 +417,15 @@ document.querySelectorAll('form.tilfoj[data-liste]').forEach(form => {
   // Mens man skriver, viser hurtigvalget kun det der passer
   form.querySelector('input').addEventListener('input', () => tegnForslag(form.dataset.liste));
 });
+
+// Står det allerede på listen, tilføjes det ikke igen. Er det krydset af, kommer det bare tilbage på listen.
+async function tilfoejUdenDublet(liste, felter) {
+  const findes = (await Data.list(liste)).find(p => p.tekst.trim().toLowerCase() === felter.tekst.trim().toLowerCase());
+  if (findes && !findes.klaret) { visStatus(findes.tekst + ' står allerede på listen'); return false; }
+  if (findes) { await Data.update(liste, findes.id, { klaret: false, ...(felter.prio ? { prio: felter.prio } : {}) }); return true; }
+  await Data.add(liste, felter);
+  return true;
+}
 
 // ---------- Hurtigvalg: alt der er skrevet før, kan vælges igen ----------
 // Data: 'favoritter' {type: 'indkob' | 'todo' | 'ret', tekst, brugt}
@@ -437,7 +478,8 @@ function tegnLideValg() {
   const seg = el('div', 'seg wrap');
   seg.setAttribute('role', 'radiogroup');
   for (const p of folk) {
-    const k = knap(p === mig ? 'Mig' : p, PK[p] || null, () => {
+    const k = knap(p, PK[p] || null, () => {
+      FavTilstand[listeType].ret = false;   // vælger man en person, er man ikke længere i "fjern"-tilstand
       Lide.person = Lide.person === p ? null : p;
       tegnLideValg(); tegnForslag(listeType);
     });
@@ -495,7 +537,10 @@ async function tegnForslag(type) {
       return;
     }
     if (Lide.kunAlle && !st.ret) favs = faelles;
-    tegnLideValg();
+    // I "fjern"-tilstand skjules "Hvem kan lide hvad?", så man ikke tror, man markerer hjerter
+    if (st.ret) document.getElementById('lide-valg').replaceChildren(
+      el('p', 'ret-hint', 'Tryk ✕ for at fjerne en ret fra listen (kan fortrydes). Tryk "Færdig", når du er færdig.'));
+    else tegnLideValg();
     if (faelles.length && !st.ret) {
       const fk = knap((Lide.kunAlle ? '♥ Viser kun dem alle kan lide' : '♥ Kun dem alle kan lide') + ' (' + faelles.length + ')',
         'lille-knap alle-kan-lide', () => { Lide.kunAlle = !Lide.kunAlle; tegnForslag(type); });
@@ -538,8 +583,7 @@ async function tegnForslag(type) {
         const felter = { tekst: f.tekst, klaret: false };
         if (type === 'todo') felter.prio = nyPrio;
         if (type === 'indkob' && f.butik) felter.butik = f.butik;
-        await Data.add(type, felter);
-        await gemFavorit(type, f.tekst);
+        if (await tilfoejUdenDublet(type, felter)) await gemFavorit(type, f.tekst);
         document.getElementById('ny-' + type).value = '';
       }
       tegnAlt();
@@ -552,7 +596,7 @@ async function tegnForslag(type) {
     styr(st.alle ? 'Vis færre' : 'Vis alle (' + favs.length + ')', () => { st.alle = !st.alle; tegnForslag(type); });
   }
   if (!filter && favs.length && !erBarn()) {
-    styr(st.ret ? 'Færdig' : 'Ret listen', () => { st.ret = !st.ret; tegnForslag(type); });
+    styr(st.ret ? 'Færdig' : erMaaltid ? 'Fjern fra listen' : 'Ret forslag', () => { st.ret = !st.ret; if (st.ret) Lide.person = null; tegnForslag(type); });
   }
 }
 
@@ -633,7 +677,7 @@ async function tegnMadplan() {
   const son = new Date(mandag); son.setDate(mandag.getDate() + 6);
   const navn = madUge === 0 ? 'Denne uge' : madUge === 1 ? 'Næste uge' : madUge === -1 ? 'Sidste uge' : null;
   document.getElementById('mad-titel').textContent = 'Uge ' + ugenummer(mandag) + (navn ? ' · ' + navn : '');
-  document.getElementById('ugenr').textContent = mandag.getDate() + '. ' + MDR[mandag.getMonth()] + '–' + son.getDate() + '. ' + MDR[son.getMonth()];
+  document.getElementById('ugenr').textContent = ugeSpan(mandag);
   document.getElementById('mad-denne').hidden = madUge === 0;
   ol.replaceChildren();
 
@@ -700,6 +744,12 @@ let fastBarn = BOERN.includes(lokal.get('fast-barn')) ? lokal.get('fast-barn') :
 async function tegnFastPlan() {
   const boks = document.getElementById('fast-plan');
   const voksen = Data.bruger()?.rolle === 'voksen';
+  const selv = BOERN.includes(Data.bruger()?.navn) ? Data.bruger().navn : null;   // et barn ser sin egen
+  if (selv) fastBarn = selv;
+  // For børn står deres egen morgenmad og frokost øverst på Madplan; for voksne under aftensmaden
+  const sektion = document.getElementById('madplan');
+  if (selv) sektion.insertBefore(boks, document.getElementById('aftensmad-titel'));
+  else document.getElementById('ryd-uge').after(boks);
   const plan = (await Data.list('fastplan')).filter(r => r.barn === fastBarn);
   const seg = el('div', 'seg');
   seg.setAttribute('role', 'radiogroup');
@@ -712,7 +762,7 @@ async function tegnFastPlan() {
   const ol = el('ol', 'uge fast-uge');
   DAGE.forEach((dagNavn, i) => {
     const raekke = plan.find(r => r.dag === i) || {};
-    const li = el('li', 'fast-dag');
+    const li = el('li', 'fast-dag' + (i === idagNr() ? ' idag' : ''));
     li.append(el('span', 'fast-dagnavn', dagNavn));
     for (const felt of ['morgen', 'frokost']) {
       const navn = felt === 'morgen' ? 'Morgen' : 'Frokost';
@@ -747,9 +797,9 @@ async function tegnFastPlan() {
   const hoved = el('div', 'fast-hoved');
   hoved.append(el('span', null, ''), el('span', null, 'Morgen'), el('span', null, 'Frokost'));
   boks.replaceChildren(
-    el('h3', 'lille-titel', 'Fast morgenmad og frokost'),
-    el('p', 'hint', 'Gælder hver uge, til det ændres. Enkelte dage kan ændres direkte på drengenes tavle.'),
-    seg, hoved, ol);
+    el('h3', 'lille-titel', selv ? 'Min morgenmad og frokost' : 'Børnenes faste morgenmad og frokost'),
+    selv ? '' : el('p', 'hint', 'Gælder hver uge, til det ændres. En enkelt dag kan ændres ved at trykke på maden på barnets tavle.'),
+    selv ? '' : seg, hoved, ol);
 }
 
 // Terning: vælg tilfældigt fra listerne – undgå gentagelser i samme uge
@@ -780,15 +830,26 @@ async function rulDage(dage, felter = ['ret']) {
   tegnMadplan();
 }
 const synligeMaaltider = () => ['ret'];
+// Dage terningerne må ændre: ikke dage, der er gået (i dag er med)
+function aabneDage() {
+  const alle = [0, 1, 2, 3, 4, 5, 6];
+  if (madUge > 0) return alle;
+  if (madUge < 0) return [];
+  return alle.filter(d => d >= idagNr());
+}
 
 document.getElementById('fyld-tomme').addEventListener('click', async () => {
+  if (!aabneDage().length) { visStatus('Den uge er gået – vælg denne eller næste uge.'); return; }
   for (const felt of synligeMaaltider()) {
     const plan = await madplanForUge(madUgeIso());
-    await rulDage([0, 1, 2, 3, 4, 5, 6].filter(d => !plan.some(r => r.dag === d && r[felt])), [felt]);
+    await rulDage(aabneDage().filter(d => !plan.some(r => r.dag === d && r[felt])), [felt]);
   }
 });
 const blandUge = document.getElementById('bland-uge');
-blandUge.addEventListener('click', () => bekraeft(blandUge, () => rulDage([0, 1, 2, 3, 4, 5, 6], synligeMaaltider())));
+blandUge.addEventListener('click', () => bekraeft(blandUge, () => {
+  if (!aabneDage().length) { visStatus('Den uge er gået – vælg denne eller næste uge.'); return; }
+  return rulDage(aabneDage(), synligeMaaltider());
+}));
 
 document.getElementById('mad-forrige').addEventListener('click', () => { madUge--; tegnMadplan(); });
 document.getElementById('mad-naeste').addEventListener('click', () => { madUge++; tegnMadplan(); });
@@ -799,6 +860,11 @@ rydUge.addEventListener('click', () => bekraeft(rydUge, async () => {
   for (const r of await madplanForUge(madUgeIso())) await Data.remove('madplan', r.id);
   tegnAlt();
 }));
+
+// "Vores lister" folder ud nederst på siden – rul den frem, så man kan se, at der skete noget
+document.querySelector('.retter-boks').addEventListener('toggle', e => {
+  if (e.target.open) setTimeout(() => e.target.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }), 60);
+});
 
 // ---------- Skoleskema ----------
 // Data: 'ringetider' {barn, nr, tid}
@@ -856,7 +922,7 @@ function lektionLi(t, erNu, farver) {
   const kode = farveKode(farver, t.farve);
   const li = el('li', 'lektion vis' + (erNu ? ' nu' : '') + (kode ? ' farvet' : ''));
   if (kode) li.style.setProperty('--fk', kode);
-  li.append(el('span', 'tid', t.tid.replace('-', '–')), el('span', 'fag', t.fag));
+  li.append(el('span', 'tid', visTider(t.tid)), el('span', 'fag', t.fag));
   return li;
 }
 
@@ -941,7 +1007,7 @@ async function tegnSkema() {
 
   const sidste = friDag ? null : medFag[medFag.length - 1];
   const fod = [];
-  if (sidste && slutTid(sidste.tid)) fod.push('Fri kl. ' + slutTid(sidste.tid));
+  if (sidste && slutTid(sidste.tid)) fod.push('Fri kl. ' + visTid(slutTid(sidste.tid)));
   if (kontakt && !redigerer) fod.push('Kontakt: ' + kontakt);
   document.getElementById('fri-kl').textContent = fod.join(' · ');
 
@@ -1166,7 +1232,7 @@ async function tegnMaaned() {
       const titler = el('span', 'md-titler');
       for (const f of foed) {
         prikker.append(el('span', 'prik ' + dagKlasse(f)));
-        titler.append(el('span', 'md-titel ' + dagKlasse(f), f.indbygget ? f.ikon + ' ' + f.navn : f.navn));
+        titler.append(el('span', 'md-titel ' + dagKlasse(f), f.indbygget ? f.ikon + ' ' + f.navn : (f.dato ? (f.aarsdag ? '🎉 ' : '🇩🇰 ') : '') + f.navn));
       }
       if (foed.some(f => f.hellig)) k.classList.add('hellig');
       for (const a of dagens) {
@@ -1209,10 +1275,9 @@ async function tegnKalender() {
   const man = mandagDenneUge();
   man.setDate(man.getDate() + kalUge * 7);
   const son = new Date(man); son.setDate(man.getDate() + 6);
-  const fra = man.getDate() + (man.getMonth() !== son.getMonth() ? '. ' + MDR[man.getMonth()] : '.');
-  document.getElementById('kal-titel').textContent = 'Uge ' + ugenummer(man) + ' · ' + fra + '–' + son.getDate() + '. ' + MDR[son.getMonth()];
+  document.getElementById('kal-titel').textContent = 'Uge ' + ugenummer(man) + ' · ' + ugeSpan(man);
   document.getElementById('kal-idag').hidden = kalUge === 0;
-  document.getElementById('kal-dato').textContent = son.getFullYear();
+  document.getElementById('kal-dato').textContent = son.getFullYear() !== new Date().getFullYear() ? son.getFullYear() : '';
 
   const aftaler = await kalenderAftaler();
   const alleFoed = await Data.list('foedselsdage');
@@ -1323,7 +1388,8 @@ function redigerAftale(a, forekomst) {
   friKnap.setAttribute('aria-checked', fri);
   const voksneBoks = el('div', 'seg wrap');
   voksneBoks.append(friKnap);
-  const friHint = el('p', 'hint', 'Ferie / fri: skoleskemaet viser "Fri" for dem, det gælder, og den står kun i "i dag"-listerne den første dag.');
+  const friHint = el('p', 'hint', 'Ferie / fri: skolen vises som "Fri" på tavlen for dem, det gælder.');
+  const synligHint = el('p', 'hint', '🔒 Kun voksne: børnene kan ikke se den. 👤 Kun mig: kun du kan se den.');
 
   const fejl = el('p', 'fejl'); fejl.hidden = true;
   const datoRaekke = el('div', 'to-felter');
@@ -1364,7 +1430,7 @@ function redigerAftale(a, forekomst) {
     const undtag = [...(a.undtagelser || [])];
     const forSidste = plusDage(forekomst, -1);
     knapper.append(
-      el('p', 'hint bred', 'Aftalen gentages. Gælder ændringen kun ' + forekomst.split('-').reverse().slice(0, 2).join('/') + ' eller også fremover?'),
+      el('p', 'hint bred', 'Aftalen gentages. Gælder ændringen kun ' + kortDag(forekomst) + ' eller også fremover?'),
       knap('Gem kun denne dag', 'knap sekundaer-knap', async () => {
         const f = felter(); if (!f) return;
         await Data.update(kalListe(a), a.id, { undtagelser: [...undtag, forekomst] });
@@ -1395,16 +1461,28 @@ function redigerAftale(a, forekomst) {
   }
 
   aabnArk(ny ? 'Ny aftale' : 'Ret aftale', felt('Hvad', titel), felt('Hvem', hvemValg), datoRaekke, tidRaekke,
-    felt('Gentages', gentagValg), gentagTilFelt, felt('Note', note), erVoksenNu ? felt('Hvem kan se den', synligValg) : '', erVoksenNu ? voksneBoks : '', erVoksenNu ? friHint : '', fejl, knapper);
+    felt('Gentages', gentagValg), gentagTilFelt, voksneBoks, friHint, felt('Note', note),
+    erVoksenNu ? felt('Hvem kan se den', synligValg) : '', erVoksenNu ? synligHint : '', fejl, knapper);
   if (ny) setTimeout(() => titel.focus(), 50);
 }
 
+// "+ Ny aftale": på den valgte dag i månedsvisning, ellers i dag (eller mandag i en anden uge)
+document.getElementById('kal-ny').addEventListener('click', () => {
+  let dato = isoDato(new Date());
+  if (kalVisning === 'maaned') dato = kalValgtDag;
+  else if (kalUge !== 0) { const m = mandagDenneUge(); m.setDate(m.getDate() + kalUge * 7); dato = isoDato(m); }
+  redigerAftale({ dato, hvem: 'Fælles' });
+});
 document.getElementById('kal-forrige').addEventListener('click', () => { if (kalVisning === 'uge') kalUge--; else kalMaaned--; tegnKalender(); });
 document.getElementById('kal-naeste').addEventListener('click', () => { if (kalVisning === 'uge') kalUge++; else kalMaaned++; tegnKalender(); });
 document.getElementById('kal-idag').addEventListener('click', () => { kalUge = 0; kalMaaned = 0; kalValgtDag = isoDato(new Date()); tegnKalender(); });
 
 // ---------- Børnetavle: Olivers og Villads' egen I dag-side ----------
-// Data: 'info' {barn, dato: 'ÅÅÅÅ-MM-DD', tekst} – ekstra ting at huske, som ikke står i kalenderen
+// Data: 'info' {barn, dato: 'ÅÅÅÅ-MM-DD', tekst, gentag?: 'uge'} – ekstra ting at huske, som ikke står i kalenderen
+//        gentag 'uge' = samme ugedag hver uge fra datoen (fx "husk idrætstøj" hver tirsdag)
+const ugedagAf = iso => new Date(iso + 'T00:00').getDay();
+const infoDen = (alle, barn, iso) => alle.filter(x => x.barn === barn &&
+  (x.dato === iso || (x.gentag === 'uge' && x.dato < iso && ugedagAf(x.dato) === ugedagAf(iso))));
 const MDR_LANG = ['januar', 'februar', 'marts', 'april', 'maj', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'december'];
 const SKIFT_KL = 19 * 60 + 30;  // kl. 19.30 skifter børnetavlen til at vise i morgen
 let tavleVisning = 'familie';   // 'familie' eller et barns navn
@@ -1517,9 +1595,9 @@ async function tegnBoernetavle(barn) {
       const start = (timer[0].tid.split(/[-–]/)[0] || '').trim();
       const slut = slutTid(timer[timer.length - 1].tid);
       const tider = el('p', 'bt-tider');
-      if (start) tider.append(el('span', null, 'Møder ' + start));
+      if (start) tider.append(el('span', null, 'Møder ' + visTid(start)));
       if (tidlig) tider.append(el('span', 'tidlig-fri', '⏰ Fri ' + visTid(tidlig.tid) + ' i dag'));
-      else if (slut) tider.append(el('span', null, 'Fri ' + slut));
+      else if (slut) tider.append(el('span', null, 'Fri ' + visTid(slut)));
       const ol = el('ol', 'lektioner bt-lektioner');
       const farver = await skemaFarver(barn);
       const nu = new Date(); const nuMin = nu.getHours() * 60 + nu.getMinutes();
@@ -1579,7 +1657,7 @@ async function tegnBoernetavle(barn) {
   const foed = await foedselsdageDen(iso, barn);
   const alleKal = await Data.list('kalender');   // kun-voksne-aftaler vises aldrig på børnetavlen
   const aftaler = iDagsListe(alleKal, iso, [barn, 'Fælles']);
-  const info = (await Data.list('info')).filter(x => x.barn === barn && x.dato === iso);
+  const info = infoDen(await Data.list('info'), barn, iso);
   const liste = el('ul', 'sker-liste');
   for (const f of foed) {
     const li = el('li', dagKlasse(f));
@@ -1589,7 +1667,9 @@ async function tegnBoernetavle(barn) {
   for (const a of aftaler) {
     const li = el('li', aftaleFarve(a, [barn]));
     const kunFaelles = !personerI(a).includes(barn);
-    li.append(el('span', 'prik'), el('span', 'husk-tekst', tidTekst(a) + a.titel + (kunFaelles ? ' · hele familien' : '') + (a.note ? ' – ' + a.note : '')));
+    const b = knap('', 'sker-knap', () => redigerAftale(a, forekomstStart(a, iso)));
+    b.append(el('span', 'prik'), el('span', 'husk-tekst', tidTekst(a) + a.titel + (kunFaelles ? ' · hele familien' : '') + (a.note ? ' – ' + a.note : '')));
+    li.append(b);
     liste.append(li);
   }
   for (const x of info) {
@@ -1606,7 +1686,7 @@ async function tegnBoernetavle(barn) {
       li.append(el('span', 'prik'));
     }
     const tekstEl = voksen ? knap('', 'sker-knap', () => redigerInfo(barn, iso, x)) : el('span', 'sker-knap');
-    tekstEl.append(el('span', 'husk-tekst', x.tekst || ''));
+    tekstEl.append(el('span', 'husk-tekst', (x.tekst || '') + (x.gentag === 'uge' ? ' ↻' : '')));
     li.append(tekstEl);
     if (voksen) {
       const mere = knap('', 'mere-knap', () => redigerInfo(barn, iso, x));
@@ -1626,7 +1706,7 @@ async function tegnBoernetavle(barn) {
     if (voksen) dele.push(knap('+ Tilføj', 'lille-knap', () => redigerInfo(barn, iso, {})));
     skerKort = kort(skerTitel, ...dele);
     const tekster = [...liste.querySelectorAll('.husk-tekst')].map(x => x.textContent).filter(Boolean);
-    skerKort.tavle = { noegle: 'sker', ikon: '📅', titel: skerTitel, bred: !tomt, stor: tomt ? 'Intet endnu' : '',
+    skerKort.tavle = { noegle: 'sker', ikon: '🗓️', titel: skerTitel, bred: !tomt, stor: tomt ? 'Intet endnu' : '',
       linjer: tomt ? null : tekster.slice(0, 3), lille: tekster.length > 3 ? '+ ' + (tekster.length - 3) + ' mere' : '',
       billede: info.map(infoBillede).find(Boolean) || '' };
   }
@@ -1640,7 +1720,7 @@ async function tegnBoernetavle(barn) {
   // Rækkefølge: det der skifter fra dag til dag øverst (Det sker), så pligter + belønninger (hænger sammen),
   // rutiner og skole, mad og nedtælling. Samme rækkefølge i liste og tavle.
   const rutiner = await rutineKort(barn, valgt);   // fra mere.js
-  const pligter = await pligtKort(barn);   // fra mere.js
+  const pligter = await pligtKort(barn, iso === idagIso ? 'Pligter i dag' : 'Pligter i dag (' + DAGE_LANG[idagNr()].toLowerCase() + ')');   // fra mere.js
   const beloen = await beloenningKort(barn);   // fra mere.js
   const nedtael = await nedtaellingKort(barn);   // fra sjov.js
   const raekke = [skerKort, pligter, beloen, rutiner, skemaKort, madKort, nedtael].filter(Boolean);
@@ -1654,9 +1734,8 @@ async function tegnBoernetavle(barn) {
   hoved.append(visningsKnap());
   if (tavleStil() === 'tavle') {
     // Tavle-visning: alt som fliser på en tavle; tryk på en flise for at "zoome" ind
-    // Det der er klaret/fri (fx skole i weekenden) synker ned, så det vigtige står øverst
-    const kortListe = raekke.filter(k => k.tavle).map((k, i) => ({ k, i }))
-      .sort((a, b) => Number(!!a.k.tavle.klar && a.k.tavle.noegle !== 'pligter') - Number(!!b.k.tavle.klar && b.k.tavle.noegle !== 'pligter') || a.i - b.i).map(x => x.k);
+    // Fast rækkefølge (samme som i listen), så man altid ved, hvor tingene står
+    const kortListe = raekke.filter(k => k.tavle);
     const ramme = el('div', 'tavle-ramme ' + (PK[barn] || ''));
     const flade = el('div', 'tavle-flade');
     const fliser = el('div', 'fliser');
@@ -1681,19 +1760,11 @@ async function tegnBoernetavle(barn) {
 const tavleStil = () => lokal.get('tavle-stil') || 'tavle';
 let tavleKort = {};      // noegle → det fulde kort fra seneste tegning
 let zoomNoegle = null;   // hvilken flise der er zoomet ind på
+// Én knap, der viser hvad man skifter til: "☰ Liste" i tavle-visning og "▦ Tavle" i liste-visning
 function visningsKnap() {
-  const seg = el('div', 'seg visning-valg');
-  seg.setAttribute('role', 'radiogroup');
-  seg.setAttribute('aria-label', 'Visning');
-  for (const [v, ikon, tekst] of [['tavle', '▦', 'Tavle'], ['liste', '☰', 'Liste']]) {
-    const k = knap('', null, () => { lokal.set('tavle-stil', v); tegnOverblik(); });
-    k.append(ikon, el('span', 'vv-tekst', ' ' + tekst));
-    k.setAttribute('aria-label', tekst);
-    k.setAttribute('role', 'radio');
-    k.setAttribute('aria-checked', tavleStil() === v);
-    seg.append(k);
-  }
-  return seg;
+  const til = tavleStil() === 'tavle' ? 'liste' : 'tavle';
+  const k = knap(til === 'liste' ? '☰ Vis som liste' : '▦ Vis som tavle', 'lille-knap visning-knap', () => { lokal.set('tavle-stil', til); tegnOverblik(); });
+  return k;
 }
 function flise(k) {
   const t = k.tavle;
@@ -1722,7 +1793,7 @@ function zoomBoks() {
   const luk = knap('', 'zoom-luk', () => lukZoom());
   luk.innerHTML = '&times;';
   luk.setAttribute('aria-label', 'Luk');
-  vindue.append(luk, el('div', 'zoom-indhold'));
+  vindue.append(luk, el('div', 'zoom-indhold boernetavle'));   // samme udseende som på tavlen
   zoomEl.append(vindue);
   zoomEl.addEventListener('click', e => { if (e.target === zoomEl) lukZoom(); });   // tryk ved siden af = luk
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !zoomEl.hidden && arkEl.hidden) lukZoom(); });
@@ -1816,7 +1887,7 @@ function billedVaelger(start = {}, naarValgt = () => {}) {
     }));
   };
   const status = el('p', 'hint');
-  const soegeord = input('text', 'pikto-soeg', '', 'Søg på engelsk, fx dentist');
+  const soegeord = input('text', 'pikto-soeg', '', 'Søg (på engelsk), fx dentist = tandlæge');
   soegeord.enterKeyHint = 'search';
   const soeg = async (ord, daOrd) => {
     if (!ord) return;
@@ -1873,11 +1944,15 @@ function redigerInfo(barn, iso, x) {
   const tekst = input('text', 'info-tekst', x.tekst, 'Fx mormor henter, husk idrætstøj');
   const vaelger = billedVaelger(x, dansk => { if (!tekst.value.trim() && dansk) tekst.value = dansk; });
 
+  // Kun denne dag eller hver uge på samme ugedag
+  const ugedag = DAGE_LANG[(new Date((x.dato || iso) + 'T00:00').getDay() + 6) % 7].toLowerCase();
+  let gentag = x.gentag === 'uge' ? 'uge' : '';
+  const gentagValg = chipValg(['', 'uge'], gentag, v => { gentag = v; }, v => (v ? 'Hver ' + ugedag : 'Kun denne dag'));
   const gem = knap('Gem', 'knap', async () => {
     const t = tekst.value.trim();
     const b = vaelger.vaerdi();
     if (!t && !b.piktogram && !b.billede) { tekst.focus(); return; }
-    const felter = { tekst: t, ...b };
+    const felter = { tekst: t, ...b, gentag };
     if (ny) await Data.add('info', { barn, dato: iso, ...felter }); else await Data.update('info', x.id, felter);
     lukArk(); tegnAlt();
   });
@@ -1887,7 +1962,9 @@ function redigerInfo(barn, iso, x) {
 
   const d = new Date(iso + 'T00:00');
   aabnArk((ny ? 'Det sker' : 'Ret') + ' · ' + barn + ', ' + DAGE_LANG[(d.getDay() + 6) % 7].toLowerCase(),
-    felt('Hvad sker der?', tekst), ...vaelger.dele, knapper);
+    felt('Hvad sker der?', tekst), felt('Hvornår', gentagValg),
+    x.gentag === 'uge' ? el('p', 'hint', 'Gentages hver ' + ugedag + '. Ændringer og sletning gælder alle ugerne.') : '',
+    ...vaelger.dele, el('p', 'hint', 'Vises på ' + barn + 's tavle under "Det sker" og på familiens I dag.'), knapper);
 }
 
 // Vælg et måltid til et barn (direkte fra børnetavlen)
@@ -2058,7 +2135,7 @@ function redigerFoed(f) {
   });
   if (!ny) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('foedselsdage', f.id); lukArk(); tegnAlt(); }));
   knapper.append(gem);
-  aabnArk(ny ? 'Ny fødselsdag eller mærkedag' : 'Ret', felt('Navn', navn), felt('Slags', slagsValg), datoFelt,
+  aabnArk(ny ? 'Ny fødselsdag eller mærkedag' : 'Ret ' + (f.aarsdag ? 'årsdag' : f.dato ? 'fødselsdag' : 'mærkedag'), felt('Navn', navn), felt('Slags', slagsValg), datoFelt,
     el('p', 'hint', 'Årsdag = fx bryllupsdag – viser hvor mange år. Helligdage, jul, halloween osv. kommer automatisk.'), fejl, knapper);
   if (ny) setTimeout(() => navn.focus(), 50);
 }
@@ -2101,10 +2178,18 @@ async function tegnOverblik() {
     li.append(el('span', 'prik'), el('span', null, foedTekst(f)));
     ovKal.append(li);
   }
-  if (!dagens.length && !foedIdag.length) ovKal.append(el('li', null, 'Intet i kalenderen i dag'));
+  // Børnenes noter fra "Det sker" på deres tavler (fx "Husk idrætstøj")
+  const alleInfo = await Data.list('info');
+  const noter = BOERN.flatMap(b => infoDen(alleInfo, b, iDagIso).map(x => ({ b, x })));
+  if (!dagens.length && !foedIdag.length && !noter.length) ovKal.append(el('li', null, 'Intet i kalenderen i dag'));
   for (const a of dagens) {
     const li = el('li', aftaleFarve(a));
     li.append(el('span', 'prik'), el('span', null, tidTekst(a) + a.titel + laas(a) + ' · ' + personerI(a).join(', ')));
+    ovKal.append(li);
+  }
+  for (const { b, x } of noter) {
+    const li = el('li', PK[b]);
+    li.append(el('span', 'prik'), el('span', null, '📌 ' + (x.tekst || 'Se billedet på tavlen') + ' · ' + b));
     ovKal.append(li);
   }
   const morgen = iDagsListe(aftaler, iMorgenIso);
@@ -2167,8 +2252,8 @@ async function tegnOverblik() {
       linje.append(el('span', 'barn-fri', 'Intet skema'));
     } else {
       const start = (timer[0].tid.split(/[-–]/)[0] || '').trim();
-      linje.append(el('span', 'barn-fri', 'Fri ' + slutTid(timer[timer.length - 1].tid)));
-      linje.append(el('span', 'barn-fag', (start ? 'Møder ' + start + ' · ' : '') + [...new Set(timer.map(t => t.fag))].join(', ')));
+      linje.append(el('span', 'barn-fri', 'Fri ' + visTid(slutTid(timer[timer.length - 1].tid))));
+      linje.append(el('span', 'barn-fag', (start ? 'Møder ' + visTid(start) + ' · ' : '') + [...new Set(timer.map(t => t.fag))].join(', ')));
     }
     skole.append(linje);
   }
@@ -2308,12 +2393,18 @@ function redigerFravaer(barn, iso, x) {
 }
 
 // "Tilpas": hvad hver person vil se (helligdage, mærkedage, sol, vejr). Børn retter kun deres egne.
-async function tilpasVisning(hvem = Data.bruger()?.navn) {
+// ---------- Indstillinger: ét sted for alt det, man kan tilpasse ----------
+// Åbnes fra forbogstav-knappen øverst til højre og fra "Tilpas" i Kalender.
+//  1) Hvad der vises (for mig – og for børnene, hvis man er voksen): helligdage, mærkedage, sol, vejr, nedtælling, faner
+//  2) Udseende (kun denne enhed)   3) By til vejr og sol (voksne)   4) Hjælp   5) Log ud
+async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
   const mig = Data.bruger()?.navn;
   const folk = erBarn() ? [mig] : [mig, ...BOERN.filter(b => b !== mig)];
   const valg = await valgFor(hvem);
-  const dele = [];
-  if (folk.length > 1) dele.push(chipValg(folk, hvem, v => tilpasVisning(v), v => (v === mig ? 'Mig' : v)));
+  const dele = [el('h3', 'lille-titel', 'Hvad skal vises?')];
+  if (folk.length > 1) {
+    dele.push(el('p', 'hint', 'Vælg hvem du retter for:'), chipValg(folk, hvem, v => aabnIndstillinger(v), v => v));
+  }
   const MULIGHEDER = [['helligdage', '🎄 Helligdage'], ['maerkedage', '🎃 Mærkedage (halloween, mors dag …)'],
     ['sol', '🌅 Solopgang og solnedgang'], ['vejr', '🌦️ Vejret'],
     ...(BOERN.includes(hvem) ? [['nedtaelling', '⏳ Nedtælling på tavlen']] : [])];
@@ -2329,6 +2420,7 @@ async function tilpasVisning(hvem = Data.bruger()?.navn) {
     k.setAttribute('aria-checked', valg[felt]);
     seg.append(k);
   }
+  dele.push(seg, el('p', 'hint', hvem === mig ? 'Gælder din kalender og din I dag-side – på alle dine enheder.' : 'Gælder ' + hvem + 's tavle og kalender.'));
   // Voksne vælger, hvilke faner et barn kan se (tavlen er der altid)
   if (!erBarn() && BOERN.includes(hvem)) {
     const faner = new Set(Array.isArray(valg.faner) ? valg.faner : BOERNE_FANER);
@@ -2343,16 +2435,28 @@ async function tilpasVisning(hvem = Data.bruger()?.navn) {
       k.setAttribute('aria-checked', faner.has(f));
       fseg.append(k);
     }
-    dele.push(seg);
     dele.push(el('label', 'felt-label', 'Faner ' + hvem + ' kan se (tavlen er der altid)'), fseg,
-      el('p', 'hint', 'Gælder, når ' + hvem + ' selv er logget ind – din egen menu ændres ikke. Belønninger, pligter og rutiner ligger på tavlen. "Mere" giver adgang til fx Ugens konkurrence og Vejret.'));
+      el('p', 'hint', 'Gælder, når ' + hvem + ' selv er logget ind. Pligter, belønninger og rutiner ligger på tavlen.'));
   }
+  // Udseende – kun denne enhed
+  const temaValg = chipValg(Object.keys(TEMA_NAVN), lokal.get('tema') || 'auto', v => { lokal.set('tema', v); saetTema(v); }, v => TEMA_NAVN[v]);
+  dele.push(el('h3', 'lille-titel indst-titel', 'Udseende på denne enhed'), temaValg,
+    el('p', 'hint', 'Automatisk følger telefonens lys/mørk-indstilling.'));
+  // By til vejr og sol – fælles for familien
+  if (!erBarn()) {
+    const stedKnap = knap('📍 Sted for vejr og sol …', 'lille-knap', () => vaelgSted());   // fra vejr.js
+    familieSted().then(st => { stedKnap.textContent = '📍 Vejr og sol: ' + (st.navn || 'Ukendt sted') + ' – skift'; });
+    dele.push(el('h3', 'lille-titel indst-titel', 'Vejr og sol'), stedKnap);
+  }
+  // Hjælp
+  dele.push(el('h3', 'lille-titel indst-titel', 'Hjælp'),
+    knap('❓ Sådan virker Familietavlen ›', 'lille-knap', () => { lukArk(); visFane('hjaelp'); window.scrollTo(0, 0); }));
   const knapper = el('div', 'ark-knapper');
-  knapper.append(knap('Færdig', 'knap', () => lukArk()));
-  aabnArk('Vis ' + (hvem === mig ? 'for mig' : 'for ' + hvem), ...dele, ...(dele.includes(seg) ? [] : [seg]),
-    el('p', 'hint', hvem === mig ? 'Gælder kalenderen og din I dag-side på alle dine enheder.' : 'Gælder ' + hvem + 's tavle og kalender.'), knapper);
+  knapper.append(knap('Log ud', 'knap fare', () => Data.logud()), knap('Færdig', 'knap', () => lukArk()));
+  aabnArk('Indstillinger', ...dele,
+    el('p', 'hint indst-bund', 'Logget ind som ' + mig + '. Du forbliver logget ind på denne enhed, indtil du logger ud.'), knapper);
 }
-document.getElementById('kal-tilpas').addEventListener('click', () => tilpasVisning());
+document.getElementById('kal-tilpas').addEventListener('click', () => aabnIndstillinger());
 
 // Visning af en aftale for børn (kun læse)
 function visAftale(a, forekomst) {
@@ -2426,21 +2530,7 @@ function saetTema(tema) {
 }
 saetTema(lokal.get('tema') || 'auto');
 
-document.getElementById('log-ud').addEventListener('click', () => {
-  const p = Data.bruger();
-  const temaValg = chipValg(Object.keys(TEMA_NAVN), lokal.get('tema') || 'auto', v => { lokal.set('tema', v); saetTema(v); }, v => TEMA_NAVN[v]);
-  const knapper = el('div', 'ark-knapper');
-  knapper.append(knap('Log ud', 'knap fare', () => Data.logud()), knap('Luk', 'knap', () => lukArk()));
-  const stedDele = [];
-  if (!erBarn()) {
-    const stedKnap = knap('📍 Sted for vejr og sol …', 'lille-knap', () => vaelgSted());   // fra vejr.js
-    familieSted().then(st => { stedKnap.textContent = '📍 Vejr og sol: ' + (st.navn || 'Ukendt sted') + ' – skift'; });
-    stedDele.push(stedKnap);
-  }
-  aabnArk('Logget ind som ' + p.navn, felt('Udseende', temaValg),
-    el('p', 'hint', 'Automatisk følger telefonens indstilling. Valget gælder kun denne enhed.'), ...stedDele,
-    el('p', 'hint', 'Du forbliver logget ind på denne enhed, indtil du logger ud.'), knapper);
-});
+document.getElementById('log-ud').addEventListener('click', () => aabnIndstillinger());
 
 // ---------- Fortryd efter sletning ----------
 // Vises i 8 sekunder nederst: "Slettet: Lasagne · Fortryd"
@@ -2484,7 +2574,7 @@ async function startTavle() {
   const logUd = document.getElementById('log-ud');
   logUd.textContent = profil.navn[0];
   logUd.className = 'bruger-knap ' + (PK[profil.navn] || 'c-faelles');
-  logUd.setAttribute('aria-label', 'Logget ind som ' + profil.navn + '. Tryk for at logge ud');
+  logUd.setAttribute('aria-label', 'Indstillinger – logget ind som ' + profil.navn);
   logUd.hidden = false;
   if (erBarn()) {
     laasForBoern();
