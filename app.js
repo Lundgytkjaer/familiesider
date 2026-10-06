@@ -2031,12 +2031,23 @@ function redigerInfo(barn, iso, x) {
   const ugedag = DAGE_LANG[(new Date((x.dato || iso) + 'T00:00').getDay() + 6) % 7].toLowerCase();
   let gentag = x.gentag === 'uge' ? 'uge' : '';
   const gentagValg = chipValg(['', 'uge'], gentag, v => { gentag = v; }, v => (v ? 'Hver ' + ugedag : 'Kun denne dag'));
+  // Ny note: kan sættes på flere børns tavler på én gang
+  const til = new Set([barn]);
+  const tilValg = el('div', 'seg wrap');
+  const tegnTil = () => tilValg.replaceChildren(...BOERN.map(b => {
+    const k = knap(b, PK[b] || null, () => { if (til.has(b) && til.size > 1) til.delete(b); else til.add(b); tegnTil(); });
+    k.setAttribute('role', 'checkbox');
+    k.setAttribute('aria-checked', til.has(b));
+    return k;
+  }));
+  tegnTil();
   const gem = knap('Gem', 'knap', async () => {
     const t = tekst.value.trim();
     const b = vaelger.vaerdi();
     if (!t && !b.piktogram && !b.billede) { tekst.focus(); return; }
     const felter = { tekst: t, ...b, gentag };
-    if (ny) await Data.add('info', { barn, dato: iso, ...felter }); else await Data.update('info', x.id, felter);
+    if (ny) for (const b of BOERN.filter(b => til.has(b))) await Data.add('info', { barn: b, dato: iso, ...felter });
+    else await Data.update('info', x.id, felter);
     lukArk(); tegnAlt();
   });
   const knapper = el('div', 'ark-knapper');
@@ -2045,9 +2056,9 @@ function redigerInfo(barn, iso, x) {
 
   const d = new Date(iso + 'T00:00');
   aabnArk((ny ? 'Det sker' : 'Ret') + ' · ' + barn + ', ' + DAGE_LANG[(d.getDay() + 6) % 7].toLowerCase(),
-    felt('Hvad sker der?', tekst), felt('Hvornår', gentagValg),
+    felt('Hvad sker der?', tekst), ny ? felt('Hvis tavle?', tilValg) : '', felt('Hvornår', gentagValg),
     x.gentag === 'uge' ? el('p', 'hint', 'Gentages hver ' + ugedag + '. Ændringer og sletning gælder alle ugerne.') : '',
-    ...vaelger.dele, el('p', 'hint', 'Vises på ' + barn + 's tavle under "Det sker" og på familiens I dag.'), knapper);
+    ...vaelger.dele, el('p', 'hint', ny ? 'Vises under "Det sker" på de valgte tavler og på familiens I dag.' : 'Vises på ' + barn + 's tavle under "Det sker" og på familiens I dag.'), knapper);
 }
 
 // Vælg et måltid til et barn (direkte fra børnetavlen)
@@ -2277,9 +2288,14 @@ async function tegnOverblik() {
     li.append(el('span', 'prik'), el('span', null, '☑️ ' + p.tekst + (p.hvem ? ' · ' + p.hvem : '') + (p.frist < iDagIso ? ' (over tid)' : '')));
     ovKal.append(li);
   }
+  const samlet = new Map();
   for (const { b, x } of noter) {
-    const li = el('li', PK[b]);
-    li.append(el('span', 'prik'), el('span', null, '📌 ' + (x.tekst || 'Se billedet på tavlen') + ' · ' + b));
+    const n = x.tekst || 'Se billedet på tavlen';
+    samlet.set(n, [...(samlet.get(n) || []), b]);
+  }
+  for (const [n, hvem] of samlet) {
+    const li = el('li', hvem.length > 1 ? 'c-faelles' : PK[hvem[0]]);
+    li.append(el('span', 'prik'), el('span', null, '📌 ' + n + ' · ' + hvem.join(' og ')));
     ovKal.append(li);
   }
   const morgen = iDagsListe(aftaler, iMorgenIso);
