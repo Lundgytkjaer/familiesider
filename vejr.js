@@ -55,16 +55,16 @@ function vejrDag(data, iso) {
   const regnTime = timer.find(x => x.pct >= 50 || x.mm >= 0.5);
   const koldest = timer.length ? Math.min(...timer.map(x => x.temp)) : d.temperature_2m_min[i];
   const varmest = timer.length ? Math.max(...timer.map(x => x.temp)) : d.temperature_2m_max[i];
-  const raad = [];
-  if (erSne(d.weather_code[i])) raad.push('⛄ Sne – flyverdragt og støvler');
-  else if (regnTime) raad.push('☔ Husk regntøj' + (regnTime.time > 8 ? ' (regn fra kl. ' + regnTime.time + ')' : ''));
-  if (koldest <= 2) raad.push('🧤 Hue og vanter');
-  else if (koldest <= 10) raad.push('🧥 Tag jakke på');
-  if (varmest >= 22 && !regnTime) raad.push('🧢 Solcreme og kasket');
-  if ((d.wind_speed_10m_max?.[i] ?? 0) >= 13) raad.push('💨 Det blæser meget');
+  const raad = [], kort = [];   // kort = korte udgaver til tavlens vejrlinje
+  if (erSne(d.weather_code[i])) { raad.push('⛄ Sne – flyverdragt og støvler'); kort.push('⛄ Flyverdragt'); }
+  else if (regnTime) { raad.push('☔ Husk regntøj' + (regnTime.time > 8 ? ' (regn fra kl. ' + regnTime.time + ')' : '')); kort.push('☔ Regntøj'); }
+  if (koldest <= 2) { raad.push('🧤 Hue og vanter'); kort.push('🧤 Hue og vanter'); }
+  else if (koldest <= 10) { raad.push('🧥 Tag jakke på'); kort.push('🧥 Jakke'); }
+  if (varmest >= 22 && !regnTime) { raad.push('🧢 Solcreme og kasket'); kort.push('🧢 Solcreme'); }
+  if ((d.wind_speed_10m_max?.[i] ?? 0) >= 13) { raad.push('💨 Det blæser meget'); kort.push('💨 Blæst'); }
   return {
     kode: d.weather_code[i], min: d.temperature_2m_min[i], max: d.temperature_2m_max[i],
-    pct: d.precipitation_probability_max?.[i] ?? 0, regnFra: regnTime ? regnTime.time : null, raad
+    pct: d.precipitation_probability_max?.[i] ?? 0, regnFra: regnTime ? regnTime.time : null, raad, kort
   };
 }
 
@@ -78,31 +78,21 @@ async function vejrLinje() {
     + (dag.regnFra != null ? ' · regn fra kl. ' + dag.regnFra : dag.pct >= 30 ? ' · ' + dag.pct + '% regn' : '');
 }
 
-// Stribe øverst på børnetavlen (for den viste dag) – med tøjråd og evt. sol op/ned
-async function vejrStribe(iso, medSol) {
-  const data = await hentVejr();
+// Én diskret linje på børnetavlen (for den viste dag): vejr + tøjråd og evt. sol op/ned. Tryk åbner Vejret.
+async function vejrStribe(iso, medSol, medVejr = true) {
+  const data = medVejr ? await hentVejr() : null;
   const dag = data && vejrDag(data, iso);
-  if (!dag && !medSol) return null;
-  const k = el('button', 'vejr-stribe');
+  const sol = medSol ? solTider(new Date(iso + 'T12:00'), await familieSted()) : null;
+  if (!dag && !sol) return null;
+  const k = el('button', 'vejr-linje');
   k.type = 'button';
   k.addEventListener('click', () => { visFane('vejr'); window.scrollTo(0, 0); });
   if (dag) {
     const erIdag = iso === isoDato(new Date());
-    const top = el('span', 'vs-top');
-    top.append(el('span', 'vs-ikon', vejrIkon(dag.kode)),
-      el('span', 'vs-temp', erIdag ? grader(data.current.temperature_2m) : grader(dag.max)),
-      el('span', 'vs-tekst', vejrTekst(dag.kode) + ' · ' + grader(dag.min) + '–' + grader(dag.max)));
-    k.append(top);
-    if (dag.raad.length) {
-      const r = el('span', 'vs-raad');
-      dag.raad.forEach(t => r.append(el('span', null, t)));
-      k.append(r);
-    }
+    k.append(el('span', 'vl-vejr', vejrIkon(dag.kode) + ' ' + (erIdag ? grader(data.current.temperature_2m) + ' nu · ' : '')
+      + grader(dag.min) + '–' + grader(dag.max) + (dag.kort.length ? ' · ' + dag.kort.slice(0, 2).join(' · ') : '')));
   }
-  if (medSol) {
-    const sol = solTider(new Date(iso + 'T12:00'), await familieSted());
-    if (sol) k.append(solSpan(sol));   // fra dage.js
-  }
+  if (sol) k.append(solSpan(sol));   // fra dage.js
   return k;
 }
 

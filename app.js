@@ -1638,13 +1638,7 @@ async function tegnBoernetavle(barn) {
   const barnValg = await valgFor(barn);
   const vejrPlads = el('div', 'vejr-plads');
   if (barnValg.vejr || barnValg.sol) {
-    (barnValg.vejr ? vejrStribe(iso, barnValg.sol) : Promise.resolve(null)).then(async k => {
-      if (!k && barnValg.sol) {
-        const sol = solTider(new Date(iso + 'T12:00'), await familieSted());
-        if (sol) { k = el('div', 'vejr-stribe'); k.append(solSpan(sol)); }
-      }
-      if (k) vejrPlads.replaceChildren(k);
-    });
+    vejrStribe(iso, barnValg.sol, barnValg.vejr).then(k => { if (k) vejrPlads.replaceChildren(k); });
   }
   hoved.append(visningsKnap());
   if (tavleStil() === 'tavle') {
@@ -2335,7 +2329,7 @@ async function tilpasVisning(hvem = Data.bruger()?.navn) {
     }
     dele.push(seg);
     dele.push(el('label', 'felt-label', 'Faner ' + hvem + ' kan se (tavlen er der altid)'), fseg,
-      el('p', 'hint', 'Belønninger, pligter og rutiner ligger på tavlen. "Mere" giver adgang til fx Ugens konkurrence og Vejret.'));
+      el('p', 'hint', 'Gælder, når ' + hvem + ' selv er logget ind – din egen menu ændres ikke. Belønninger, pligter og rutiner ligger på tavlen. "Mere" giver adgang til fx Ugens konkurrence og Vejret.'));
   }
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Færdig', 'knap', () => lukArk()));
