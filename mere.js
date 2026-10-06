@@ -138,6 +138,13 @@ async function rutineKort(barn, dato) {
   }
   k.append(ul);
   if (rutiner.some(harPiktogram)) k.append(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
+  // Opsummering til tavle-visningen
+  const ialt = rutiner.reduce((n, r) => n + (r.trin || []).length, 0);
+  const klaret = rutiner.reduce((n, r) => n + Math.min(hentTjek(r, iso).size, (r.trin || []).length), 0);
+  const fokus = naeste || rutiner.find(r => hentTjek(r, iso).size < (r.trin || []).length);
+  k.tavle = { noegle: 'rutiner', ikon: '🪥', titel: 'Rutiner', andel: ialt ? klaret / ialt : 0,
+    klar: !fokus, stor: fokus ? fokus.navn : 'Alle klaret',
+    lille: fokus ? [visTid(fokus.tid), hentTjek(fokus, iso).size + ' af ' + (fokus.trin || []).length + ' trin'].filter(Boolean).join(' · ') : 'Godt gået! ⭐' };
   return k;
 }
 
@@ -486,6 +493,15 @@ async function pligtKort(barn, titel = 'Pligter i dag') {
   if (!liste.length) ul.append(el('li', 'tom', 'Ingen pligter i dag'));
   k.append(top, ul);
   if (liste.some(r => r.o.piktogram)) k.append(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
+  // Opsummering til tavle-visningen
+  const pligt = skalKlares(liste.filter(r => !r.sprunget));
+  const klaret = pligt.filter(r => r.f).length;
+  const naesteP = pligt.find(r => !r.f);
+  const bonus = liste.filter(r => r.o.frivillig && !r.f && !r.sprunget).length;
+  k.tavle = { noegle: 'pligter', ikon: '✅', titel: titel === 'Pligter i dag' ? 'Pligter' : titel,
+    andel: pligt.length ? klaret / pligt.length : 0, klar: pligt.length > 0 && !naesteP,
+    stor: !pligt.length ? (bonus ? bonus + ' bonus' : 'Ingen i dag') : !naesteP ? 'Alle klaret' : klaret + ' af ' + pligt.length,
+    lille: naesteP ? 'Næste: ' + naesteP.o.navn : st >= 2 ? streakTekst(st) : bonus ? 'Bonus venter ⭐' : 'Sejt! 🎉' };
   return k;
 }
 
@@ -796,6 +812,13 @@ async function beloenningKort(barn) {
   const vis = [...sorteret.filter(b => b.stjerner <= s.stjerner), ...sorteret.filter(b => b.stjerner > s.stjerner).slice(0, 2)];
   vis.forEach(b => ul.append(beloenLi(barn, b, d, s)));
   k.append(top, ul);
+  const venter = d.indl.filter(x => x.status === 'afventer');
+  const raad = sorteret.filter(b => b.stjerner <= s.stjerner);
+  const naesteB = sorteret.find(b => b.stjerner > s.stjerner);
+  k.tavle = { noegle: 'beloenninger', ikon: '🎁', titel: 'Belønninger', stor: '★ ' + s.stjerner,
+    lille: venter.length ? 'Ønske venter på en voksen' : raad.length ? 'Du har råd til ' + (raad.length === 1 ? raad[0].navn : raad.length + ' ting') + '!'
+      : naesteB ? 'Næste: ' + naesteB.navn + ' (mangler ' + (naesteB.stjerner - s.stjerner) + ')' : '',
+    andel: naesteB ? s.stjerner / naesteB.stjerner : 1 };
   return k;
 }
 

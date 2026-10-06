@@ -876,3 +876,89 @@ body.barn .uge input[readonly] { background: transparent; }
 .uge-linjer li span { color: var(--daempet); }
 .uge-linjer li b { text-align: right; }
 .uge-bund { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--linje); font-weight: 600; }
+
+/* ---------- Tavle-visning (børnetavlen som én tavle med fliser) ---------- */
+:root { --ramme: #34443d; --ramme-kant: #22302a; --flade-tavle: #f8f8f3; --prik-tavle: rgb(22 32 28 / .07); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --ramme: #2b3833; --ramme-kant: #3c4c45; --flade-tavle: #121815; --prik-tavle: rgb(255 255 255 / .05); } }
+:root[data-theme="dark"] { --ramme: #2b3833; --ramme-kant: #3c4c45; --flade-tavle: #121815; --prik-tavle: rgb(255 255 255 / .05); }
+.bt-hoved { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px; }
+.bt-hoved .visning-valg { margin: 0; flex: none; }
+.visning-valg button { min-height: 36px; padding: 0 12px; font-size: 13px; }
+.tavle-ramme {
+  padding: 10px; border-radius: 26px; background: var(--ramme);
+  box-shadow: inset 0 0 0 2px var(--ramme-kant), 0 8px 24px rgb(0 0 0 / .12);
+}
+.tavle-flade {
+  display: grid; gap: 12px; padding: 12px; border-radius: 18px;
+  background-color: var(--flade-tavle);
+  background-image: radial-gradient(var(--prik-tavle) 1px, transparent 1.5px);
+  background-size: 16px 16px;
+}
+.tavle-flade > .alfie-kort { margin: 0; }
+.fliser { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+@media (min-width: 640px) { .fliser { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1000px) { .fliser { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.flise {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0;
+  min-height: 112px; padding: 16px 12px 12px; border: 0; border-radius: 14px; text-align: left;
+  background: var(--flade); color: var(--fg); box-shadow: 0 1px 2px rgb(0 0 0 / .08), 0 3px 10px rgb(0 0 0 / .05);
+  transition: transform .12s; -webkit-tap-highlight-color: transparent;
+}
+.flise:nth-child(odd) { transform: rotate(-.5deg); } .flise:nth-child(even) { transform: rotate(.5deg); }
+.flise:active { transform: scale(.97); }
+/* Magnet i personens farve */
+.flise::before {
+  content: ''; position: absolute; top: -5px; left: 50%; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%;
+  background: var(--p, var(--accent)); box-shadow: inset 0 -2px 0 rgb(0 0 0 / .2), 0 1px 2px rgb(0 0 0 / .25);
+}
+.fl-top { display: flex; align-items: center; gap: 6px; width: 100%; font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--daempet); }
+.fl-ikon { font-size: 16px; letter-spacing: 0; }
+.fl-titel { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fl-klar { flex: none; width: 22px; height: 22px; border-radius: 50%; display: grid; place-content: center; background: var(--accent); color: var(--paa-accent); font-size: 13px; letter-spacing: 0; }
+.fl-stor {
+  font-family: var(--font-titel); font-weight: 800; font-size: 21px; line-height: 1.12; width: 100%;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere;
+}
+.fl-lille { font-size: 13px; color: var(--daempet); font-weight: 600; width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fl-billede { width: 44px; height: 44px; object-fit: cover; border-radius: 8px; }
+.flise .fremskridt { margin-top: auto; width: 100%; }
+.flise.klar { background: color-mix(in srgb, var(--accent) 9%, var(--flade)); }
+@media (prefers-reduced-motion: reduce) { .flise, .flise:nth-child(odd), .flise:nth-child(even) { transform: none; transition: none; } }
+
+/* Zoom: flisen åbnes som et stort kort – luk med ✕ eller tryk ved siden af */
+.zoom-baggrund {
+  position: fixed; inset: 0; z-index: 15; display: flex; align-items: center; justify-content: center;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  background: rgb(10 16 13 / .5); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px);
+}
+.zoom-vindue {
+  position: relative; width: 100%; max-width: 560px; max-height: 100%; overflow-y: auto; overscroll-behavior: contain;
+  border-radius: 22px; background: var(--flade); box-shadow: 0 20px 50px rgb(0 0 0 / .3);
+}
+.zoom-indhold > .kort { margin: 0; box-shadow: none; padding-top: 18px; }
+.zoom-indhold .kort-top { padding-right: 48px; }
+.zoom-luk {
+  position: absolute; top: 10px; right: 10px; z-index: 1; width: 40px; height: 40px; border: 0; border-radius: 50%;
+  background: var(--bg); color: var(--fg); font-size: 26px; line-height: 1; display: grid; place-content: center;
+}
+/* Tavle-visning: mere kompakt top, så det hele kan ses på én skærm */
+.som-tavle .uge-strip { margin-bottom: 8px; }
+.som-tavle .ugedag { min-height: 0; padding-block: 6px; }
+.som-tavle .ugedag .ud-nr { font-size: 16px; }
+.som-tavle .bt-hoved { margin-bottom: 8px; align-items: center; }
+.som-tavle .bt-dag { font-size: clamp(26px, 7vw, 34px); }
+.som-tavle .bt-dato { margin-top: 2px; font-size: 14px; }
+.som-tavle .vejr-plads:empty { display: none; }
+.fliser > .alfie-kort { grid-column: 1 / -1; margin: 0; padding: 10px 12px; }
+.fliser > .alfie-kort .alfie-figur { width: 80px; height: 75px; }
+.fliser > .alfie-kort .alfie-boble { font-size: 14px; padding: 7px 10px; }
+@media (min-width: 640px) { .fliser > .alfie-kort { grid-column: span 2; } }
+@media (min-width: 640px) and (max-width: 999px) { .fliser > .alfie-kort { grid-column: 1 / -1; } }
+@media (max-width: 520px) {
+  .som-tavle .vv-tekst { display: none; }
+  .som-tavle .bt-hoved { flex-wrap: nowrap; }
+  .som-tavle .bt-hoved > :first-child { min-width: 0; }
+  .som-tavle .visning-valg button { min-width: 40px; padding: 0 10px; font-size: 16px; }
+  .flise { min-height: 100px; padding: 14px 11px 11px; }
+  .fl-stor { font-size: 19px; }
+}

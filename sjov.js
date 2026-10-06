@@ -550,5 +550,8 @@ async function nedtaellingKort(barn) {
     ul.append(li);
   }
   k.append(top, ul);
+  const f = vis.slice().sort((a, b) => a.n - b.n)[0];
+  k.tavle = { noegle: 'nedtaelling', ikon: '⏳', titel: 'Nedtælling', stor: f.n === 0 ? 'I dag! 🎉' : f.n === 1 ? 'I morgen' : f.n + ' dage',
+    lille: (f.n === 0 ? '' : 'til ') + f.tekst + ' ' + f.ikon };
   return k;
 }

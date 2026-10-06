@@ -64,6 +64,7 @@ async function anvendFaner() {
   if (aaben && tilladteFaner && !tilladteFaner.includes(UNDER_MERE.includes(aaben) ? 'mere' : aaben)) visFane('idag');
 }
 function visFane(navn) {
+  if (typeof lukZoom === 'function') lukZoom();
   if (!FANER.includes(navn)) navn = 'idag';
   if (tilladteFaner && !tilladteFaner.includes(UNDER_MERE.includes(navn) ? 'mere' : navn)) navn = 'idag';
   document.querySelectorAll('.fane').forEach(s => (s.hidden = s.id !== navn));
@@ -1465,7 +1466,9 @@ async function tegnBoernetavle(barn) {
   const dagNavn = el('p', 'bt-dag', DAGE_LANG[dagNr]);
   if (iso === idagIso) dagNavn.append(el('span', 'bt-idag', 'I dag'));
   else if (iso === isoDato(imorgen)) dagNavn.append(el('span', 'bt-idag', 'I morgen'));
-  hoved.append(dagNavn, el('p', 'bt-dato', valgt.getDate() + '. ' + MDR_LANG[valgt.getMonth()] + ' · uge ' + ugenummer(valgt)));
+  const hovedTekst = el('div', 'bt-hoved-tekst');
+  hovedTekst.append(dagNavn, el('p', 'bt-dato', valgt.getDate() + '. ' + MDR_LANG[valgt.getMonth()] + ' · uge ' + ugenummer(valgt)));
+  hoved.append(hovedTekst);
 
   const kort = (titel, ...indhold) => {
     const k = el('div', 'kort');
@@ -1481,18 +1484,22 @@ async function tegnBoernetavle(barn) {
   const hellig = dagNr < 5 ? helligdagDen(iso) : null;   // fra dage.js
   if (dagNr >= 5) {
     skemaKort = kort('Skole', el('p', 'stor tom-ret', 'Weekend – ingen skole'));
+    skemaKort.tavle = { stor: 'Weekend', lille: 'Ingen skole 😎', klar: true };
   } else if (hellig && !friIdag) {
     skemaKort = kort('Skole', el('p', 'stor fri-dag', 'Fri ' + hellig.ikon), el('p', 'under', hellig.navn));
+    skemaKort.tavle = { stor: 'Fri ' + hellig.ikon, lille: hellig.navn, klar: true };
   } else if (friIdag) {
     skemaKort = friIdag.type === 'syg'
       ? kort('Skole', el('p', 'stor fri-dag syg-dag', 'Hjemme 🤒'), el('p', 'under', 'God bedring!' + (friIdag.note ? ' ' + friIdag.note : '')))
       : kort('Skole', el('p', 'stor fri-dag', 'Fri ' + friIkon(friIdag)), el('p', 'under', friTekst(friIdag) + (friIdag.note ? ' – ' + friIdag.note : '')));
+    skemaKort.tavle = friIdag.type === 'syg' ? { stor: 'Hjemme 🤒', lille: 'God bedring!' } : { stor: 'Fri ' + friIkon(friIdag), lille: friTekst(friIdag), klar: true };
   } else {
     const tidlig = aftalerDen(await Data.list('kalender'), iso, [barn]).find(a => a.type === 'tidlig' && a.tid);
     const tidligMin = tidlig ? tidSomMin(tidlig.tid)[0] : null;
     const timer = (await dagensTimer(barn, dagNr)).filter(t => t.fag);
     if (!timer.length) {
       skemaKort = kort('Skole', el('p', 'under', 'Intet skema lagt ind for ' + DAGE_LANG[dagNr].toLowerCase() + '.'));
+      skemaKort.tavle = { stor: 'Skole', lille: 'Intet skema lagt ind' };
     } else {
       const start = (timer[0].tid.split(/[-–]/)[0] || '').trim();
       const slut = slutTid(timer[timer.length - 1].tid);
@@ -1510,6 +1517,18 @@ async function tegnBoernetavle(barn) {
         ol.append(li);
       }
       skemaKort = kort('Skole', tider, ol, forklaring(farver, new Set(timer.map(t => t.farve))));
+      // Opsummering til tavle-visningen: hvad sker der nu / næste
+      let friTid = tidlig ? tidlig.tid : slut;
+      const nuTime = iso === idagIso ? timer.find(t => { const [fra, til] = tidSomMin(t.tid); return fra != null && til != null && nuMin >= fra && nuMin < til; }) : null;
+      const startMin = tidSomMin(timer[0].tid)[0];
+      const slutMin = tidligMin ?? tidSomMin(timer[timer.length - 1].tid)[1];
+      friTid = visTid(friTid);
+      if (iso === idagIso && slutMin != null && nuMin >= slutMin) skemaKort.tavle = { stor: 'Fri 🎉', lille: 'Skolen er slut for i dag', klar: true };
+      else if (nuTime) skemaKort.tavle = { stor: nuTime.fag, lille: 'Nu · fri ' + friTid };
+      else if (iso === idagIso && startMin != null && nuMin >= startMin) {
+        const naesteT = timer.find(t => (tidSomMin(t.tid)[0] ?? 0) > nuMin);
+        skemaKort.tavle = { stor: naesteT ? naesteT.fag : 'Pause', lille: (naesteT ? 'Næste · ' : '') + 'fri ' + friTid };
+      } else skemaKort.tavle = { stor: 'Møder ' + start, lille: timer[0].fag + ' · fri ' + friTid };
     }
   }
 
@@ -1531,6 +1550,12 @@ async function tegnBoernetavle(barn) {
     if (plan.eget[felt]) retEl.append(el('span', 'eget-tag', 'Eget valg'));
     r.append(el('span', 'm-navn', navn), retEl, erBarn() ? '' : el('span', 'm-pil', '›'));
     madKort.append(r);
+  }
+
+  {
+    const time = new Date().getHours();
+    const felt = iso !== idagIso ? 'ret' : time < 9 ? 'morgen' : time < 13 ? 'frokost' : 'ret';
+    madKort.tavle = { stor: plan[felt] || 'Ikke bestemt', lille: ({ morgen: 'Morgenmad', frokost: 'Frokost', ret: 'Aftensmad' })[felt] };
   }
 
   const kontakt = dagNr < 5 ? await dagKontakt(barn, dagNr) : '';
@@ -1587,7 +1612,14 @@ async function tegnBoernetavle(barn) {
     if (info.some(x => x.piktogram)) dele.push(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
     if (voksen) dele.push(knap('+ Tilføj', 'lille-knap', () => redigerInfo(barn, iso, {})));
     skerKort = kort(skerTitel, ...dele);
+    const foerste = liste.querySelector('.husk-tekst');
+    const antal = foed.length + aftaler.length + info.length;
+    skerKort.tavle = { noegle: 'sker', ikon: '📅', titel: skerTitel, stor: tomt ? 'Intet endnu' : foerste.textContent,
+      lille: antal > 1 ? '+ ' + (antal - 1) + ' mere' : '', billede: info.map(infoBillede).find(Boolean) || '' };
   }
+
+  Object.assign(skemaKort.tavle, { noegle: 'skole', ikon: '🎒', titel: 'Skole' });
+  Object.assign(madKort.tavle, { noegle: 'mad', ikon: '🍽️', titel: 'Mad' });
 
   const gitter = el('div', 'overblik');
   const alfie = await alfieKort(barn);   // fra sjov.js
@@ -1614,7 +1646,114 @@ async function tegnBoernetavle(barn) {
       if (k) vejrPlads.replaceChildren(k);
     });
   }
-  boks.replaceChildren(strip, hoved, vejrPlads, gitter);
+  hoved.append(visningsKnap());
+  if (tavleStil() === 'tavle') {
+    // Tavle-visning: alt som fliser på en tavle; tryk på en flise for at "zoome" ind
+    const kortListe = [pligter, rutiner, skemaKort, madKort, skerKort, beloen, nedtael].filter(k => k?.tavle);
+    const ramme = el('div', 'tavle-ramme ' + (PK[barn] || ''));
+    const flade = el('div', 'tavle-flade');
+    const fliser = el('div', 'fliser');
+    if (alfie) fliser.append(alfie);   // makkeren hænger på tavlen sammen med fliserne
+    tavleKort = {};
+    for (const k of kortListe) { tavleKort[k.tavle.noegle] = k; fliser.append(flise(k)); }
+    flade.append(fliser);
+    ramme.append(flade);
+    boks.classList.add('som-tavle');
+    boks.replaceChildren(strip, hoved, vejrPlads, ramme);
+    opdaterZoom();
+  } else {
+    tavleKort = {};
+    lukZoom();
+    boks.classList.remove('som-tavle');
+    boks.replaceChildren(strip, hoved, vejrPlads, gitter);
+  }
+}
+
+// ---------- Tavle-visning: fliser + zoom ----------
+// Valget huskes pr. enhed (fx en tablet der altid står med tavlen)
+const tavleStil = () => lokal.get('tavle-stil') || 'tavle';
+let tavleKort = {};      // noegle → det fulde kort fra seneste tegning
+let zoomNoegle = null;   // hvilken flise der er zoomet ind på
+function visningsKnap() {
+  const seg = el('div', 'seg visning-valg');
+  seg.setAttribute('role', 'radiogroup');
+  seg.setAttribute('aria-label', 'Visning');
+  for (const [v, ikon, tekst] of [['tavle', '▦', 'Tavle'], ['liste', '☰', 'Liste']]) {
+    const k = knap('', null, () => { lokal.set('tavle-stil', v); tegnOverblik(); });
+    k.append(ikon, el('span', 'vv-tekst', ' ' + tekst));
+    k.setAttribute('aria-label', tekst);
+    k.setAttribute('role', 'radio');
+    k.setAttribute('aria-checked', tavleStil() === v);
+    seg.append(k);
+  }
+  return seg;
+}
+function flise(k) {
+  const t = k.tavle;
+  const b = knap('', 'flise' + (t.klar ? ' klar' : ''), () => aabnZoom(t.noegle, b));
+  b.dataset.noegle = t.noegle;
+  const top = el('span', 'fl-top');
+  top.append(el('span', 'fl-ikon', t.ikon), el('span', 'fl-titel', t.titel));
+  if (t.klar) top.append(el('span', 'fl-klar', '✓'));
+  b.append(top);
+  if (t.billede) { const img = el('img', 'fl-billede'); img.src = t.billede; img.alt = ''; b.append(img); }
+  b.append(el('span', 'fl-stor', t.stor || ''));
+  if (t.lille) b.append(el('span', 'fl-lille', t.lille));
+  if (t.andel != null) b.append(fremskridt(t.andel));
+  b.setAttribute('aria-label', t.titel + ': ' + (t.stor || '') + (t.lille ? ', ' + t.lille : '') + '. Tryk for at åbne');
+  return b;
+}
+let zoomEl = null;
+function zoomBoks() {
+  if (zoomEl) return zoomEl;
+  zoomEl = el('div', 'zoom-baggrund');
+  zoomEl.hidden = true;
+  const vindue = el('div', 'zoom-vindue');
+  vindue.setAttribute('role', 'dialog');
+  vindue.setAttribute('aria-modal', 'true');
+  const luk = knap('', 'zoom-luk', () => lukZoom());
+  luk.innerHTML = '&times;';
+  luk.setAttribute('aria-label', 'Luk');
+  vindue.append(luk, el('div', 'zoom-indhold'));
+  zoomEl.append(vindue);
+  zoomEl.addEventListener('click', e => { if (e.target === zoomEl) lukZoom(); });   // tryk ved siden af = luk
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !zoomEl.hidden && arkEl.hidden) lukZoom(); });
+  document.body.append(zoomEl);
+  return zoomEl;
+}
+function aabnZoom(noegle, fra) {
+  const z = zoomBoks();
+  zoomNoegle = noegle;
+  opdaterZoom();
+  z.hidden = false;
+  document.body.style.overflow = 'hidden';
+  const vindue = z.querySelector('.zoom-vindue');
+  // Vinduet "vokser" ud fra flisen
+  if (fra && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    const a = fra.getBoundingClientRect(), b = vindue.getBoundingClientRect();
+    vindue.style.transition = 'none';
+    vindue.style.transformOrigin = 'top left';
+    vindue.style.transform = 'translate(' + (a.left - b.left) + 'px,' + (a.top - b.top) + 'px) scale(' + (a.width / b.width) + ',' + (a.height / b.height) + ')';
+    vindue.style.opacity = '.4';
+    vindue.getBoundingClientRect();
+    vindue.style.transition = 'transform .22s ease-out, opacity .18s';
+    vindue.style.transform = '';
+    vindue.style.opacity = '';
+  }
+}
+// Efter en ændring (fx et flueben) tegnes tavlen om – det zoomede kort skiftes til det nye
+function opdaterZoom() {
+  if (!zoomNoegle || !zoomEl) return;
+  const k = tavleKort[zoomNoegle];
+  if (!k) { lukZoom(); return; }
+  zoomEl.querySelector('.zoom-indhold').replaceChildren(k);
+}
+function lukZoom() {
+  zoomNoegle = null;
+  if (!zoomEl || zoomEl.hidden) return;
+  zoomEl.hidden = true;
+  zoomEl.querySelector('.zoom-indhold').replaceChildren();
+  if (arkEl.hidden) document.body.style.overflow = '';
 }
 
 // ---------- "Det sker" med billeder (piktogrammer fra ARASAAC eller eget foto) ----------
@@ -1922,6 +2061,7 @@ async function tegnOverblik() {
   const erBoernetavle = tavleVisning !== 'familie';
   document.getElementById('familie-overblik').hidden = erBoernetavle;
   document.getElementById('boernetavle').hidden = !erBoernetavle;
+  if (!erBoernetavle) lukZoom();
   if (erBoernetavle) {
     return tegnBoernetavle(tavleVisning);
   }
