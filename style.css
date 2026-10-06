@@ -814,3 +814,17 @@ body.barn .uge input[readonly] { background: transparent; }
 .vejr-sted { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; font-weight: 700; }
 .sted-liste { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
 .sted-valg { width: 100%; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--linje); background: var(--flade); font-weight: 700; }
+
+/* Makkere (Alfie, Tanken Tut, Raketten Rolf) */
+.makker-tank { background: linear-gradient(135deg, color-mix(in srgb, #86bb63 20%, var(--flade)), var(--flade)); }
+.makker-raket { background: linear-gradient(135deg, color-mix(in srgb, #7aa5f5 20%, var(--flade)), var(--flade)); }
+.makker-bund { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.makker-skift { min-height: 28px; padding: 0 10px; font-size: 12px; opacity: .8; }
+.makker-valg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.makker { display: grid; justify-items: center; gap: 4px; padding: 10px 6px; border: 2px solid var(--linje); border-radius: 16px; background: var(--flade); }
+.makker.valgt { border-color: var(--accent); background: var(--accent-blod); }
+.makker-fig { width: 84px; height: 78px; }
+.makker-fig svg { width: 100%; height: 100%; }
+.makker-navn { font-weight: 800; font-size: 13px; text-align: center; }
+.raket-flamme { transform-origin: 60px 86px; animation: flamme .25s ease-in-out infinite alternate; }
+@keyframes flamme { from { transform: scaleY(.85); } to { transform: scaleY(1.1); } }

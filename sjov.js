@@ -138,10 +138,146 @@ function alfieSvg(hvordan) {
   </svg>`;
 }
 
-const ALFIE_SIGER = ['Alfie elsker gulerødder 🥕', 'Nus mig bag ørerne!', 'Mums! 🐰', 'Alfie har den flotteste manke 🦁',
-'Mums – frisk hø!', 'Alfie siger hej! 👋', 'Du er sej!'];
+// ---------- Tanken Tut – en fredelig tank, der kun skyder med konfetti ----------
+function tankSvg(hvordan) {
+  const GROEN = '#6a9f4b', LYS = '#86bb63', MORK = '#2f3a24';
+  const vinkel = { venter: 14, glad: -6, super: -30, sover: 20 }[hvordan];
+  const oejne = {
+    venter: `<circle cx="51" cy="51" r="6.5" fill="#fff"/><circle cx="67" cy="51" r="6.5" fill="#fff"/>
+             <circle cx="53" cy="53" r="3" fill="${MORK}"/><circle cx="69" cy="53" r="3" fill="${MORK}"/>`,
+    glad: `<circle cx="51" cy="50" r="6.5" fill="#fff"/><circle cx="67" cy="50" r="6.5" fill="#fff"/>
+           <circle cx="52" cy="49" r="3.2" fill="${MORK}"/><circle cx="68" cy="49" r="3.2" fill="${MORK}"/>`,
+    super: `<path d="M46 52 q5 -7 10 0 M62 52 q5 -7 10 0" stroke="${MORK}" stroke-width="2.6" fill="none" stroke-linecap="round"/>`,
+    sover: `<path d="M46 51 q5 4 10 0 M62 51 q5 4 10 0" stroke="${MORK}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`
+  }[hvordan];
+  const mund = hvordan === 'venter'
+    ? `<path d="M55 61 h8" stroke="${MORK}" stroke-width="1.8" stroke-linecap="round"/>`
+    : hvordan === 'sover' ? `<circle cx="59" cy="61" r="1.8" fill="${MORK}"/>`
+    : `<path d="M53 59 q6 5 12 0" stroke="${MORK}" stroke-width="1.8" fill="none" stroke-linecap="round"/>`;
+  const konfetti = ['#ef6b8a', '#ffd34d', '#7aa5f5', '#a990ff', '#5cc3a3', '#f2a45a'];
+  const ekstra = {
+    super: `<g class="alfie-hjerter">${[[104, 14], [112, 26], [96, 6], [116, 8], [100, 24], [88, 12], [110, 2]].map(([x, y], i) =>
+      i % 2 ? `<rect x="${x}" y="${y}" width="5" height="3" rx="1" fill="${konfetti[i % 6]}" transform="rotate(${i * 40} ${x} ${y})"/>`
+        : `<circle cx="${x}" cy="${y}" r="2.6" fill="${konfetti[i % 6]}"/>`).join('')}</g>`,
+    sover: `<g class="alfie-zzz" fill="${MORK}" font-family="system-ui, sans-serif" font-weight="800">
+             <text x="86" y="30" font-size="12">z</text><text x="96" y="18" font-size="15">z</text><text x="106" y="6" font-size="18">Z</text></g>`,
+    venter: `<text x="20" y="40" font-size="16" font-weight="800" fill="${MORK}" font-family="system-ui, sans-serif" opacity=".55">?</text>`,
+    glad: ''
+  }[hvordan];
+  return `<svg viewBox="0 0 120 112" class="alfie-svg alfie-${hvordan}" aria-hidden="true">
+    <ellipse cx="62" cy="104" rx="46" ry="5" fill="#000" opacity=".08"/>
+    <g class="alfie-krop">
+      <rect x="16" y="78" width="92" height="22" rx="11" fill="#4b4f55"/>
+      ${[28, 44, 60, 76, 92].map(x => `<circle cx="${x}" cy="89" r="6.5" fill="#9aa0a8"/><circle cx="${x}" cy="89" r="2.2" fill="#4b4f55"/>`).join('')}
+      <path d="M20 80 L30 64 L96 64 L106 80 Z" fill="${GROEN}"/>
+      <path d="M38 72 l3 6 l6 1 l-4.5 4 l1.2 6 l-5.7 -3 l-5.7 3 l1.2 -6 l-4.5 -4 l6 -1z" fill="#ffd34d" transform="translate(48 -6) scale(.7)"/>
+      <g class="alfie-hoved">
+        <g transform="rotate(${vinkel} 80 50)"><rect x="78" y="46" width="34" height="8" rx="3" fill="#5b8a3e"/><rect x="108" y="44" width="7" height="12" rx="2" fill="#4c7834"/></g>
+        <ellipse cx="59" cy="54" rx="26" ry="16" fill="${LYS}"/>
+        <ellipse cx="59" cy="39" rx="9" ry="4" fill="${GROEN}"/>
+        ${hvordan === 'sover' ? `<path d="M49 39 q10 -16 22 -2 z" fill="#5b7bd6"/><circle cx="74" cy="36" r="3" fill="#fff"/>` : ''}
+        ${oejne}
+        ${mund}
+      </g>
+    </g>
+    ${ekstra}
+  </svg>`;
+}
 
-// Kort til børnetavlen: Alfie bliver gladere, jo mere der er klaret i dag (pligter + rutinetrin)
+// ---------- Raketten Rolf ----------
+function raketSvg(hvordan) {
+  const ROED = '#e5484d', MORK = '#2b3442';
+  const oejne = {
+    venter: `<circle cx="55" cy="48" r="3" fill="${MORK}"/><circle cx="65" cy="48" r="3" fill="${MORK}"/>`,
+    glad: `<circle cx="55" cy="47" r="3.2" fill="${MORK}"/><circle cx="65" cy="47" r="3.2" fill="${MORK}"/><circle cx="56" cy="46" r="1" fill="#fff"/><circle cx="66" cy="46" r="1" fill="#fff"/>`,
+    super: `<path d="M51 48 q4 -6 8 0 M61 48 q4 -6 8 0" stroke="${MORK}" stroke-width="2.4" fill="none" stroke-linecap="round"/>`,
+    sover: `<path d="M51 47 q4 4 8 0 M61 47 q4 4 8 0" stroke="${MORK}" stroke-width="2.2" fill="none" stroke-linecap="round"/>`
+  }[hvordan];
+  const mund = hvordan === 'venter' ? `<path d="M57 54 h6" stroke="${MORK}" stroke-width="1.6" stroke-linecap="round"/>`
+    : hvordan === 'sover' ? '' : `<path d="M55 53 q5 4 10 0" stroke="${MORK}" stroke-width="1.6" fill="none" stroke-linecap="round"/>`;
+  const flamme = {
+    venter: `<g fill="#cfd5dd" opacity=".9"><circle cx="44" cy="99" r="5"/><circle cx="76" cy="99" r="5"/><circle cx="36" cy="101" r="3.5"/></g>`,
+    glad: `<path class="raket-flamme" d="M51 87 q9 20 18 0 z" fill="#ffb02e"/><path d="M55 87 q5 10 10 0 z" fill="#fff3b0"/>`,
+    super: `<path class="raket-flamme" d="M48 86 q12 30 24 0 z" fill="#ff7a1a"/><path d="M53 86 q7 18 14 0 z" fill="#ffd34d"/>
+            <g class="alfie-hjerter" fill="#ffd34d"><path d="M18 20 l2 5 l5 .5 l-4 3.5 l1.2 5 l-4.2 -2.7 l-4.2 2.7 l1.2 -5 l-4 -3.5 l5 -.5z"/>
+            <path d="M98 34 l1.5 3.8 l3.8 .4 l-3 2.6 l.9 3.8 l-3.2 -2 l-3.2 2 l.9 -3.8 l-3 -2.6 l3.8 -.4z"/><circle cx="104" cy="12" r="2"/><circle cx="24" cy="50" r="1.6"/></g>`,
+    sover: `<path d="M98 14 a10 10 0 1 0 8 16 a8 8 0 1 1 -8 -16z" fill="#ffd34d"/>
+            <g class="alfie-zzz" fill="${MORK}" font-family="system-ui, sans-serif" font-weight="800">
+            <text x="78" y="44" font-size="11">z</text><text x="86" y="56" font-size="9">z</text></g>`
+  }[hvordan];
+  return `<svg viewBox="0 0 120 112" class="alfie-svg alfie-${hvordan}" aria-hidden="true">
+    <ellipse cx="60" cy="106" rx="34" ry="4" fill="#000" opacity=".08"/>
+    <g class="alfie-krop">
+      ${flamme}
+      <path d="M42 62 L26 88 L44 82 Z" fill="${ROED}"/><path d="M78 62 L94 88 L76 82 Z" fill="${ROED}"/>
+      <path d="M60 6 C80 22 82 52 78 84 L42 84 C38 52 40 22 60 6 Z" fill="#f4f5f8" stroke="#c9ccd3" stroke-width="1.5"/>
+      <path d="M60 6 C69 13 74 21 76 28 L44 28 C46 21 51 13 60 6 Z" fill="${ROED}"/>
+      <rect x="50" y="84" width="20" height="5" rx="2" fill="#5a6b7d"/>
+      <circle cx="47" cy="74" r="2" fill="#c9ccd3"/><circle cx="73" cy="74" r="2" fill="#c9ccd3"/>
+      <g class="alfie-hoved">
+        <circle cx="60" cy="49" r="13" fill="#9fd0ff" stroke="#5a6b7d" stroke-width="3"/>
+        ${oejne}
+        ${mund}
+      </g>
+    </g>
+  </svg>`;
+}
+
+// ---------- Makkere: Alfie, Tanken Tut og Raketten Rolf – barnet vælger selv (personvalg.ven) ----------
+const MAKKERE = {
+  alfie: {
+    navn: 'Alfie', svg: alfieSvg,
+    venter: (m, aften) => aften ? 'Alfie venter stadig… ' + m + ' ting mangler i dag 🥕' : 'Alfie glæder sig! Klar til at gå i gang? 🥕',
+    glad: m => m === 1 ? 'Kun én ting tilbage – så får Alfie en gulerod!' : 'Godt gået! ' + m + ' ting tilbage i dag.',
+    super: 'Alt er klaret! Alfie får en gulerod 🥕🧡',
+    sover: 'Alt blev klaret i dag. Alfie sover sødt 💤',
+    syg: 'Alfie hviler sig sammen med dig. God bedring 🤒',
+    vaagner: 'Alfie vågnede lige for at danse! 💃',
+    siger: ['Alfie elsker gulerødder 🥕', 'Nus mig bag ørerne!', 'Mums! 🐰', 'Alfie har den flotteste manke 🦁', 'Mums – frisk hø!', 'Alfie siger hej! 👋', 'Du er sej!']
+  },
+  tank: {
+    navn: 'Tanken Tut', svg: tankSvg,
+    venter: (m, aften) => aften ? 'Tut mangler stadig brændstof… ' + m + ' ting tilbage i dag ⛽' : 'Tut venter på brændstof ⛽ Klar til at gå i gang?',
+    glad: m => m === 1 ? 'Kun én ting tilbage – så fyrer Tut konfetti af!' : 'Godt kørt! ' + m + ' ting tilbage i dag.',
+    super: 'Alt er klaret! Tut fyrer konfetti af 🎊',
+    sover: 'Alt blev klaret. Tut er parkeret og snorker 💤',
+    syg: 'Tut holder pause i garagen sammen med dig. God bedring 🤒',
+    vaagner: 'Tut vågnede lige for at fyre konfetti af! 🎊',
+    siger: ['Tut tut! 📯', 'Jeg skyder kun med konfetti 🎊', 'Larvefødder er de bedste fødder', 'Fuld fart frem! (ca. 4 km/t)', 'Jeg kører på havregryn og godt humør', 'Pas på – jeg bakker! 🔙', 'Du er sej!']
+  },
+  raket: {
+    navn: 'Raketten Rolf', svg: raketSvg,
+    venter: (m, aften) => aften ? 'Rolf står stadig på rampen… ' + m + ' ting tilbage i dag 🚀' : 'Rolf står klar på rampen. 3… 2… klar til at gå i gang? 🚀',
+    glad: m => m === 1 ? 'Kun én ting tilbage – så letter Rolf!' : 'Motorerne varmer op! ' + m + ' ting tilbage.',
+    super: 'Alt er klaret! Rolf flyver til månen 🌙🚀',
+    sover: 'Alt blev klaret. Rolf er landet og sover 💤',
+    syg: 'Rolf bliver på jorden sammen med dig i dag. God bedring 🤒',
+    vaagner: 'Rolf tog lige en ekstra tur rundt om månen! 🌙',
+    siger: ['Houston, vi har en… god dag! 🛰️', 'Næste stop: Mars! 🔴', 'Hvem har spist min rum-is? 🍦', '10… 9… 8… åh nej, jeg glemte madpakken!', 'Jeg kører på sodavand og gode vibes', 'Du er sej!']
+  }
+};
+const makkerFor = valg => MAKKERE[valg?.ven] || MAKKERE.alfie;
+
+// Vælg makker (barnet selv eller en voksen)
+function vaelgMakker(barn, nu) {
+  const grid = el('div', 'makker-valg');
+  for (const [noegle, m] of Object.entries(MAKKERE)) {
+    const k = knap('', 'makker' + (noegle === nu ? ' valgt' : ''), async () => {
+      await saetValg(barn, 'ven', noegle);   // fra dage.js
+      lukArk(); tegnAlt();
+    });
+    const fig = el('span', 'makker-fig');
+    fig.innerHTML = m.svg('glad');
+    k.append(fig, el('span', 'makker-navn', m.navn));
+    k.setAttribute('aria-pressed', noegle === nu);
+    grid.append(k);
+  }
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('Luk', 'knap', () => lukArk()));
+  aabnArk('Vælg din makker', grid, el('p', 'hint', 'Makkeren bliver gladere, jo mere du klarer i dag.'), knapper);
+}
+
+// Kort til børnetavlen: makkeren bliver gladere, jo mere der er klaret i dag (pligter + rutinetrin)
 async function alfieKort(barn) {
   const nu = new Date();
   const iso = isoDato(nu);
@@ -155,40 +291,40 @@ async function alfieKort(barn) {
     klaret += Math.min(n, hentTjek(r, iso).size);
   }
   if (!ialt) return null;
+  const valg = await valgFor(barn);   // fra dage.js
+  const m = makkerFor(valg);
   const syg = sygDen(d.kalender || [], iso, barn);
   const mangler = ialt - klaret;
   const aften = nu.getHours() >= 20;
   const hvordan = syg ? 'sover' : !mangler ? (aften && Date.now() > alfieFestTil ? 'sover' : 'super') : klaret ? 'glad' : 'venter';
-  const tekst = syg ? 'Alfie hviler sig sammen med dig. God bedring 🤒' : {
-    venter: aften ? 'Alfie venter stadig… ' + mangler + ' ting mangler i dag 🥕' : 'Alfie glæder sig! Klar til at gå i gang? 🥕',
-    glad: mangler === 1 ? 'Kun én ting tilbage – så får Alfie en gulerod!' : 'Godt gået! ' + mangler + ' ting tilbage i dag.',
-    super: 'Alt er klaret! Alfie får en gulerod 🥕🧡',
-    sover: 'Alt blev klaret i dag. Alfie sover sødt 💤'
-  }[hvordan];
+  const tekst = syg ? m.syg : hvordan === 'venter' ? m.venter(mangler, aften) : hvordan === 'glad' ? m.glad(mangler) : m[hvordan];
 
-  const k = el('div', 'kort alfie-kort');
+  const k = el('div', 'kort alfie-kort makker-' + (valg.ven || 'alfie'));
   const figur = el('button', 'alfie-figur');
   figur.type = 'button';
-  figur.setAttribute('aria-label', 'Alfie');
-  figur.innerHTML = alfieSvg(hvordan);
+  figur.setAttribute('aria-label', m.navn);
+  figur.innerHTML = m.svg(hvordan);
   const boble = el('div', 'alfie-boble', tekst);
   boble.setAttribute('aria-live', 'polite');
   figur.addEventListener('click', () => {
     if (hvordan === 'sover') {
-      // Sovende Alfie vågner et øjeblik og danser
-      figur.innerHTML = alfieSvg('super');
-      boble.textContent = 'Alfie vågnede lige for at danse! 💃';
+      // Sovende makker vågner et øjeblik og fester
+      figur.innerHTML = m.svg('super');
+      boble.textContent = m.vaagner;
       clearTimeout(figur._timer);
-      figur._timer = setTimeout(() => { figur.innerHTML = alfieSvg('sover'); boble.textContent = tekst; }, 5000);
+      figur._timer = setTimeout(() => { figur.innerHTML = m.svg('sover'); boble.textContent = tekst; }, 5000);
       return;
     }
     figur.classList.remove('vip'); void figur.offsetWidth; figur.classList.add('vip');
-    boble.textContent = ALFIE_SIGER[Math.floor(Math.random() * ALFIE_SIGER.length)];
+    boble.textContent = m.siger[Math.floor(Math.random() * m.siger.length)];
   });
   const hoejre = el('div', 'alfie-hoejre');
   hoejre.append(boble, fremskridt(klaret / ialt));
   const s = streak(d);
-  if (s >= 2) hoejre.append(el('span', 'streak', streakTekst(s)));
+  const bund = el('div', 'makker-bund');
+  bund.append(s >= 2 ? el('span', 'streak', streakTekst(s)) : el('span'),
+    knap('Skift makker', 'lille-knap makker-skift', () => vaelgMakker(barn, valg.ven || 'alfie')));
+  hoejre.append(bund);
   k.append(figur, hoejre);
   return k;
 }

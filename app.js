@@ -1221,7 +1221,7 @@ async function tegnKalender() {
           const b = el('button', 'beg c-foed');
           b.type = 'button';
           const alder = alderPaa(f, d);
-          b.append(el('b', null, (f.dato ? (f.aarsdag ? '💍 ' : '🇩🇰 ') : '') + f.navn));
+          b.append(el('b', null, (f.dato ? (f.aarsdag ? '🎉 ' : '🇩🇰 ') : '') + f.navn));
           if (alder != null) b.append(el('span', null, alder + ' år'));
           b.addEventListener('click', e => { e.stopPropagation(); redigerFoed(f); });
           celle.append(b);
@@ -1806,7 +1806,7 @@ function naesteGang(f, fra) {
 }
 const alderPaa = (f, d) => (f.dato ? d.getFullYear() - Number(f.dato.slice(0, 4)) : null);
 const foedTekst = f => (f.indbygget ? f.ikon + ' ' + f.navn
-  : f.aarsdag && f.alder != null ? '💍 ' + f.navn + ' · ' + f.alder + ' år'
+  : f.aarsdag && f.alder != null ? '🎉 ' + f.navn + ' · ' + f.alder + ' år'
   : f.alder != null ? '🇩🇰 ' + f.navn + ' fylder ' + f.alder : f.navn);
 // Fødselsdage, årsdage og mærkedage den dag – inkl. helligdage/mærkedage fra dage.js
 async function foedselsdageDen(iso, hvem = Data.bruger()?.navn) {
@@ -1836,7 +1836,7 @@ async function tegnFoedselsdage() {
     dato.append(el('b', null, r.d.getDate()), el('small', null, MDR[r.d.getMonth()]));
     const midt = el('span', 'foed-midt');
     midt.append(el('span', 'foed-navn', r.f.navn),
-      el('span', 'foed-under', r.alder == null ? 'Mærkedag' : r.f.aarsdag ? '💍 ' + r.alder + ' år' : '🇩🇰 Fylder ' + r.alder + ' år'));
+      el('span', 'foed-under', r.alder == null ? 'Mærkedag' : r.f.aarsdag ? '🎉 ' + r.alder + ' år' : '🇩🇰 Fylder ' + r.alder + ' år'));
     const naar = r.dage === 0 ? 'I dag' : r.dage === 1 ? 'I morgen' : 'Om ' + r.dage + ' dage';
     b.append(dato, midt, el('span', 'foed-naar', naar));
     li.append(b);
@@ -1875,7 +1875,7 @@ function redigerFoed(f) {
   const datoFelt = felt(slags === 'foed' ? 'Født' : 'Dato', dato);
   const slagsValg = chipValg(['foed', 'aarsdag', 'maerkedag'], slags, v => {
     slags = v; datoFelt.querySelector('label, .felt-label') && (datoFelt.querySelector('label, .felt-label').textContent = v === 'foed' ? 'Født' : 'Dato');
-  }, v => ({ foed: '🇩🇰 Fødselsdag', aarsdag: '💍 Årsdag', maerkedag: 'Mærkedag (uden år)' })[v]);
+  }, v => ({ foed: '🇩🇰 Fødselsdag', aarsdag: '🎉 Årsdag', maerkedag: 'Mærkedag (uden år)' })[v]);
 
   const gem = knap('Gem', 'knap', async () => {
     const n = navn.value.trim();
