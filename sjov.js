@@ -431,27 +431,23 @@ function vaelgMakker(barn, nu) {
   aabnArk('Vælg din makker', grid, el('p', 'hint', 'Makkeren bliver gladere, jo mere du klarer i dag.'), knapper);
 }
 
-// Kort til børnetavlen: makkeren bliver gladere, jo mere der er klaret i dag (pligter + rutinetrin)
+// Kort til børnetavlen: makkeren bliver gladere, jo flere af dagens pligter der er klaret
 async function alfieKort(barn) {
   const nu = new Date();
   const iso = isoDato(nu);
   const d = await pligtData(barn);
   const liste = skalKlares(dagensOpgaver(d));   // bonus-pligter tæller ikke med
-  const rutiner = (await Data.list('rutiner')).filter(r => r.barn === barn && rutineAktiv(r, idagNr()));
-  let ialt = liste.length, klaret = liste.filter(r => r.f).length;
-  for (const r of rutiner) {
-    const n = (r.trin || []).length;
-    ialt += n;
-    klaret += Math.min(n, hentTjek(r, iso).size);
-  }
-  if (!ialt) return null;
+  // Kun pligter tæller – rutiner er en guide, som ikke skal registreres
+  const ialt = liste.length, klaret = liste.filter(r => r.f).length;
+  if (!d.opgaver.length) return null;   // barnet har slet ingen pligter – så ingen makker
   const valg = await valgFor(barn);   // fra dage.js
   const m = makkerFor(valg);
   const syg = sygDen(d.kalender || [], iso, barn);
   const mangler = ialt - klaret;
   const aften = nu.getHours() >= 20;
-  const hvordan = syg ? 'sover' : !mangler ? (aften && Date.now() > alfieFestTil ? 'sover' : 'super') : klaret ? 'glad' : 'venter';
-  const tekst = syg ? m.syg : hvordan === 'venter' ? m.venter(mangler, aften) : hvordan === 'glad' ? m.glad(mangler) : m[hvordan];
+  // Ingen pligter i dag (fx weekend): makkeren hygger sig bare
+  const hvordan = syg ? 'sover' : !ialt ? (aften ? 'sover' : 'glad') : !mangler ? (aften && Date.now() > alfieFestTil ? 'sover' : 'super') : klaret ? 'glad' : 'venter';
+  const tekst = syg ? m.syg : !ialt ? (aften ? 'Ingen pligter i dag. Godnat 💤' : 'Ingen pligter i dag – nyd det! 😎') : hvordan === 'venter' ? m.venter(mangler, aften) : hvordan === 'glad' ? m.glad(mangler) : m[hvordan];
 
   const k = el('div', 'kort alfie-kort makker-' + (valg.ven || 'alfie'));
   const figur = el('button', 'alfie-figur');
@@ -473,7 +469,7 @@ async function alfieKort(barn) {
     boble.textContent = m.siger[Math.floor(Math.random() * m.siger.length)];
   });
   const hoejre = el('div', 'alfie-hoejre');
-  hoejre.append(boble, fremskridt(klaret / ialt));
+  hoejre.append(boble, ialt ? fremskridt(klaret / ialt) : '');
   const s = streak(d);
   const bund = el('div', 'makker-bund');
   bund.append(s >= 2 ? el('span', 'streak', streakTekst(s)) : el('span'),

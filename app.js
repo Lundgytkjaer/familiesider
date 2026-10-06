@@ -804,7 +804,7 @@ rydUge.addEventListener('click', () => bekraeft(rydUge, async () => {
 // Data: 'ringetider' {barn, nr, tid}
 //       'skema' {barn, dag (0-4), nr, fag, farve}   – farve = navnet på en farve i skemafarver
 //       'skemafarver' {barn, navn, farve}            – fx {Oliver, 'Mette', 'blaa'}
-//       'skemadag' {barn, dag, kontakt}              – dagens kontaktperson
+//       'skemadag' {barn, dag, kontakt, fri?: true}  – dagens kontaktperson; fri = fast fridag hver uge
 const FARVER = {
   blaa: '#5b8def', groen: '#4fa35a', gul: '#e0b44f', roed: '#d9534f',
   graa: '#9aa5a0', lilla: '#9b7fd4', orange: '#ef8a3c', turkis: '#2fb0aa'
@@ -818,6 +818,7 @@ let redigerer = false;
 const skemaFarver = async barn => (await Data.list('skemafarver')).filter(f => f.barn === barn);
 const farveKode = (farver, navn) => FARVER[farver.find(f => f.navn === navn)?.farve] || null;
 const dagKontakt = async (barn, dag) => (await Data.list('skemadag')).find(d => d.barn === barn && d.dag === dag)?.kontakt || '';
+const fastFri = async (barn, dag) => !!(await Data.list('skemadag')).find(d => d.barn === barn && d.dag === dag)?.fri;
 
 function tegnSkemaValg() {
   const barnSeg = document.getElementById('vaelg-barn');
@@ -879,6 +880,7 @@ async function tegnSkema() {
   const timer = await dagensTimer(skemaBarn, skemaDag, redigerer);
   const medFag = timer.filter(t => t.fag);
   const kontakt = await dagKontakt(skemaBarn, skemaDag);
+  const friDag = await fastFri(skemaBarn, skemaDag);
   ol.replaceChildren();
 
   const knapEl = document.getElementById('rediger-skema');
@@ -896,7 +898,12 @@ async function tegnSkema() {
     const par = el('div', 'mad-par kontakt-par');
     const lbl = el('label', null, 'Kontakt'); lbl.htmlFor = inp.id;
     par.append(lbl, inp);
-    kontaktBoks.append(par);
+    const friKnap = knap('🎉 Fri hele dagen (hver uge)', null, () => gemSkemaFelt('skemadag', { barn: skemaBarn, dag: skemaDag }, { fri: !friDag }).then(tegnSkema));
+    friKnap.setAttribute('role', 'checkbox');
+    friKnap.setAttribute('aria-checked', friDag);
+    const friSeg = el('div', 'seg wrap skema-fri');
+    friSeg.append(friKnap);
+    kontaktBoks.append(par, friSeg);
   }
 
   if (redigerer) {
@@ -917,6 +924,8 @@ async function tegnSkema() {
       li.append(tid, fag, farveKnap);
       ol.append(li);
     }
+  } else if (friDag) {
+    ol.append(el('li', 'tom fri-dag-skema', 'Fri hele dagen 🎉 (fast fridag)'));
   } else if (!medFag.length) {
     ol.append(el('li', 'tom', 'Ingen timer lagt ind. Tryk på "Ret skema".'));
   } else {
@@ -930,7 +939,7 @@ async function tegnSkema() {
   const fkBoks = document.getElementById('skema-forklaring');
   fkBoks.replaceChildren(redigerer ? '' : forklaring(farver, new Set(medFag.map(t => t.farve))));
 
-  const sidste = medFag[medFag.length - 1];
+  const sidste = friDag ? null : medFag[medFag.length - 1];
   const fod = [];
   if (sidste && slutTid(sidste.tid)) fod.push('Fri kl. ' + slutTid(sidste.tid));
   if (kontakt && !redigerer) fod.push('Kontakt: ' + kontakt);
@@ -996,7 +1005,7 @@ function tegnFarveStyring(farver) {
 }
 
 async function gemSkemaFelt(liste, noegle, felter) {
-  const VAERDIER = { skema: ['fag', 'farve'], ringetider: ['tid'], skemadag: ['kontakt'] }[liste];
+  const VAERDIER = { skema: ['fag', 'farve'], ringetider: ['tid'], skemadag: ['kontakt', 'fri'] }[liste];
   const match = r => Object.entries(noegle).every(([k, v]) => r[k] === v);
   const fundet = (await Data.list(liste)).find(match);
   const samlet = { ...(fundet || {}), ...felter };
@@ -1493,6 +1502,9 @@ async function tegnBoernetavle(barn) {
       ? kort('Skole', el('p', 'stor fri-dag syg-dag', 'Hjemme 🤒'), el('p', 'under', 'God bedring!' + (friIdag.note ? ' ' + friIdag.note : '')))
       : kort('Skole', el('p', 'stor fri-dag', 'Fri ' + friIkon(friIdag)), el('p', 'under', friTekst(friIdag) + (friIdag.note ? ' – ' + friIdag.note : '')));
     skemaKort.tavle = friIdag.type === 'syg' ? { stor: 'Hjemme 🤒', lille: 'God bedring!' } : { stor: 'Fri ' + friIkon(friIdag), lille: friTekst(friIdag), klar: true };
+  } else if (await fastFri(barn, dagNr)) {
+    skemaKort = kort('Skole', el('p', 'stor fri-dag', 'Fri 🎉'), el('p', 'under', 'Fast fridag'));
+    skemaKort.tavle = { stor: 'Fri 🎉', lille: 'Fast fridag', klar: true };
   } else {
     const tidlig = aftalerDen(await Data.list('kalender'), iso, [barn]).find(a => a.type === 'tidlig' && a.tid);
     const tidligMin = tidlig ? tidSomMin(tidlig.tid)[0] : null;
@@ -2146,6 +2158,8 @@ async function tegnOverblik() {
     const tidlig = aftalerDen(aftaler, skoleIso, [barn]).find(a => a.type === 'tidlig' && a.tid);
     if (fri) {
       linje.append(el('span', 'barn-fri', fri.type === 'syg' ? 'Syg 🤒' : 'Fri ' + (fri.helligIkon || friIkon(fri))), el('span', 'barn-fag', fri.type === 'syg' ? 'Hjemme i dag' : friTekst(fri)));
+    } else if (await fastFri(barn, dag)) {
+      linje.append(el('span', 'barn-fri', 'Fri 🎉'), el('span', 'barn-fag', 'Fast fridag'));
     } else if (tidlig) {
       linje.append(el('span', 'barn-fri', '⏰ Fri ' + visTid(tidlig.tid)), el('span', 'barn-fag', 'Tidligere fri i dag'));
     } else if (!timer.length) {

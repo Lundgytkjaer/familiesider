@@ -141,27 +141,14 @@ async function rutineKort(barn, dato) {
   // Opsummering til tavle-visningen
   const ialt = rutiner.reduce((n, r) => n + (r.trin || []).length, 0);
   const klaret = rutiner.reduce((n, r) => n + Math.min(hentTjek(r, iso).size, (r.trin || []).length), 0);
-  const trinTekst = r => hentTjek(r, iso).size + '/' + (r.trin || []).length;
-  const ufaerdige = rutiner.filter(r => hentTjek(r, iso).size < (r.trin || []).length);
-  // Forsinket = tiden er gået (inden for 3 timer) og den er ikke klaret; ældre glemte rutiner nævnes ikke hele dagen
-  const forsinket = erIdag ? ufaerdige.filter(r => r.tid && tilMin(r.tid) <= nuMin && nuMin - tilMin(r.tid) <= 180) : [];
-  const kommende = ufaerdige.filter(r => !erIdag || !r.tid || tilMin(r.tid) > nuMin);
-  const t = { noegle: 'rutiner', ikon: '🪥', titel: 'Rutiner', andel: ialt ? klaret / ialt : 0 };
-  if (forsinket.length) {
-    const r = forsinket[forsinket.length - 1];
-    const over = nuMin - tilMin(r.tid);
-    Object.assign(t, { stor: r.navn, haster: true,
-      lille: (over < 60 ? tilfaeldig(['Burde være klar for ' + over + ' min siden 😏', 'Uret tikker … ⏰ ' + over + ' min over', 'Sneglen 🐌 er hurtigere – ' + over + ' min over'])
-        : tilfaeldig(['Glemt? 🙈 Skulle være klar kl. ' + visTid(r.tid), 'Hallo? 👀 Den var til kl. ' + visTid(r.tid)])) + ' · ' + trinTekst(r) });
-  } else if (kommende.length) {
-    const r = kommende[0];
-    const om = erIdag && r.tid ? tilMin(r.tid) - nuMin : null;
-    Object.assign(t, { stor: r.navn, lille: [visTid(r.tid), om != null ? 'om ' + (om >= 60 ? Math.floor(om / 60) + ' t' + (om % 60 ? ' ' + (om % 60) + ' min' : '') : om + ' min') : '', trinTekst(r)].filter(Boolean).join(' · ') });
-  } else if (!ufaerdige.length) {
-    Object.assign(t, { stor: 'Klaret! 🏆', klar: true, lille: tilfaeldig(['Er det virkelig rigtigt? 😄', 'Mor og far er imponerede 👏', 'Hvem er du, og hvad har du gjort ved ' + barn + '? 😮']) });
-  } else {
-    Object.assign(t, { stor: 'Ikke flere i dag', klar: true, lille: 'Puha – fri for rutiner 😴' });
-  }
+  // Rutiner er en guide (der skal ikke registreres noget): flisen viser den rutine, der er nu, eller den næste
+  const t = { noegle: 'rutiner', ikon: '🪥', titel: 'Rutiner' };
+  const omTekst = m => 'om ' + (m >= 60 ? Math.floor(m / 60) + ' t' + (m % 60 ? ' ' + (m % 60) + ' min' : '') : m + ' min');
+  const nuR = erIdag ? rutiner.filter(r => r.tid && tilMin(r.tid) - 15 <= nuMin && nuMin - tilMin(r.tid) <= 45).pop() : null;
+  const naesteR = rutiner.find(r => !erIdag || !r.tid || tilMin(r.tid) - 15 > nuMin);
+  if (nuR) Object.assign(t, { stor: 'Nu: ' + nuR.navn, lille: (r => r ? 'Bagefter: ' + r.navn + ' ' + visTid(r.tid) : (nuR.trin || []).length + ' trin – tryk for at se dem')(rutiner.find(r => r !== nuR && tilMin(r.tid) > tilMin(nuR.tid))) });
+  else if (naesteR) Object.assign(t, { stor: naesteR.navn, lille: [visTid(naesteR.tid), erIdag && naesteR.tid ? omTekst(tilMin(naesteR.tid) - nuMin) : ''].filter(Boolean).join(' · ') });
+  else Object.assign(t, { stor: 'Ikke flere i dag', klar: true, lille: 'Puha – fri for rutiner 😴' });
   k.tavle = t;
   return k;
 }
