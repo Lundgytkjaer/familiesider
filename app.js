@@ -1528,7 +1528,7 @@ async function tegnBoernetavle(barn) {
       else if (iso === idagIso && startMin != null && nuMin >= startMin) {
         const naesteT = timer.find(t => (tidSomMin(t.tid)[0] ?? 0) > nuMin);
         skemaKort.tavle = { stor: naesteT ? naesteT.fag : 'Pause', lille: (naesteT ? 'Næste · ' : '') + 'fri ' + friTid };
-      } else skemaKort.tavle = { stor: 'Møder ' + start, lille: timer[0].fag + ' · fri ' + friTid };
+      } else skemaKort.tavle = { stor: 'Møder ' + visTid(start), lille: timer[0].fag + ' · fri ' + friTid };
     }
   }
 
@@ -1612,10 +1612,10 @@ async function tegnBoernetavle(barn) {
     if (info.some(x => x.piktogram)) dele.push(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
     if (voksen) dele.push(knap('+ Tilføj', 'lille-knap', () => redigerInfo(barn, iso, {})));
     skerKort = kort(skerTitel, ...dele);
-    const foerste = liste.querySelector('.husk-tekst');
-    const antal = foed.length + aftaler.length + info.length;
-    skerKort.tavle = { noegle: 'sker', ikon: '📅', titel: skerTitel, stor: tomt ? 'Intet endnu' : foerste.textContent,
-      lille: antal > 1 ? '+ ' + (antal - 1) + ' mere' : '', billede: info.map(infoBillede).find(Boolean) || '' };
+    const tekster = [...liste.querySelectorAll('.husk-tekst')].map(x => x.textContent).filter(Boolean);
+    skerKort.tavle = { noegle: 'sker', ikon: '📅', titel: skerTitel, bred: !tomt, stor: tomt ? 'Intet endnu' : '',
+      linjer: tomt ? null : tekster.slice(0, 3), lille: tekster.length > 3 ? '+ ' + (tekster.length - 3) + ' mere' : '',
+      billede: info.map(infoBillede).find(Boolean) || '' };
   }
 
   Object.assign(skemaKort.tavle, { noegle: 'skole', ikon: '🎒', titel: 'Skole' });
@@ -1624,16 +1624,14 @@ async function tegnBoernetavle(barn) {
   const gitter = el('div', 'overblik');
   const alfie = await alfieKort(barn);   // fra sjov.js
   if (alfie) gitter.append(alfie);
-  if (skerKort) gitter.append(skerKort);
+  // Rækkefølge: det der skifter fra dag til dag øverst (Det sker), så pligter + belønninger (hænger sammen),
+  // rutiner og skole, mad og nedtælling. Samme rækkefølge i liste og tavle.
   const rutiner = await rutineKort(barn, valgt);   // fra mere.js
-  if (rutiner) gitter.append(rutiner);
   const pligter = await pligtKort(barn);   // fra mere.js
-  if (pligter) gitter.append(pligter);
   const beloen = await beloenningKort(barn);   // fra mere.js
-  if (beloen) gitter.append(beloen);
   const nedtael = await nedtaellingKort(barn);   // fra sjov.js
-  if (nedtael) gitter.append(nedtael);
-  gitter.append(skemaKort, madKort);
+  const raekke = [skerKort, pligter, beloen, rutiner, skemaKort, madKort, nedtael].filter(Boolean);
+  gitter.append(...raekke);
   // Vejr (og evt. sol) for den viste dag – efter barnets egne valg; hentes i baggrunden
   const barnValg = await valgFor(barn);
   const vejrPlads = el('div', 'vejr-plads');
@@ -1643,7 +1641,9 @@ async function tegnBoernetavle(barn) {
   hoved.append(visningsKnap());
   if (tavleStil() === 'tavle') {
     // Tavle-visning: alt som fliser på en tavle; tryk på en flise for at "zoome" ind
-    const kortListe = [pligter, rutiner, skemaKort, madKort, skerKort, beloen, nedtael].filter(k => k?.tavle);
+    // Det der er klaret/fri (fx skole i weekenden) synker ned, så det vigtige står øverst
+    const kortListe = raekke.filter(k => k.tavle).map((k, i) => ({ k, i }))
+      .sort((a, b) => Number(!!a.k.tavle.klar && a.k.tavle.noegle !== 'pligter') - Number(!!b.k.tavle.klar && b.k.tavle.noegle !== 'pligter') || a.i - b.i).map(x => x.k);
     const ramme = el('div', 'tavle-ramme ' + (PK[barn] || ''));
     const flade = el('div', 'tavle-flade');
     const fliser = el('div', 'fliser');
@@ -1684,17 +1684,18 @@ function visningsKnap() {
 }
 function flise(k) {
   const t = k.tavle;
-  const b = knap('', 'flise' + (t.klar ? ' klar' : ''), () => aabnZoom(t.noegle, b));
+  const b = knap('', 'flise' + (t.klar ? ' klar' : '') + (t.haster ? ' haster' : '') + (t.bred ? ' bred' : ''), () => aabnZoom(t.noegle, b));
   b.dataset.noegle = t.noegle;
   const top = el('span', 'fl-top');
   top.append(el('span', 'fl-ikon', t.ikon), el('span', 'fl-titel', t.titel));
   if (t.klar) top.append(el('span', 'fl-klar', '✓'));
   b.append(top);
   if (t.billede) { const img = el('img', 'fl-billede'); img.src = t.billede; img.alt = ''; b.append(img); }
-  b.append(el('span', 'fl-stor', t.stor || ''));
+  if (t.stor) b.append(el('span', 'fl-stor', t.stor));
+  if (t.linjer) { const ul = el('ul', 'fl-linjer'); t.linjer.forEach(x => ul.append(el('li', null, x))); b.append(ul); }
   if (t.lille) b.append(el('span', 'fl-lille', t.lille));
   if (t.andel != null) b.append(fremskridt(t.andel));
-  b.setAttribute('aria-label', t.titel + ': ' + (t.stor || '') + (t.lille ? ', ' + t.lille : '') + '. Tryk for at åbne');
+  b.setAttribute('aria-label', t.titel + ': ' + (t.stor || (t.linjer || []).join(', ')) + (t.lille ? ', ' + t.lille : '') + '. Tryk for at åbne');
   return b;
 }
 let zoomEl = null;

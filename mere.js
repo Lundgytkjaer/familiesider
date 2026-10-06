@@ -141,10 +141,28 @@ async function rutineKort(barn, dato) {
   // Opsummering til tavle-visningen
   const ialt = rutiner.reduce((n, r) => n + (r.trin || []).length, 0);
   const klaret = rutiner.reduce((n, r) => n + Math.min(hentTjek(r, iso).size, (r.trin || []).length), 0);
-  const fokus = naeste || rutiner.find(r => hentTjek(r, iso).size < (r.trin || []).length);
-  k.tavle = { noegle: 'rutiner', ikon: '🪥', titel: 'Rutiner', andel: ialt ? klaret / ialt : 0,
-    klar: !fokus, stor: fokus ? fokus.navn : 'Alle klaret',
-    lille: fokus ? [visTid(fokus.tid), hentTjek(fokus, iso).size + ' af ' + (fokus.trin || []).length + ' trin'].filter(Boolean).join(' · ') : 'Godt gået! ⭐' };
+  const trinTekst = r => hentTjek(r, iso).size + '/' + (r.trin || []).length;
+  const ufaerdige = rutiner.filter(r => hentTjek(r, iso).size < (r.trin || []).length);
+  // Forsinket = tiden er gået (inden for 3 timer) og den er ikke klaret; ældre glemte rutiner nævnes ikke hele dagen
+  const forsinket = erIdag ? ufaerdige.filter(r => r.tid && tilMin(r.tid) <= nuMin && nuMin - tilMin(r.tid) <= 180) : [];
+  const kommende = ufaerdige.filter(r => !erIdag || !r.tid || tilMin(r.tid) > nuMin);
+  const t = { noegle: 'rutiner', ikon: '🪥', titel: 'Rutiner', andel: ialt ? klaret / ialt : 0 };
+  if (forsinket.length) {
+    const r = forsinket[forsinket.length - 1];
+    const over = nuMin - tilMin(r.tid);
+    Object.assign(t, { stor: r.navn, haster: true,
+      lille: (over < 60 ? tilfaeldig(['Burde være klar for ' + over + ' min siden 😏', 'Uret tikker … ⏰ ' + over + ' min over', 'Sneglen 🐌 er hurtigere – ' + over + ' min over'])
+        : tilfaeldig(['Glemt? 🙈 Skulle være klar kl. ' + visTid(r.tid), 'Hallo? 👀 Den var til kl. ' + visTid(r.tid)])) + ' · ' + trinTekst(r) });
+  } else if (kommende.length) {
+    const r = kommende[0];
+    const om = erIdag && r.tid ? tilMin(r.tid) - nuMin : null;
+    Object.assign(t, { stor: r.navn, lille: [visTid(r.tid), om != null ? 'om ' + (om >= 60 ? Math.floor(om / 60) + ' t' + (om % 60 ? ' ' + (om % 60) + ' min' : '') : om + ' min') : '', trinTekst(r)].filter(Boolean).join(' · ') });
+  } else if (!ufaerdige.length) {
+    Object.assign(t, { stor: 'Klaret! 🏆', klar: true, lille: tilfaeldig(['Er det virkelig rigtigt? 😄', 'Mor og far er imponerede 👏', 'Hvem er du, og hvad har du gjort ved ' + barn + '? 😮']) });
+  } else {
+    Object.assign(t, { stor: 'Ikke flere i dag', klar: true, lille: 'Puha – fri for rutiner 😴' });
+  }
+  k.tavle = t;
   return k;
 }
 
@@ -806,18 +824,29 @@ async function beloenningKort(barn) {
   top.append(el('span', 'kort-label', 'Belønninger'), el('span', 'kort-pil stjerne-saldo', '★ ' + s.stjerner));
   const ul = el('ul', 'beloen-liste i-kort');
   d.indl.filter(x => x.status === 'afventer').forEach(x => ul.append(oenskeLi(x, !erVoksen())));
-  // Dem man har råd til + de næste to, man sparer op til
+  // Alle belønninger (billigste først) – også dem man sparer op til
   const sorteret = [...d.beloenninger].sort((a, c) => a.stjerner - c.stjerner)
     .filter(b => !brugtOp(b, d) && !d.indl.some(x => x.status === 'afventer' && x.navn === b.navn));
-  const vis = [...sorteret.filter(b => b.stjerner <= s.stjerner), ...sorteret.filter(b => b.stjerner > s.stjerner).slice(0, 2)];
-  vis.forEach(b => ul.append(beloenLi(barn, b, d, s)));
-  k.append(top, ul);
+  sorteret.forEach(b => ul.append(beloenLi(barn, b, d, s)));
+  // Sammenhæng med pligterne: hvad er tjent i dag, og hvad kan stadig nås
+  const idagIso = isoDato(new Date());
+  const tjentIdag = sum(d.flueben.filter(f => f.dato === idagIso), 'stjerner');
+  const kanNaas = dagensOpgaver(d).filter(r => !r.f && !r.sprunget).reduce((n, r) => n + Math.round(tal(r.o.stjerner)), 0);
+  const idagLinje = el('p', 'beloen-idag');
+  if (tjentIdag) idagLinje.append(el('span', 'tjent', '+★ ' + tjentIdag + ' i dag'));
+  if (kanNaas) idagLinje.append(knap('★ ' + kanNaas + ' mere at hente i pligter ›', 'link-knap', () => {
+    if (typeof aabnZoom === 'function' && document.querySelector('.flise[data-noegle="pligter"]')) aabnZoom('pligter');
+    else { pligtBarn = barn; visFane('pligter'); tegnPligter(); window.scrollTo(0, 0); }
+  }));
+  k.append(top);
+  if (idagLinje.children.length) k.append(idagLinje);
+  k.append(ul);
   const venter = d.indl.filter(x => x.status === 'afventer');
   const raad = sorteret.filter(b => b.stjerner <= s.stjerner);
   const naesteB = sorteret.find(b => b.stjerner > s.stjerner);
-  k.tavle = { noegle: 'beloenninger', ikon: '🎁', titel: 'Belønninger', stor: '★ ' + s.stjerner,
-    lille: venter.length ? 'Ønske venter på en voksen' : raad.length ? 'Du har råd til ' + (raad.length === 1 ? raad[0].navn : raad.length + ' ting') + '!'
-      : naesteB ? 'Næste: ' + naesteB.navn + ' (mangler ' + (naesteB.stjerner - s.stjerner) + ')' : '',
+  k.tavle = { noegle: 'beloenninger', ikon: '🎁', titel: 'Belønninger', stor: '★ ' + s.stjerner + (tjentIdag ? '  +' + tjentIdag + ' i dag' : ''),
+    lille: venter.length ? 'Ønske venter på en voksen 🎁' : raad.length ? 'Du har råd til ' + (raad.length === 1 ? raad[0].navn : raad.length + ' ting') + '!'
+      : naesteB ? 'Mangler ★ ' + (naesteB.stjerner - s.stjerner) + ' til ' + naesteB.navn + (kanNaas ? ' · ★ ' + kanNaas + ' at hente i dag' : '') : '',
     andel: naesteB ? s.stjerner / naesteB.stjerner : 1 };
   return k;
 }
