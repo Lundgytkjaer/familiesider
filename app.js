@@ -44,14 +44,15 @@ function tidSomMin(tid) {
 const slutTid = tid => ((tid || '').split(/[-–]/)[1] || '').trim();
 
 // ---------- Faner ----------
-const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence'];
-const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence'];   // sider man når via "Mere"
+const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr'];
+const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr'];   // sider man når via "Mere"
 function visFane(navn) {
   if (!FANER.includes(navn)) navn = 'idag';
   document.querySelectorAll('.fane').forEach(s => (s.hidden = s.id !== navn));
   const iMenu = UNDER_MERE.includes(navn) ? 'mere' : navn;
   document.querySelectorAll('[data-fane]').forEach(b => b.setAttribute('aria-selected', b.dataset.fane === iMenu));
   lokal.set('fane', navn);
+  if (navn === 'vejr' && typeof tegnVejr === 'function') tegnVejr();   // fra vejr.js
 }
 document.querySelectorAll('[data-fane]').forEach(b => b.addEventListener('click', () => { visFane(b.dataset.fane); window.scrollTo(0, 0); }));
 document.querySelectorAll('[data-gaa]').forEach(b => b.addEventListener('click', () => { visFane(b.dataset.gaa); window.scrollTo(0, 0); }));
@@ -994,10 +995,13 @@ document.getElementById('rediger-skema').addEventListener('click', () => { redig
 //                   gentag?: 'uge'|'2uger'|'maaned'|'aar', gentagTil?: dato, undtagelser?: [datoer der er sprunget over]}
 // 'kalender_voksne' – samme felter, men kun for voksne. Databasen giver slet ikke børnene disse rækker.
 //                   I koden får de markeringen _voksne: true.
+// 'kalender_privat' – kun den voksne, der oprettede aftalen, kan se den (databasen sørger for det). Markeres _privat.
 async function kalenderAftaler() {
-  const [alle, voksne] = await Promise.all([Data.list('kalender'), Data.list('kalender_voksne')]);
-  return [...alle, ...voksne.map(a => ({ ...a, _voksne: true }))];
+  const [alle, voksne, privat] = await Promise.all([Data.list('kalender'), Data.list('kalender_voksne'), Data.list('kalender_privat')]);
+  return [...alle, ...voksne.map(a => ({ ...a, _voksne: true })), ...privat.map(a => ({ ...a, _privat: true }))];
 }
+const SYNLIG_LISTE = { alle: 'kalender', voksne: 'kalender_voksne', mig: 'kalender_privat' };
+const synligFor = a => (a._privat ? 'mig' : a._voksne ? 'voksne' : 'alle');
 // Fravær fra skole: type 'syg' | 'hjemme' (fri: true – hele dagen) eller 'tidlig' (tidligere fri, tid = klokkeslæt)
 const FRAVAER = {
   syg: { ikon: '🤒', titel: 'Syg', knap: '🤒 Syg' },
@@ -1005,7 +1009,7 @@ const FRAVAER = {
   tidlig: { ikon: '⏰', titel: 'Tidligere fri', knap: '⏰ Tidligere fri' }
 };
 const friIkon = a => (FRAVAER[a.type]?.ikon || '🌴');
-const laas = a => (a.fri || a.type === 'tidlig' ? ' ' + friIkon(a) : '') + (a._voksne ? ' 🔒' : '');   // markering på ferie/fri/fravær og kun-voksne-aftaler
+const laas = a => (a.fri || a.type === 'tidlig' ? ' ' + friIkon(a) : '') + (a._privat ? ' 👤' : a._voksne ? ' 🔒' : '');   // markering på ferie/fri/fravær og kun-voksne-aftaler
 const fravaerDen = (aftaler, iso, barn) => aftalerDen(aftaler, iso, [barn]).find(a => FRAVAER[a.type]) || null;
 const sygDen = (aftaler, iso, barn) => aftalerDen(aftaler, iso, [barn]).some(a => a.type === 'syg');
 // Ferie/fri ({fri: true}): skemaet viser "Fri", og i "i dag"-lister vises den kun den dag, den starter
@@ -1014,12 +1018,12 @@ function friDen(aftaler, iso, person) {
 }
 const iDagsListe = (aftaler, iso, hvem) => aftalerDen(aftaler, iso, hvem).filter(a => !a.fri || forekomstStart(a, iso) === iso);
 const friTekst = a => a.titel + (a.tilDato && a.tilDato > a.dato ? ' (til ' + DAGE[(tilDag(a.tilDato).getDay() + 6) % 7].toLowerCase() + ' ' + tilDag(a.tilDato).getDate() + '/' + (tilDag(a.tilDato).getMonth() + 1) + ')' : '');
-const kalListe = a => (a._voksne ? 'kalender_voksne' : 'kalender');
+const kalListe = a => SYNLIG_LISTE[synligFor(a)];
 // Gem ændringer – flytter aftalen til den anden liste, hvis "kun voksne" er ændret
-async function gemAftale(a, f, kunVoksne) {
-  const ny = kunVoksne ? 'kalender_voksne' : 'kalender';
+async function gemAftale(a, f, synlig) {
+  const ny = SYNLIG_LISTE[synlig];
   if (ny === kalListe(a)) { await Data.update(ny, a.id, f); return; }
-  const { id, oprettet, _voksne, _af, ...gammel } = a;
+  const { id, oprettet, _voksne, _privat, _af, ...gammel } = a;
   await Data.add(ny, { ...gammel, ...f });
   await Data.remove(kalListe(a), a.id);
 }
@@ -1106,6 +1110,7 @@ async function tegnMaaned() {
 
   const aftaler = await kalenderAftaler();
   const alleFoed = await Data.list('foedselsdage');
+  const mineValg = await valgFor(Data.bruger()?.navn);
   const idagIso = isoDato(new Date());
   if (kalValgtDag.slice(0, 7) !== isoDato(foerste).slice(0, 7)) {
     kalValgtDag = idagIso.slice(0, 7) === isoDato(foerste).slice(0, 7) ? idagIso : isoDato(foerste);
@@ -1121,7 +1126,7 @@ async function tegnMaaned() {
       const iso = isoDato(dag);
       const dagens = aftalerDen(aftaler, iso);
       const egneFoed = alleFoed.filter(f => isoDato(datoIAar(f, dag.getFullYear())) === iso);
-      const foed = [...egneFoed, ...indbyggedeDageDen(iso, egneFoed)];
+      const foed = [...egneFoed, ...indbyggedeDageDen(iso, egneFoed, mineValg)];
       const k = knap('', 'md-dag' + (dag.getMonth() !== foerste.getMonth() ? ' anden' : '') +
         (iso === idagIso ? ' idag' : '') + (iso === kalValgtDag ? ' valgt' : '') + (i >= 5 ? ' weekend' : ''),
         () => { kalValgtDag = iso; tegnMaaned(); });
@@ -1183,6 +1188,7 @@ async function tegnKalender() {
 
   const aftaler = await kalenderAftaler();
   const alleFoed = await Data.list('foedselsdage');
+  const mineValg = await valgFor(Data.bruger()?.navn);
   const idagIso = isoDato(new Date());
   const g = document.getElementById('kal');
   g.replaceChildren(el('div'));
@@ -1220,7 +1226,7 @@ async function tegnKalender() {
           b.addEventListener('click', e => { e.stopPropagation(); redigerFoed(f); });
           celle.append(b);
         }
-        for (const x of indbyggedeDageDen(iso, egneFoed)) {
+        for (const x of indbyggedeDageDen(iso, egneFoed, mineValg)) {
           const b = el('span', 'beg ' + dagKlasse(x));
           b.append(el('b', null, x.ikon + ' ' + x.navn));
           celle.append(b);
@@ -1279,18 +1285,16 @@ function redigerAftale(a, forekomst) {
 
   // Kun for voksne (fx skole-hjem-samtale om et barn) – kun voksne kan vælge det
   const erVoksenNu = Data.bruger()?.rolle === 'voksen';
-  let kunVoksne = !!a._voksne;
-  const voksneKnap = knap('🔒 Kun for voksne – børnene ser den ikke', null, () => {
-    kunVoksne = !kunVoksne; voksneKnap.setAttribute('aria-checked', kunVoksne);
-  });
-  voksneKnap.setAttribute('role', 'checkbox');
-  voksneKnap.setAttribute('aria-checked', kunVoksne);
+  // Hvem kan se aftalen: alle / kun voksne / kun mig
+  let synlig = a.id ? synligFor(a) : 'alle';
+  const synligValg = chipValg(['alle', 'voksne', 'mig'], synlig, v => { synlig = v; },
+    v => ({ alle: 'Alle', voksne: '🔒 Kun voksne', mig: '👤 Kun mig' })[v]);
   let fri = !!a.fri;
   const friKnap = knap('🌴 Ferie / fri', null, () => { fri = !fri; friKnap.setAttribute('aria-checked', fri); });
   friKnap.setAttribute('role', 'checkbox');
   friKnap.setAttribute('aria-checked', fri);
   const voksneBoks = el('div', 'seg wrap');
-  voksneBoks.append(friKnap, voksneKnap);
+  voksneBoks.append(friKnap);
   const friHint = el('p', 'hint', 'Ferie / fri: skoleskemaet viser "Fri" for dem, det gælder, og den står kun i "i dag"-listerne den første dag.');
 
   const fejl = el('p', 'fejl'); fejl.hidden = true;
@@ -1323,11 +1327,11 @@ function redigerAftale(a, forekomst) {
 
   const knapper = el('div', 'ark-knapper aftale-knapper');
   if (ny) {
-    knapper.append(knap('Gem', 'knap', async () => { const f = felter(); if (!f) return; await Data.add(kunVoksne ? 'kalender_voksne' : 'kalender', f); faerdig(); }));
+    knapper.append(knap('Gem', 'knap', async () => { const f = felter(); if (!f) return; await Data.add(SYNLIG_LISTE[synlig], f); faerdig(); }));
   } else if (!serie) {
     knapper.append(
       knap('Slet', 'knap fare', async () => { await Data.remove(kalListe(a), a.id); faerdig(); }),
-      knap('Gem', 'knap', async () => { const f = felter(); if (!f) return; await gemAftale(a, f, kunVoksne); faerdig(); }));
+      knap('Gem', 'knap', async () => { const f = felter(); if (!f) return; await gemAftale(a, f, synlig); faerdig(); }));
   } else {
     const undtag = [...(a.undtagelser || [])];
     const forSidste = plusDage(forekomst, -1);
@@ -1336,16 +1340,16 @@ function redigerAftale(a, forekomst) {
       knap('Gem kun denne dag', 'knap sekundaer-knap', async () => {
         const f = felter(); if (!f) return;
         await Data.update(kalListe(a), a.id, { undtagelser: [...undtag, forekomst] });
-        await Data.add(kunVoksne ? 'kalender_voksne' : 'kalender', { ...f, gentag: '', gentagTil: null });
+        await Data.add(SYNLIG_LISTE[synlig], { ...f, gentag: '', gentagTil: null });
         faerdig();
       }),
       knap('Gem fra denne dag', 'knap', async () => {
         const f = felter(); if (!f) return;
         if (forekomst === a.dato) {
-          await gemAftale(a, f, kunVoksne);
+          await gemAftale(a, f, synlig);
         } else {
           await Data.update(kalListe(a), a.id, { gentagTil: forSidste });
-          await Data.add(kunVoksne ? 'kalender_voksne' : 'kalender', { ...f, undtagelser: undtag.filter(d => d >= forekomst) });
+          await Data.add(SYNLIG_LISTE[synlig], { ...f, undtagelser: undtag.filter(d => d >= forekomst) });
         }
         faerdig();
       }),
@@ -1362,7 +1366,7 @@ function redigerAftale(a, forekomst) {
   }
 
   aabnArk(ny ? 'Ny aftale' : 'Ret aftale', felt('Hvad', titel), felt('Hvem', hvemValg), datoRaekke, tidRaekke,
-    felt('Gentages', gentagValg), gentagTilFelt, felt('Note', note), erVoksenNu ? voksneBoks : '', erVoksenNu ? friHint : '', fejl, knapper);
+    felt('Gentages', gentagValg), gentagTilFelt, felt('Note', note), erVoksenNu ? felt('Hvem kan se den', synligValg) : '', erVoksenNu ? voksneBoks : '', erVoksenNu ? friHint : '', fejl, knapper);
   if (ny) setTimeout(() => titel.focus(), 50);
 }
 
@@ -1516,7 +1520,7 @@ async function tegnBoernetavle(barn) {
 
   // "Det sker": fødselsdage, kalender (eget + fælles) og det der ellers skal ske – med billeder
   const voksen = Data.bruger()?.rolle === 'voksen';
-  const foed = await foedselsdageDen(iso);
+  const foed = await foedselsdageDen(iso, barn);
   const alleKal = await Data.list('kalender');   // kun-voksne-aftaler vises aldrig på børnetavlen
   const aftaler = iDagsListe(alleKal, iso, [barn, 'Fælles']);
   const info = (await Data.list('info')).filter(x => x.barn === barn && x.dato === iso);
@@ -1576,7 +1580,19 @@ async function tegnBoernetavle(barn) {
   const pligter = await pligtKort(barn);   // fra mere.js
   if (pligter) gitter.append(pligter);
   gitter.append(skemaKort, madKort);
-  boks.replaceChildren(strip, hoved, gitter);
+  // Vejr (og evt. sol) for den viste dag – efter barnets egne valg; hentes i baggrunden
+  const barnValg = await valgFor(barn);
+  const vejrPlads = el('div', 'vejr-plads');
+  if (barnValg.vejr || barnValg.sol) {
+    (barnValg.vejr ? vejrStribe(iso, barnValg.sol) : Promise.resolve(null)).then(async k => {
+      if (!k && barnValg.sol) {
+        const sol = solTider(new Date(iso + 'T12:00'), await familieSted());
+        if (sol) { k = el('div', 'vejr-stribe'); k.append(el('span', 'vs-sol', '🌅 Solopgang ' + klokken(sol.op) + ' · 🌇 solnedgang ' + klokken(sol.ned))); }
+      }
+      if (k) vejrPlads.replaceChildren(k);
+    });
+  }
+  boks.replaceChildren(strip, hoved, vejrPlads, gitter);
 }
 
 // ---------- "Det sker" med billeder (piktogrammer fra ARASAAC eller eget foto) ----------
@@ -1793,12 +1809,13 @@ const foedTekst = f => (f.indbygget ? f.ikon + ' ' + f.navn
   : f.aarsdag && f.alder != null ? '💍 ' + f.navn + ' · ' + f.alder + ' år'
   : f.alder != null ? '🇩🇰 ' + f.navn + ' fylder ' + f.alder : f.navn);
 // Fødselsdage, årsdage og mærkedage den dag – inkl. helligdage/mærkedage fra dage.js
-async function foedselsdageDen(iso) {
+async function foedselsdageDen(iso, hvem = Data.bruger()?.navn) {
   const d = new Date(iso + 'T00:00');
+  const valg = await valgFor(hvem);   // fra dage.js
   const egne = (await Data.list('foedselsdage'))
     .filter(f => isoDato(datoIAar(f, d.getFullYear())) === iso)
     .map(f => ({ ...f, alder: alderPaa(f, d) }));
-  return [...egne, ...indbyggedeDageDen(iso, egne)];
+  return [...egne, ...indbyggedeDageDen(iso, egne, valg)];
 }
 const dagKlasse = f => (f.indbygget ? (f.hellig ? 'c-hellig' : 'c-dag') : 'c-foed');
 
@@ -1927,11 +1944,15 @@ async function tegnOverblik() {
   ];
   document.getElementById('ov-kal-imorgen').textContent = morgenTekster.length ? 'I morgen: ' + morgenTekster.join(', ') : '';
   // Solopgang og solnedgang (sted kan sættes under forbogstav-knappen)
-  const stedRk = (await Data.list('indstillinger')).find(x => x.noegle === 'sted');
-  const sol = solTider(new Date(), stedRk?.vaerdi?.lat ? stedRk.vaerdi : undefined);   // fra dage.js
+  const mineValg = await valgFor(Data.bruger()?.navn);
+  const sol = mineValg.sol ? solTider(new Date(), await familieSted()) : null;   // fra dage.js
   const lys = sol ? Math.round((sol.ned - sol.op) / 60000) : 0;
   document.getElementById('ov-sol').textContent = sol
-    ? '☀️ Op ' + klokken(sol.op) + ' · ned ' + klokken(sol.ned) + ' · ' + Math.floor(lys / 60) + ' t ' + (lys % 60) + ' min lys' : '';
+    ? '🌅 Op ' + klokken(sol.op) + ' · ned ' + klokken(sol.ned) + ' · ' + Math.floor(lys / 60) + ' t ' + (lys % 60) + ' min lys' : '';
+  // Vejret hentes i baggrunden, så resten af siden ikke venter
+  const ovVejr = document.getElementById('ov-vejr');
+  if (!mineValg.vejr) ovVejr.textContent = '';
+  else vejrLinje().then(t => { ovVejr.textContent = t; });   // fra vejr.js
 
   const ret = (await madFor(new Date())).ret;
   const retEl = document.getElementById('ov-ret');
@@ -2054,10 +2075,12 @@ function barnMaa(handling, liste, felter, gammel) {
     if (liste === 'flueben') return felter.barn === navn;
     if (liste === 'indloesninger') return felter.barn === navn && felter.status === 'afventer';
     if (liste === 'motion') return felter.hvem === navn;
+    if (liste === 'personvalg') return felter.navn === navn;
     return liste === 'indkob';
   }
   if (!gammel) return false;
   if (handling === 'ret') {
+    if (liste === 'personvalg') return gammel.navn === navn && (!('navn' in felter) || felter.navn === navn);
     if (liste !== 'favoritter' || Object.keys(felter).some(k => k !== 'kanLide')) return false;
     const foer = new Set(gammel.kanLide || []), efter = new Set(felter.kanLide || []);
     return [...foer, ...efter].every(n => n === navn || (foer.has(n) && efter.has(n)));
@@ -2109,6 +2132,34 @@ function redigerFravaer(barn, iso, x) {
     felt('Hvad', valg), tidFelt, tilFelt, felt('Note (valgfri)', note),
     el('p', 'hint', 'Står i kalenderen, og skemaet på tavlen viser det. En sygedag bryder ikke streak.'), knapper);
 }
+
+// "Tilpas": hvad hver person vil se (helligdage, mærkedage, sol, vejr). Børn retter kun deres egne.
+async function tilpasVisning(hvem = Data.bruger()?.navn) {
+  const mig = Data.bruger()?.navn;
+  const folk = erBarn() ? [mig] : [mig, ...BOERN.filter(b => b !== mig)];
+  const valg = await valgFor(hvem);
+  const dele = [];
+  if (folk.length > 1) dele.push(chipValg(folk, hvem, v => tilpasVisning(v), v => (v === mig ? 'Mig' : v)));
+  const MULIGHEDER = [['helligdage', '🎄 Helligdage'], ['maerkedage', '🎃 Mærkedage (halloween, mors dag …)'],
+    ['sol', '🌅 Solopgang og solnedgang'], ['vejr', '🌦️ Vejret']];
+  const seg = el('div', 'seg wrap tilpas-valg');
+  for (const [felt, tekst] of MULIGHEDER) {
+    const k = knap(tekst, null, async () => {
+      valg[felt] = !valg[felt];
+      k.setAttribute('aria-checked', valg[felt]);
+      await saetValg(hvem, felt, valg[felt]);
+      tegnAlt();
+    });
+    k.setAttribute('role', 'checkbox');
+    k.setAttribute('aria-checked', valg[felt]);
+    seg.append(k);
+  }
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('Færdig', 'knap', () => lukArk()));
+  aabnArk('Vis ' + (hvem === mig ? 'for mig' : 'for ' + hvem), ...dele, seg,
+    el('p', 'hint', hvem === mig ? 'Gælder kalenderen og din I dag-side på alle dine enheder.' : 'Gælder ' + hvem + 's tavle og kalender.'), knapper);
+}
+document.getElementById('kal-tilpas').addEventListener('click', () => tilpasVisning());
 
 // Visning af en aftale for børn (kun læse)
 function visAftale(a, forekomst) {
@@ -2212,6 +2263,7 @@ function tegnAlt() {
   tegnForslag('indkob'); tegnForslag('todo'); tegnForslag('ret'); tegnForslag('morgen'); tegnForslag('frokost');
   tegnFoedselsdage();
   tegnMere();   // fra mere.js
+  tegnVejr();   // fra vejr.js (tegner kun, når siden er åben)
 }
 
 async function startTavle() {

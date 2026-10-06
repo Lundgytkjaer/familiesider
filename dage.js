@@ -54,11 +54,32 @@ function aaretsDage(aar) {
 // Dagens helligdage/mærkedage. Har familien selv en mærkedag med samme navn samme dag
 // (fx "Mors dag, Winnie"), vises kun familiens egen.
 const normNavn = s => (s || '').toLowerCase().replace(/[^a-zæøå]/g, '');
-function indbyggedeDageDen(iso, egne = []) {
+// valg = personens valg (se valgFor) – helligdage og mærkedage kan slås fra hver for sig
+function indbyggedeDageDen(iso, egne = [], valg = STANDARD_VALG) {
   const egneNavne = egne.map(f => normNavn(f.navn));
-  return aaretsDage(Number(iso.slice(0, 4))).filter(x => x.iso === iso && !egneNavne.some(n => n.startsWith(normNavn(x.navn))));
+  return aaretsDage(Number(iso.slice(0, 4))).filter(x => x.iso === iso && (x.hellig ? valg.helligdage : valg.maerkedage)
+    && !egneNavne.some(n => n.startsWith(normNavn(x.navn))));
 }
 const helligdagDen = iso => aaretsDage(Number(iso.slice(0, 4))).find(x => x.iso === iso && x.hellig) || null;
+
+// ---------- Hvad hver person vil se ----------
+// Data: 'personvalg' {navn, helligdage, maerkedage, sol, vejr} – mangler noget, er det slået til.
+// Børn kan selv rette deres egne valg (børnelåsen tillader kun deres eget navn).
+const STANDARD_VALG = { helligdage: true, maerkedage: true, sol: true, vejr: true };
+async function valgFor(navn) {
+  const r = (await Data.list('personvalg')).find(x => x.navn === navn);
+  return { ...STANDARD_VALG, ...(r || {}) };
+}
+async function saetValg(navn, felt, vaerdi) {
+  const r = (await Data.list('personvalg')).find(x => x.navn === navn);
+  if (r) await Data.update('personvalg', r.id, { [felt]: vaerdi });
+  else await Data.add('personvalg', { navn, [felt]: vaerdi });
+}
+// Familiens sted (til sol og vejr) – sættes af en voksen; ellers midt i Danmark
+async function familieSted() {
+  const r = (await Data.list('indstillinger')).find(x => x.noegle === 'sted');
+  return r?.vaerdi?.lat ? r.vaerdi : STANDARD_STED;
+}
 
 // ---------- Solopgang og solnedgang (forenklet NOAA-beregning, ±1-2 min) ----------
 const STANDARD_STED = { lat: 56.0, lon: 10.0 };   // midt i Danmark – kan ændres under Udseende

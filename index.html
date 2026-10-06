@@ -23,7 +23,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-06d">
+  <link rel="stylesheet" href="style.css?v=2026-10-06e">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -46,6 +46,7 @@
           <ul class="mini" id="ov-kal"></ul>
           <p class="under" id="ov-kal-imorgen"></p>
           <p class="under sol-linje" id="ov-sol"></p>
+          <p class="under sol-linje" id="ov-vejr"></p>
         </button>
 
         <div class="kort" id="ov-mine-pligter" hidden></div>
@@ -76,7 +77,7 @@
 
     <!-- KALENDER -->
     <section id="kalender" class="fane" hidden>
-      <div class="sek-hoved"><h2>Kalender</h2><span class="taeller" id="kal-dato"></span></div>
+      <div class="sek-hoved"><h2>Kalender</h2><span class="taeller" id="kal-dato"></span><button type="button" class="lille-knap" id="kal-tilpas">Tilpas</button></div>
       <div class="seg" id="kal-visning" role="radiogroup" aria-label="Visning"></div>
       <div class="kal-nav">
         <button type="button" class="pil" id="kal-forrige" aria-label="Forrige uge">‹</button>
@@ -211,6 +212,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4h8v5a4 4 0 0 1-8 0zM8 6H5a3 3 0 0 0 3 4M16 6h3a3 3 0 0 1-3 4M12 13v4M8.5 20h7M10 17h4"/></svg>
           <span class="mere-navn">Ugens konkurrence</span><span class="under">Hvem cykler eller går længst?</span>
         </button>
+        <button type="button" class="kort mere-kort" data-gaa="vejr">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a4 4 0 0 1-.6-7.96A5.5 5.5 0 0 1 17 8.5a3.75 3.75 0 0 1 .5 7.47V16H7z"/><path d="M8 21l1-1.5M12 21l1-1.5M16 21l1-1.5"/></svg>
+          <span class="mere-navn">Vejret</span><span class="under">I dag og de næste 7 dage</span>
+        </button>
       </div>
     </section>
 
@@ -236,6 +241,12 @@
     </section>
 
     <!-- KONKURRENCE -->
+    <section id="vejr" class="fane" hidden>
+      <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
+      <div class="sek-hoved"><h2>Vejret</h2></div>
+      <div id="vejr-indhold"><p class="hint">Henter vejret…</p></div>
+    </section>
+
     <section id="konkurrence" class="fane" hidden>
       <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
       <div class="sek-hoved"><h2>Ugens konkurrence</h2></div>
@@ -294,10 +305,11 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="data.js?v=2026-10-06d"></script>
-<script src="dage.js?v=2026-10-06d"></script>
-<script src="app.js?v=2026-10-06d"></script>
-<script src="mere.js?v=2026-10-06d"></script>
-<script src="sjov.js?v=2026-10-06d"></script>
+<script src="data.js?v=2026-10-06e"></script>
+<script src="dage.js?v=2026-10-06e"></script>
+<script src="vejr.js?v=2026-10-06e"></script>
+<script src="app.js?v=2026-10-06e"></script>
+<script src="mere.js?v=2026-10-06e"></script>
+<script src="sjov.js?v=2026-10-06e"></script>
 </body>
 </html>
