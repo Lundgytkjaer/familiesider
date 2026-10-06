@@ -597,7 +597,7 @@ async function gemFast(barn, dag, felt, vaerdi) {
   const fundet = (await Data.list('fastplan')).find(r => r.barn === barn && r.dag === dag);
   if (fundet) {
     const ny = { ...fundet, [felt]: vaerdi };
-    if (!ny.morgen && !ny.frokost) await Data.remove('fastplan', fundet.id);
+    if (!ny.morgen && !ny.frokost) await Data.stille(() => Data.remove('fastplan', fundet.id));
     else await Data.update('fastplan', fundet.id, { [felt]: vaerdi });
   } else if (vaerdi) {
     await Data.add('fastplan', { barn, dag, [felt]: vaerdi });
@@ -686,7 +686,7 @@ async function gemMad(dag, felt, vaerdi, uge = madUgeIso(), barn = null) {
   const fundet = (await madplanForUge(uge, barn)).find(r => r.dag === dag);
   if (fundet) {
     const ny = { ...fundet, [felt]: vaerdi };
-    if (!ny.ret && !ny.morgen && !ny.frokost) await Data.remove('madplan', fundet.id);
+    if (!ny.ret && !ny.morgen && !ny.frokost) await Data.stille(() => Data.remove('madplan', fundet.id));
     else await Data.update('madplan', fundet.id, { [felt]: vaerdi });
   } else if (vaerdi) {
     await Data.add('madplan', barn ? { uge, dag, barn, [felt]: vaerdi } : { uge, dag, [felt]: vaerdi });
@@ -1010,7 +1010,7 @@ async function gemSkemaFelt(liste, noegle, felter) {
   const fundet = (await Data.list(liste)).find(match);
   const samlet = { ...(fundet || {}), ...felter };
   const tom = VAERDIER.every(k => !samlet[k]);
-  if (fundet && tom) await Data.remove(liste, fundet.id);
+  if (fundet && tom) await Data.stille(() => Data.remove(liste, fundet.id));
   else if (fundet) await Data.update(liste, fundet.id, felter);
   else if (!tom) await Data.add(liste, { ...noegle, ...felter });
   tegnOverblik();
@@ -1053,7 +1053,7 @@ async function gemAftale(a, f, synlig) {
   if (ny === kalListe(a)) { await Data.update(ny, a.id, f); return; }
   const { id, oprettet, _voksne, _privat, _af, ...gammel } = a;
   await Data.add(ny, { ...gammel, ...f });
-  await Data.remove(kalListe(a), a.id);
+  await Data.stille(() => Data.remove(kalListe(a), a.id));   // flyttet, ikke slettet
 }
 const PERSONER = ['Fælles', 'Timmo', 'Winnie', 'Oliver', 'Villads'];
 const PK = { 'Fælles': 'c-faelles', Timmo: 'c-timmo', Winnie: 'c-winnie', Oliver: 'c-oliver', Villads: 'c-villads' };
@@ -1382,12 +1382,13 @@ function redigerAftale(a, forekomst) {
         faerdig();
       }),
       knap('Slet kun denne dag', 'knap fare', async () => {
+        Data.huskFoer(a.id);
         await Data.update(kalListe(a), a.id, { undtagelser: [...undtag, forekomst] });
         faerdig();
       }),
       knap('Slet fra denne dag', 'knap fare', async () => {
         if (forekomst === a.dato) await Data.remove(kalListe(a), a.id);
-        else await Data.update(kalListe(a), a.id, { gentagTil: forSidste });
+        else { Data.huskFoer(a.id); await Data.update(kalListe(a), a.id, { gentagTil: forSidste }); }
         faerdig();
       })
     );
@@ -2440,6 +2441,33 @@ document.getElementById('log-ud').addEventListener('click', () => {
     el('p', 'hint', 'Automatisk følger telefonens indstilling. Valget gælder kun denne enhed.'), ...stedDele,
     el('p', 'hint', 'Du forbliver logget ind på denne enhed, indtil du logger ud.'), knapper);
 });
+
+// ---------- Fortryd efter sletning ----------
+// Vises i 8 sekunder nederst: "Slettet: Lasagne · Fortryd"
+let fortrydEl = null, fortrydTimer = null;
+function visFortryd(g) {
+  if (!fortrydEl) {
+    fortrydEl = el('div', 'fortryd-boks');
+    fortrydEl.setAttribute('role', 'status');
+    fortrydEl.hidden = true;
+    document.body.append(fortrydEl);
+  }
+  const d = g.raekker[0].data || {};
+  const navn = d.tekst || d.navn || d.titel || d.ret || '';
+  const tekst = g.raekker.length > 1 ? g.raekker.length + ' ting slettet' : 'Slettet' + (navn ? ': ' + navn : '');
+  const k = knap('Fortryd', 'fortryd-knap', async () => {
+    clearTimeout(fortrydTimer);
+    fortrydEl.hidden = true;
+    try { await Data.gendan(g); visStatus('Fortrudt ✓'); }
+    catch (e) { console.error(e); visStatus('Kunne ikke fortryde – prøv igen.'); }
+    tegnAlt();
+  });
+  fortrydEl.replaceChildren(el('span', 'fortryd-tekst', tekst), k);
+  fortrydEl.hidden = false;
+  clearTimeout(fortrydTimer);
+  fortrydTimer = setTimeout(() => { fortrydEl.hidden = true; }, 8000);
+}
+Data.onFortryd(visFortryd);
 
 // ---------- Start ----------
 function tegnAlt() {

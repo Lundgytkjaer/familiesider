@@ -16,6 +16,19 @@ const Data = (() => {
   const lyttere = [];
   let timer;
 
+  // Fortryd: slettede rækker huskes kort, så de kan sættes ind igen (med samme id).
+  // Flere sletninger lige efter hinanden (fx "Ryd klarede") bliver til én fortrydelse.
+  const IKKE_FORTRYD = new Set(['flueben', 'indloesninger']);   // har deres egen fortryd/af-knap
+  let stille = 0, gruppe = null, fortrydLytter = null;
+  function husk(r) {
+    if (!r || stille || IKKE_FORTRYD.has(r.liste)) return;
+    const nu = Date.now();
+    if (!gruppe || nu - gruppe.tid > 1500) gruppe = { tid: nu, raekker: [] };
+    gruppe.tid = nu;
+    if (!gruppe.raekker.some(x => x.id === r.id)) gruppe.raekker.push(JSON.parse(JSON.stringify(r)));
+    if (fortrydLytter) fortrydLytter(gruppe);
+  }
+
   // _af = hvem der oprettede rækken (bruges fx til at børn kun kan slette deres egne indkøbsønsker)
   const tilPunkt = r => ({ ...r.data, id: r.id, oprettet: r.oprettet, _af: r.oprettet_af });
 
@@ -111,10 +124,29 @@ const Data = (() => {
     },
 
     async remove(liste, id) {
+      const r = raekker.find(x => x.id === id);
       const { error } = await db.from('punkter').delete().eq('id', id);
       if (error) throw error;
       raekker = raekker.filter(x => x.id !== id);
+      husk(r);
     },
+
+    // Kald før en ændring, der i praksis sletter noget (fx "slet kun denne dag" i en gentagen aftale)
+    huskFoer(id) { husk(raekker.find(x => x.id === id)); },
+
+    // Sæt en fortrudt gruppe ind igen: slettede rækker kommer tilbage, ændrede får deres gamle indhold
+    async gendan(g) {
+      const rows = g.raekker.map(r => ({ id: r.id, liste: r.liste, data: r.data, oprettet: r.oprettet, oprettet_af: r.oprettet_af }));
+      const { data, error } = await db.from('punkter').upsert(rows).select();
+      if (error) throw error;
+      (data || []).forEach(gemLokalt);
+      if (gruppe === g) gruppe = null;
+    },
+
+    // Sletninger inde i fn er "tekniske" (fx et tømt felt) og giver ingen Fortryd
+    async stille(fn) { stille++; try { return await fn(); } finally { stille--; } },
+
+    onFortryd(fn) { fortrydLytter = fn; },
 
     onChange(fn) { lyttere.push(fn); }
   };

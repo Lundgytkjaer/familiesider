@@ -973,3 +973,13 @@ body.barn .uge input[readonly] { background: transparent; }
 .beloen-idag .link-knap { padding: 0; font-size: 14px; }
 .skema-fri { margin: 10px 0 0; }
 .fri-dag-skema { font-weight: 700; color: var(--accent); }
+
+/* Fortryd efter sletning */
+.fortryd-boks {
+  position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom, 0px)); z-index: 26; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 14px; width: max-content; max-width: calc(100% - 32px);
+  padding: 8px 8px 8px 16px; border-radius: 14px; background: var(--fg); color: var(--bg);
+  box-shadow: 0 8px 24px rgb(0 0 0 / .25); font-weight: 600;
+}
+.fortryd-tekst { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fortryd-knap { flex: none; min-height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent); color: var(--paa-accent); font-weight: 800; }
