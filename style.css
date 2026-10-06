@@ -1026,3 +1026,10 @@ body.barn .gentag-knap:not(.aktiv) { visibility: hidden; }
 body.barn .gentag-knap { pointer-events: none; }
 .madplan-knapper { flex-wrap: wrap; }
 .madplan-knapper .lille-knap { flex: 1 1 auto; white-space: nowrap; }
+
+/* To do: hvem og hvornår */
+.tags .frist-tag { background: var(--bg); color: var(--fg); }
+.tags .frist-tag.snart { background: color-mix(in srgb, var(--p2) 22%, var(--flade)); }
+.todo-ekstra { color: var(--daempet); font-size: 14px; white-space: nowrap; }
+.frist-raekke { display: flex; gap: 8px; align-items: center; }
+.frist-raekke input[type="date"] { flex: 1; min-width: 0; }

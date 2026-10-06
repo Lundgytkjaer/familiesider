@@ -212,6 +212,39 @@ async function saetFavFelter(type, tekst, felter) {
   if (f) await Data.update('favoritter', f.id, felter);
 }
 
+// To do: frist som tekst – "I dag", "I morgen", "Fre 9/10" eller "Over tid · 5/10"
+function fristTekst(iso, klaret) {
+  const idag = isoDato(new Date());
+  const d = new Date(iso + 'T00:00');
+  const dm = d.getDate() + '/' + (d.getMonth() + 1);
+  if (!klaret && iso < idag) return { tekst: 'Over tid · ' + dm, klasse: 'over-tid' };
+  if (iso === idag) return { tekst: 'I dag', klasse: 'frist-tag snart' };
+  if (iso === plusDage(idag, 1)) return { tekst: 'I morgen', klasse: 'frist-tag' };
+  return { tekst: DAGE[(d.getDay() + 6) % 7] + ' ' + dm, klasse: 'frist-tag' };
+}
+// Ret en to do: tekst, hvem, hvornår og prioritet
+function redigerTodo(p) {
+  const tekst = input('text', 'todo-tekst', p.tekst);
+  let hvem = p.hvem || '';
+  const hvemValg = chipValg(['', ...PERSONER.filter(x => x !== 'Fælles')], hvem, v => { hvem = v; }, v => v || 'Ingen bestemt');
+  const frist = input('date', 'todo-frist', p.frist || '');
+  const fristRaekke = el('div', 'frist-raekke');
+  fristRaekke.append(frist, knap('I dag', 'lille-knap', () => { frist.value = isoDato(new Date()); }),
+    knap('Ingen', 'lille-knap', () => { frist.value = ''; }));
+  let prio = p.prio || 2;
+  const prioValg = chipValg([1, 2, 3], prio, v => { prio = v; }, v => PRIO[v]);
+  const gem = knap('Gem', 'knap', async () => {
+    const t = tekst.value.trim();
+    if (!t) { tekst.focus(); return; }
+    await Data.update('todo', p.id, { tekst: t, hvem, frist: frist.value || null, prio });
+    lukArk(); tegnAlt();
+  });
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('todo', p.id); lukArk(); tegnAlt(); }), gem);
+  aabnArk('Ret opgave', felt('Opgave', tekst), felt('Hvem skal gøre det?', hvemValg), felt('Hvornår (valgfri)', fristRaekke),
+    felt('Prioritet', prioValg), el('p', 'hint', 'Opgaver med en dato står også i "Kalender i dag" på familiens overblik den dag.'), knapper);
+}
+
 async function redigerVare(p) {
   const navn = input('text', 'vare-navn', p.tekst);
   const butikker = (await Data.list('favoritter')).filter(f => f.type === 'butik')
@@ -311,6 +344,7 @@ async function tegnListe(navn) {
   const ul = document.querySelector(`ul[data-liste="${navn}"]`);
   const punkter = await Data.list(navn);
   punkter.sort((a, b) => Number(a.klaret) - Number(b.klaret) || (a.prio || 0) - (b.prio || 0)
+    || (a.frist || '9999').localeCompare(b.frist || '9999')
     || (a.butik || 'ø').localeCompare(b.butik || 'ø', 'da'));
   ul.replaceChildren();
 
@@ -333,8 +367,10 @@ async function tegnListe(navn) {
     tjek.innerHTML = IKON_TJEK;
     const tekstBoks = el('span', 'tekst-boks');
     tekstBoks.append(el('span', 'tekst', p.tekst));
-    if (p.butik || p.tilbud || p.note || p.af) {
+    if (p.butik || p.tilbud || p.note || p.af || p.hvem || p.frist) {
       const tags = el('span', 'tags');
+      if (p.hvem) tags.append(el('span', 'hvem-tag ' + (PK[p.hvem] || ''), p.hvem));
+      if (p.frist) { const f = fristTekst(p.frist, p.klaret); tags.append(el('span', f.klasse, f.tekst)); }
       if (p.af) tags.append(el('span', 'hvem-tag ' + (PK[p.af] || ''), 'Ønsket af ' + p.af));
       if (p.tilbud) tags.append(el('span', 'tilbud-tag', 'Tilbud'));
       if (p.butik) tags.append(el('span', null, p.butik));
@@ -358,12 +394,12 @@ async function tegnListe(navn) {
       li.append(thumb);
     }
 
-    if (navn === 'indkob') {
+    {
       const mere = el('button', 'mere-knap');
       mere.type = 'button';
       mere.innerHTML = IKON_MERE;
-      mere.setAttribute('aria-label', 'Butik, tilbud og billede for ' + p.tekst);
-      mere.addEventListener('click', () => redigerVare(p));
+      mere.setAttribute('aria-label', (navn === 'indkob' ? 'Butik, tilbud og billede for ' : 'Ret, hvem og hvornår for ') + p.tekst);
+      mere.addEventListener('click', () => (navn === 'indkob' ? redigerVare(p) : redigerTodo(p)));
       li.append(mere);
     }
 
@@ -2234,6 +2270,13 @@ async function tegnOverblik() {
     li.append(el('span', 'prik'), el('span', null, tidTekst(a) + a.titel + laas(a) + ' · ' + personerI(a).join(', ')));
     ovKal.append(li);
   }
+  // To do med frist i dag (eller over tid)
+  const dagensTodo = (await Data.list('todo')).filter(p => !p.klaret && p.frist && p.frist <= iDagIso);
+  for (const p of dagensTodo) {
+    const li = el('li', p.hvem ? PK[p.hvem] : 'p' + p.prio);
+    li.append(el('span', 'prik'), el('span', null, '☑️ ' + p.tekst + (p.hvem ? ' · ' + p.hvem : '') + (p.frist < iDagIso ? ' (over tid)' : '')));
+    ovKal.append(li);
+  }
   for (const { b, x } of noter) {
     const li = el('li', PK[b]);
     li.append(el('span', 'prik'), el('span', null, '📌 ' + (x.tekst || 'Se billedet på tavlen') + ' · ' + b));
@@ -2312,7 +2355,8 @@ async function tegnOverblik() {
   if (!todo.length) ovTodo.append(el('li', null, 'Ingen åbne opgaver'));
   for (const p of todo.slice(0, 4)) {
     const li = el('li', 'p' + p.prio);
-    li.append(el('span', 'prik'), el('span', null, p.tekst));
+    const ekstra = [p.hvem, p.frist ? fristTekst(p.frist).tekst : ''].filter(Boolean).join(' · ');
+    li.append(el('span', 'prik'), el('span', null, p.tekst), ekstra ? el('span', 'todo-ekstra', ' · ' + ekstra) : '');
     ovTodo.append(li);
   }
   document.getElementById('ov-todo-antal').textContent = todo.length > 4 ? '+' + (todo.length - 4) + ' mere ›' : 'Alle ›';

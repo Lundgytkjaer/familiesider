@@ -1103,8 +1103,11 @@ async function tegnPakkelister() {
     const slet = knap('', 'slet', async () => { await Data.remove('pakkepunkter', p.id); tegnPakkelister(); });
     slet.innerHTML = IKON_SLET;
     slet.setAttribute('aria-label', 'Slet ' + p.tekst);
+    const mere = knap('', 'mere-knap', () => redigerPakkepunkt(p));
+    mere.innerHTML = IKON_MERE;
+    mere.setAttribute('aria-label', 'Ret ' + p.tekst);
     li.append(b);
-    if (erVoksen()) li.append(slet);
+    if (erVoksen()) li.append(mere, slet);
     ul.append(li);
   }
   if (!viste.length) ul.append(el('li', 'tom', 'Intet på listen endnu'));
@@ -1129,6 +1132,22 @@ async function tegnPakkelister() {
   if (!erVoksen()) boks.replaceChildren(titel, visLabel, filter, ul);
   else boks.replaceChildren(titel, pakForm, nyLabel, hvemValg, visLabel, filter, ul, fod);
   opdaterTilbage();   // fra app.js – tilbage-knappen bliver til "Alle pakkelister"
+}
+
+// Ret et punkt på en pakkeliste: tekst og hvem det er til
+function redigerPakkepunkt(p) {
+  const tekst = input('text', 'pak-tekst', p.tekst);
+  let hvem = p.hvem || '';
+  const hvemValg = chipValg(['', ...PERSONER.filter(x => x !== 'Fælles')], hvem, v => { hvem = v; }, v => v || 'Fælles');
+  const gem = knap('Gem', 'knap', async () => {
+    const t = tekst.value.trim();
+    if (!t) { tekst.focus(); return; }
+    await Data.update('pakkepunkter', p.id, { tekst: t, hvem });
+    lukArk(); tegnPakkelister();
+  });
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('pakkepunkter', p.id); lukArk(); tegnPakkelister(); }), gem);
+  aabnArk('Ret', felt('Hvad skal med?', tekst), felt('Til', hvemValg), knapper);
 }
 
 function navnPakkeliste(l) {
