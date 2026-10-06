@@ -1111,6 +1111,14 @@ let konkUge = 0;
 let konkType = ['cykel', 'gaa', 'samlet'].includes(lokal.get('konk-type')) ? lokal.get('konk-type') : 'samlet';
 let konkHvem = null;
 let konkNyType = 'cykel';
+let konkDag = 'idag';   // 'idag' | 'igaar' | 'anden' (så vises en dato)
+let konkDele = null;     // fast opbygning, så indtastningsfeltet ikke flyttes, mens man skriver
+function konkValgtDag() {
+  const d = new Date();
+  if (konkDag === 'igaar') d.setDate(d.getDate() - 1);
+  if (konkDag === 'anden' && konkForm.dato.value) return konkForm.dato.value;
+  return isoDato(d);
+}
 const fmtKm = n => n.toLocaleString('da-DK', { maximumFractionDigits: 1 }) + ' km';
 
 const konkForm = (() => {
@@ -1121,25 +1129,27 @@ const konkForm = (() => {
   const dato = el('input');
   dato.type = 'date'; dato.id = 'konk-dato';
   dato.setAttribute('aria-label', 'Dato');
+  dato.hidden = true;
   const raekke = el('div', 'konk-felter');
-  raekke.append(km, dato, el('button', 'knap', 'Tilføj'));
+  raekke.append(km, el('button', 'knap', 'Tilføj'));
   const besked = el('p', 'konk-besked');
   besked.setAttribute('aria-live', 'polite');
   besked.hidden = true;
-  form.append(raekke, besked);
+  form.append(raekke, dato, besked);
   km.addEventListener('input', () => { besked.hidden = true; });
   form.addEventListener('submit', async e => {
     e.preventDefault();
-    const dag = dato.value || isoDato(new Date());
+    const dag = konkValgtDag();
     const alle = await Data.list('motion');
     const dagSum = sum(alle.filter(m => m.hvem === konkHvem && m.dato === dag && m.type === konkNyType), 'km');
     const svar = kmTjek(km.value, konkNyType, dagSum, konkHvem, dag);
-    if (!svar.ok) { visKonkBesked(svar.tekst, 'advar'); km.focus(); return; }
+    if (!svar.ok) { visKonkBesked(svar.tekst, 'advar'); return; }
     const v = tal(km.value);
     const foer = ugeFoerer(alle, dag);
     const gemt = await Data.add('motion', { hvem: konkHvem, dato: dag, km: v, type: konkNyType });
     if (!gemt) return;   // børnelåsen sagde nej (besked vises allerede)
     km.value = '';
+    km.blur();   // lukker tastaturet, så siden (og bundmenuen) falder på plads
     const efter = ugeFoerer([...alle, { hvem: konkHvem, dato: dag, km: v, type: konkNyType }], dag);
     let tekst = svar.tekst;
     if (efter === konkHvem && foer !== konkHvem && isoDato(mandagDenneUge()) <= dag) {
@@ -1251,16 +1261,20 @@ async function tegnKonkurrence() {
   const status = max === 0 ? el('p', 'hint', 'Ingen kilometer i denne uge endnu.')
     : el('p', 'konk-status', (konkUge === 0 ? 'Fører lige nu: ' : 'Vinder: ') + stilling[0].hvem + ' med ' + fmtKm(stilling[0].km));
 
-  // Tilføj tur
-  const dagsDato = konkUge === 0 ? isoDato(new Date()) : manIso;
-  if (!konkForm.dato.value || konkForm.dato.value < manIso || konkForm.dato.value > sonIso) konkForm.dato.value = dagsDato;
-  konkForm.dato.max = isoDato(new Date());
-  const tilfoej = el('div', 'kort konk-tilfoej');
-  tilfoej.append(
-    el('span', 'kort-label', 'Tilføj en tur'),
+  // Tilføj tur (kun knapperne tegnes om – selve feltet bliver stående)
+  const idagIso = isoDato(new Date());
+  konkForm.dato.max = idagIso;
+  if (!konkForm.dato.value) konkForm.dato.value = idagIso;
+  konkForm.dato.hidden = konkDag !== 'anden';
+  if (!konkDele) {
+    konkDele = { top: el('div'), valg: el('div', 'konk-valg'), tilfoej: el('div', 'kort konk-tilfoej'), bund: el('div') };
+    konkDele.tilfoej.append(el('span', 'kort-label', 'Tilføj en tur'), konkDele.valg, konkForm.form);
+  }
+  konkDele.valg.replaceChildren(
     loggetIndBarn() ? '' : valgSeg(DELTAGERE, konkHvem, v => { konkHvem = v; tegnKonkurrence(); }, v => v, 'wrap lille-seg'),
     valgSeg(['cykel', 'gaa'], konkNyType, v => { konkNyType = v; tegnKonkurrence(); }, v => (v === 'cykel' ? 'Cyklet' : 'Gået'), 'lille-seg'),
-    konkForm.form
+    valgSeg(['idag', 'igaar', 'anden'], konkDag, v => { konkDag = v; tegnKonkurrence(); },
+      v => ({ idag: 'I dag', igaar: 'I går', anden: konkDag === 'anden' ? '📅 Dato:' : '📅 Anden dag' })[v], 'lille-seg')
   );
 
   // Ugens ture
@@ -1287,10 +1301,12 @@ async function tegnKonkurrence() {
     vindere.append(li);
   }
 
-  const dele = [nav, typeValg, ol, status, tilfoej];
-  if (ugens.length) dele.push(el('h3', 'lille-titel', 'Ugens ture'), ture);
-  if (vindere.children.length) dele.push(el('h3', 'lille-titel', 'Tidligere vindere (' + MOTION_NAVN[konkType].toLowerCase() + ')'), vindere);
-  boks.replaceChildren(...dele);
+  const bund = [];
+  if (ugens.length) bund.push(el('h3', 'lille-titel', 'Ugens ture'), ture);
+  if (vindere.children.length) bund.push(el('h3', 'lille-titel', 'Tidligere vindere (' + MOTION_NAVN[konkType].toLowerCase() + ')'), vindere);
+  konkDele.top.replaceChildren(nav, typeValg, ol, status);
+  konkDele.bund.replaceChildren(...bund);
+  if (konkDele.top.parentNode !== boks) boks.replaceChildren(konkDele.top, konkDele.tilfoej, konkDele.bund);
 }
 
 // =====================================================================

@@ -574,8 +574,14 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .konk-status { margin: 0 0 12px; font-weight: 600; color: var(--daempet); }
 .konk-tilfoej { display: grid; gap: 10px; margin-bottom: 8px; }
 .konk-tilfoej .seg { margin: 0; }
-.konk-felter { display: grid; grid-template-columns: 1fr 1.3fr auto; gap: 8px; }
+.konk-felter { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .konk-felter input { background: var(--bg) !important; min-width: 0; }
+.konk-valg { display: grid; gap: 10px; }
+.konk-valg .seg { margin: 0; }
+/* Dato kun ved "Anden dag" – fuld bredde, og iPhone må ikke gøre feltet bredere end skærmen */
+.konk-form input[type="date"] { display: block; width: 100%; max-width: 100%; margin-top: 8px; background: var(--bg);
+  -webkit-appearance: none; appearance: none; text-align: left; }
+.konk-form input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 
 .seg-label { margin: 4px 0 6px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--daempet); }
 
