@@ -63,9 +63,9 @@ function indbyggedeDageDen(iso, egne = [], valg = STANDARD_VALG) {
 const helligdagDen = iso => aaretsDage(Number(iso.slice(0, 4))).find(x => x.iso === iso && x.hellig) || null;
 
 // ---------- Hvad hver person vil se ----------
-// Data: 'personvalg' {navn, helligdage, maerkedage, sol, vejr} – mangler noget, er det slået til.
+// Data: 'personvalg' {navn, helligdage, maerkedage, sol, vejr, nedtaelling} – mangler noget, er det slået til.
 // Børn kan selv rette deres egne valg (børnelåsen tillader kun deres eget navn).
-const STANDARD_VALG = { helligdage: true, maerkedage: true, sol: true, vejr: true };
+const STANDARD_VALG = { helligdage: true, maerkedage: true, sol: true, vejr: true, nedtaelling: true };
 async function valgFor(navn) {
   const r = (await Data.list('personvalg')).find(x => x.navn === navn);
   return { ...STANDARD_VALG, ...(r || {}) };

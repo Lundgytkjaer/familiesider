@@ -55,14 +55,16 @@ function fejr(tekst) {
 // I dag tæller med, når den er klaret – men bryder ikke rækken, før dagen er gået.
 function streak(d) {
   const daglige = d.opgaver.filter(o => !o.frivillig && !['uge', 'engang', 'interval'].includes(o.gentag));
-  if (!daglige.length) return 0;
+  if (!daglige.length) return d.streakAnker ? Math.max(0, Number(d.streakAnker.dage) || 0) : 0;
   const klaret = new Set(d.flueben.map(f => f.opgave + '|' + f.periode));
   const oprettetIso = o => (o.oprettet ? isoDato(new Date(o.oprettet)) : '0000-00-00');
   const tidligste = daglige.map(oprettetIso).sort()[0];
   let n = 0;
   const dato = new Date();
+  const anker = d.streakAnker;   // voksen-justering: "rækken var X dage til og med denne dato"
   for (let i = 0; i < 400; i++) {
     const iso = isoDato(dato);
+    if (anker && iso <= anker.dato) { n += Math.max(0, Math.round(Number(anker.dage) || 0)); break; }
     if (iso < tidligste) break;
     const dag = (dato.getDay() + 6) % 7;
     if (d.kalender && sygDen(d.kalender, iso, d.barn)) { dato.setDate(dato.getDate() - 1); continue; }   // sygedag: springes over
@@ -478,5 +480,75 @@ async function alfieKort(barn) {
     knap('Skift makker', 'lille-knap makker-skift', () => vaelgMakker(barn, valg.ven || 'alfie')));
   hoejre.append(bund);
   k.append(figur, hoejre);
+  return k;
+}
+
+// ---------- Nedtælling på børnetavlen ----------
+// Regnes ud fra fødselsdage, kalenderens ferie/fri og udvalgte festdage – gemmer intet nyt.
+// Barnet (eller en voksen) kan slå den fra under Kalender → Tilpas (personvalg.nedtaelling).
+const NEDTAEL_FEST = { 'Fastelavn': 'maerkedage', 'Påskedag': 'helligdage', 'Halloween': 'maerkedage', 'Juleaften': 'helligdage', 'Nytårsaften': 'maerkedage' };
+const NEDTAEL_DAGE = 120;   // hvor langt frem (egen fødselsdag vises altid)
+const genitiv = n => (/[sxz]$/i.test(n) ? n + "'" : n + 's');
+async function nedtaellingKort(barn) {
+  const valg = await valgFor(barn);
+  if (valg.nedtaelling === false) return null;
+  const idag = new Date(); idag.setHours(0, 0, 0, 0);
+  const dageTil = d => Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - idag) / 86400000);
+  const ting = [];
+
+  // Fødselsdage i familien (og Alfies)
+  const familie = [...PERSONER.filter(p => p !== 'Fælles'), 'Alfie'];
+  for (const f of await Data.list('foedselsdage')) {
+    if (!f.dato || f.aarsdag) continue;
+    const hvem = (f.navn || '').trim().split(/\s+/)[0];
+    if (!familie.includes(hvem)) continue;
+    const d = naesteGang(f, idag);
+    const alder = alderPaa(f, d);
+    const egen = hvem === barn;
+    ting.push({ n: dageTil(d), egen, ikon: egen ? '🎂' : hvem === 'Alfie' ? '🐰' : '🎁',
+      tekst: egen ? 'din fødselsdag' + (alder > 0 ? ' – du fylder ' + alder : '') : genitiv(hvem) + ' fødselsdag' });
+  }
+
+  // Festdage (efter barnets valg)
+  for (const navn of Object.keys(NEDTAEL_FEST)) {
+    if (!valg[NEDTAEL_FEST[navn]]) continue;
+    const x = [...aaretsDage(idag.getFullYear()), ...aaretsDage(idag.getFullYear() + 1)]
+      .find(x => x.navn === navn && x.iso >= isoDato(idag));
+    if (x) ting.push({ n: dageTil(new Date(x.iso + 'T00:00')), ikon: x.ikon, tekst: navn.toLowerCase() });
+  }
+
+  // Ferie/fri fra kalenderen (ikke sygdom o.l. og ikke voksen-aftaler)
+  const aftaler = (await kalenderAftaler()).filter(a => a.fri && !FRAVAER[a.type] && !a._voksne && !a._privat);
+  const set = new Set();
+  for (let i = 0; i <= NEDTAEL_DAGE && set.size < 2; i++) {
+    const d = new Date(idag); d.setDate(d.getDate() + i);
+    const iso = isoDato(d);
+    for (const a of aftalerDen(aftaler, iso, [barn, 'Fælles'])) {
+      if (forekomstStart(a, iso) !== iso || set.has(a.titel)) continue;
+      set.add(a.titel);
+      ting.push({ n: i, ikon: '🌴', tekst: a.titel.toLowerCase().startsWith('fri') ? a.titel.toLowerCase() : a.titel });
+    }
+  }
+
+  ting.sort((a, b) => a.n - b.n);
+  let vis = ting.filter(t => t.n <= NEDTAEL_DAGE).slice(0, 3);
+  const egen = ting.find(t => t.egen);
+  if (egen && !vis.includes(egen)) vis = [...vis.slice(0, 2), egen];
+  if (!vis.length) return null;
+
+  const k = el('div', 'kort nedtael-kort');
+  const top = el('div', 'kort-top');
+  top.append(el('span', 'kort-label', 'Nedtælling ⏳'));
+  const ul = el('ul', 'nedtael-liste');
+  for (const t of vis) {
+    const li = el('li', t.egen ? 'egen' : '');
+    const tal = el('span', 'nt-tal');
+    if (t.n === 0) tal.append(el('b', null, t.ikon));
+    else tal.append(el('b', null, String(t.n)), el('small', null, t.n === 1 ? 'dag' : 'dage'));
+    const tekst = t.n === 0 ? 'I dag: ' + t.tekst + '! 🎉' : 'til ' + t.tekst + ' ' + t.ikon;
+    li.append(tal, el('span', 'nt-tekst', tekst));
+    ul.append(li);
+  }
+  k.append(top, ul);
   return k;
 }

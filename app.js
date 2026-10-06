@@ -1599,6 +1599,8 @@ async function tegnBoernetavle(barn) {
   if (pligter) gitter.append(pligter);
   const beloen = await beloenningKort(barn);   // fra mere.js
   if (beloen) gitter.append(beloen);
+  const nedtael = await nedtaellingKort(barn);   // fra sjov.js
+  if (nedtael) gitter.append(nedtael);
   gitter.append(skemaKort, madKort);
   // Vejr (og evt. sol) for den viste dag – efter barnets egne valg; hentes i baggrunden
   const barnValg = await valgFor(barn);
@@ -2163,7 +2165,8 @@ async function tilpasVisning(hvem = Data.bruger()?.navn) {
   const dele = [];
   if (folk.length > 1) dele.push(chipValg(folk, hvem, v => tilpasVisning(v), v => (v === mig ? 'Mig' : v)));
   const MULIGHEDER = [['helligdage', '🎄 Helligdage'], ['maerkedage', '🎃 Mærkedage (halloween, mors dag …)'],
-    ['sol', '🌅 Solopgang og solnedgang'], ['vejr', '🌦️ Vejret']];
+    ['sol', '🌅 Solopgang og solnedgang'], ['vejr', '🌦️ Vejret'],
+    ...(BOERN.includes(hvem) ? [['nedtaelling', '⏳ Nedtælling på tavlen']] : [])];
   const seg = el('div', 'seg wrap tilpas-valg');
   for (const [felt, tekst] of MULIGHEDER) {
     const k = knap(tekst, null, async () => {

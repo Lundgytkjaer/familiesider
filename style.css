@@ -842,3 +842,31 @@ body.barn .uge input[readonly] { background: transparent; }
 .punkt.sprunget { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; opacity: .6; }
 .sprunget-tekst { font-size: 14px; font-style: italic; }
 .stjerne-saldo { color: #e0a100; font-weight: 800; }
+.juster-knap { margin: 0 0 12px; }
+
+/* Ugens konkurrence: bemærkning efter indtastning */
+.konk-besked { margin: 8px 0 0; padding: 10px 12px; border-radius: 12px; font-weight: 600; line-height: 1.35; }
+.konk-besked.god { background: var(--accent-blod); color: var(--fg); }
+.konk-besked.advar { background: color-mix(in srgb, var(--p2) 18%, transparent); color: var(--fg); }
+
+/* Nedtælling på børnetavlen */
+.nedtael-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.nedtael-liste li { display: flex; align-items: center; gap: 12px; }
+.nt-tal { flex: none; width: 56px; height: 56px; border-radius: 14px; background: var(--accent-blod); display: grid; place-content: center; text-align: center; line-height: 1; }
+.nt-tal b { font-family: var(--font-titel); font-size: 22px; }
+.nt-tal small { font-size: 11px; color: var(--daempet); margin-top: 2px; }
+.nedtael-liste li.egen .nt-tal { background: color-mix(in srgb, var(--p2) 22%, transparent); }
+.nt-tekst { font-weight: 600; }
+.nt-tekst::first-letter { text-transform: uppercase; }
+
+/* Ugens overblik (voksne) */
+.uge-knap { margin: 0 0 12px; }
+.uge-oversigt { display: grid; gap: 10px; margin: 10px 0; }
+.uge-kort { border-left: 5px solid var(--pk, var(--accent)); padding: 12px 14px; }
+.uge-kort.c-oliver { --pk: var(--c-oliver); } .uge-kort.c-villads { --pk: var(--c-villads); }
+.uge-navn { font-family: var(--font-titel); font-weight: 700; font-size: 18px; }
+.uge-linjer { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.uge-linjer li { display: flex; justify-content: space-between; gap: 12px; }
+.uge-linjer li span { color: var(--daempet); }
+.uge-linjer li b { text-align: right; }
+.uge-bund { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--linje); font-weight: 600; }
