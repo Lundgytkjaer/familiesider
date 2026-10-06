@@ -758,3 +758,10 @@ body.barn ul[data-liste="todo"] .punkt-knap, body.barn ul[data-liste="indkob"] .
 body.barn .kal-celle { pointer-events: none; }
 body.barn .kal-celle .beg { pointer-events: auto; }
 body.barn .uge input[readonly] { background: transparent; }
+
+/* Ferie / fri */
+.fri-dag { font-size: 22px; font-weight: 800; color: var(--accent); margin: 0; }
+.syg-dag { color: #d9822b; }
+.tidlig-fri { font-weight: 800; color: var(--accent); }
+.lektion.aflyst { opacity: .45; text-decoration: line-through; }
+.kort-top .fravaer-knap { margin-left: auto; min-height: 30px; padding: 0 10px; font-size: 13px; }

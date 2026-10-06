@@ -65,6 +65,7 @@ function streak(d) {
     const iso = isoDato(dato);
     if (iso < tidligste) break;
     const dag = (dato.getDay() + 6) % 7;
+    if (d.kalender && sygDen(d.kalender, iso, d.barn)) { dato.setDate(dato.getDate() - 1); continue; }   // sygedag: springes over
     const planlagt = daglige.filter(o => (!o.dage || !o.dage.length || o.dage.includes(dag)) && oprettetIso(o) <= iso);
     if (planlagt.length) {
       if (planlagt.every(o => klaret.has(o.id + '|' + iso))) n++;
@@ -154,10 +155,11 @@ async function alfieKort(barn) {
     klaret += Math.min(n, hentTjek(r, iso).size);
   }
   if (!ialt) return null;
+  const syg = sygDen(d.kalender || [], iso, barn);
   const mangler = ialt - klaret;
   const aften = nu.getHours() >= 20;
-  const hvordan = !mangler ? (aften && Date.now() > alfieFestTil ? 'sover' : 'super') : klaret ? 'glad' : 'venter';
-  const tekst = {
+  const hvordan = syg ? 'sover' : !mangler ? (aften && Date.now() > alfieFestTil ? 'sover' : 'super') : klaret ? 'glad' : 'venter';
+  const tekst = syg ? 'Alfie hviler sig sammen med dig. God bedring 🤒' : {
     venter: aften ? 'Alfie venter stadig… ' + mangler + ' ting mangler i dag 🥕' : 'Alfie glæder sig! Klar til at gå i gang? 🥕',
     glad: mangler === 1 ? 'Kun én ting tilbage – så får Alfie en gulerod!' : 'Godt gået! ' + mangler + ' ting tilbage i dag.',
     super: 'Alt er klaret! Alfie får en gulerod 🥕🧡',

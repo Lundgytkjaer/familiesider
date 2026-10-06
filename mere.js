@@ -329,7 +329,9 @@ async function pligtData(barn) {
     beloenninger: beloenninger.filter(b => b.barn === barn || (b.barn === 'Begge' && BOERN.includes(barn))),
     indl: indl.filter(x => x.barn === barn),
     udb: udb.filter(x => x.barn === barn),
-    regel: await regelFor(barn)
+    regel: await regelFor(barn),
+    barn,
+    kalender: await Data.list('kalender')   // bruges til sygedage (bryder ikke streak)
   };
 }
 
