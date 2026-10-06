@@ -807,3 +807,10 @@ body.barn .uge input[readonly] { background: transparent; }
 .tilpas-valg { margin: 8px 0; }
 #kal-tilpas { margin-left: 8px; }
 .stor-raad span { background: var(--flade); }
+
+.sol-tekst { color: var(--daempet); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.sol-pil { font-size: 12px; opacity: .8; }
+.vejr-stribe .sol-tekst { justify-self: start; }
+.vejr-sted { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 10px; font-weight: 700; }
+.sted-liste { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+.sted-valg { width: 100%; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--linje); background: var(--flade); font-weight: 700; }

@@ -1587,7 +1587,7 @@ async function tegnBoernetavle(barn) {
     (barnValg.vejr ? vejrStribe(iso, barnValg.sol) : Promise.resolve(null)).then(async k => {
       if (!k && barnValg.sol) {
         const sol = solTider(new Date(iso + 'T12:00'), await familieSted());
-        if (sol) { k = el('div', 'vejr-stribe'); k.append(el('span', 'vs-sol', '🌅 Solopgang ' + klokken(sol.op) + ' · 🌇 solnedgang ' + klokken(sol.ned))); }
+        if (sol) { k = el('div', 'vejr-stribe'); k.append(solSpan(sol)); }
       }
       if (k) vejrPlads.replaceChildren(k);
     });
@@ -1946,13 +1946,15 @@ async function tegnOverblik() {
   // Solopgang og solnedgang (sted kan sættes under forbogstav-knappen)
   const mineValg = await valgFor(Data.bruger()?.navn);
   const sol = mineValg.sol ? solTider(new Date(), await familieSted()) : null;   // fra dage.js
-  const lys = sol ? Math.round((sol.ned - sol.op) / 60000) : 0;
-  document.getElementById('ov-sol').textContent = sol
-    ? '🌅 Op ' + klokken(sol.op) + ' · ned ' + klokken(sol.ned) + ' · ' + Math.floor(lys / 60) + ' t ' + (lys % 60) + ' min lys' : '';
-  // Vejret hentes i baggrunden, så resten af siden ikke venter
-  const ovVejr = document.getElementById('ov-vejr');
-  if (!mineValg.vejr) ovVejr.textContent = '';
-  else vejrLinje().then(t => { ovVejr.textContent = t; });   // fra vejr.js
+  const ovSol = document.getElementById('ov-sol'), ovVejr = document.getElementById('ov-vejr');
+  ovSol.replaceChildren(...(sol ? [solSpan(sol)] : []));
+  ovVejr.replaceChildren();
+  // Vejret hentes i baggrunden; er linjen kort, kommer solen med på samme linje
+  if (mineValg.vejr) vejrLinje().then(t => {   // fra vejr.js
+    if (!t) return;
+    if (sol && t.length <= 34) { ovSol.replaceChildren(); ovVejr.replaceChildren(t + '  ·  ', solSpan(sol)); }
+    else ovVejr.textContent = t;
+  });
 
   const ret = (await madFor(new Date())).ret;
   const retEl = document.getElementById('ov-ret');
@@ -2240,17 +2242,9 @@ document.getElementById('log-ud').addEventListener('click', () => {
   knapper.append(knap('Log ud', 'knap fare', () => Data.logud()), knap('Luk', 'knap', () => lukArk()));
   const stedDele = [];
   if (!erBarn()) {
-    const stedStatus = el('p', 'hint', 'Bruges til solopgang/solnedgang. Gemmes groft (ca. 10 km) for hele familien.');
-    stedDele.push(el('label', 'felt-label', 'Sted for solopgang'), knap('📍 Brug min placering', 'lille-knap', () => {
-      if (!navigator.geolocation) { stedStatus.textContent = 'Telefonen kan ikke give en placering.'; return; }
-      stedStatus.textContent = 'Finder placering…';
-      navigator.geolocation.getCurrentPosition(async pos => {
-        const vaerdi = { lat: Math.round(pos.coords.latitude * 10) / 10, lon: Math.round(pos.coords.longitude * 10) / 10 };
-        const rk = (await Data.list('indstillinger')).find(x => x.noegle === 'sted');
-        if (rk) await Data.update('indstillinger', rk.id, { vaerdi }); else await Data.add('indstillinger', { noegle: 'sted', vaerdi });
-        stedStatus.textContent = 'Gemt ✓'; tegnAlt();
-      }, () => { stedStatus.textContent = 'Fik ikke lov til at bruge placeringen.'; }, { timeout: 15000 });
-    }), stedStatus);
+    const stedKnap = knap('📍 Sted for vejr og sol …', 'lille-knap', () => vaelgSted());   // fra vejr.js
+    familieSted().then(st => { stedKnap.textContent = '📍 Vejr og sol: ' + (st.navn || 'Ukendt sted') + ' – skift'; });
+    stedDele.push(stedKnap);
   }
   aabnArk('Logget ind som ' + p.navn, felt('Udseende', temaValg),
     el('p', 'hint', 'Automatisk følger telefonens indstilling. Valget gælder kun denne enhed.'), ...stedDele,

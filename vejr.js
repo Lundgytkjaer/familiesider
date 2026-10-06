@@ -101,7 +101,7 @@ async function vejrStribe(iso, medSol) {
   }
   if (medSol) {
     const sol = solTider(new Date(iso + 'T12:00'), await familieSted());
-    if (sol) k.append(el('span', 'vs-sol', '🌅 ' + klokken(sol.op) + ' · 🌇 ' + klokken(sol.ned)));
+    if (sol) k.append(solSpan(sol));   // fra dage.js
   }
   return k;
 }
@@ -123,7 +123,11 @@ async function tegnVejr() {
   hoved.append(el('span', 'vn-ikon', vejrIkon(data.current.weather_code)),
     el('span', 'vn-temp', grader(data.current.temperature_2m)),
     el('span', 'vn-tekst', vejrTekst(data.current.weather_code) + (dag ? ' · i dag ' + grader(dag.min) + '–' + grader(dag.max) : '')));
-  const dele = [hoved];
+  const sted = await familieSted();
+  const stedLinje = el('div', 'vejr-sted');
+  stedLinje.append(el('span', null, '📍 ' + (sted.navn || 'Ukendt sted')));
+  if (!erBarn()) stedLinje.append(knap('Skift by', 'lille-knap', () => vaelgSted()));
+  const dele = [stedLinje, hoved];
   if (dag?.raad.length) {
     const r = el('div', 'vs-raad stor-raad');
     dag.raad.forEach(t => r.append(el('span', null, t)));
@@ -158,4 +162,56 @@ async function tegnVejr() {
   });
   dele.push(ul, el('p', 'kilde', 'Vejrdata: Open-Meteo.com'));
   boks.replaceChildren(...dele);
+}
+
+// ---------- Vælg sted (by) til vejr og sol – kun voksne ----------
+async function gemSted(vaerdi) {
+  const rk = (await Data.list('indstillinger')).find(x => x.noegle === 'sted');
+  if (rk) await Data.update('indstillinger', rk.id, { vaerdi }); else await Data.add('indstillinger', { noegle: 'sted', vaerdi });
+  vejrCache = null;
+  lukArk(); tegnAlt();
+}
+function vaelgSted() {
+  const soeg = input('text', 'sted-soeg', '', 'Skriv en by, fx Vejle');
+  soeg.enterKeyHint = 'search';
+  const status = el('p', 'hint');
+  const liste = el('ul', 'sted-liste');
+  const form = el('form', 'tilfoj');
+  form.append(soeg, el('button', 'knap', 'Søg'));
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const navn = soeg.value.trim();
+    if (!navn) return;
+    status.textContent = 'Søger…';
+    try {
+      const svar = await fetch('https://geocoding-api.open-meteo.com/v1/search?count=6&language=da&countryCode=DK&name=' + encodeURIComponent(navn));
+      const res = (await svar.json()).results || [];
+      status.textContent = res.length ? 'Tryk på den rigtige:' : 'Fandt ingen by med det navn.';
+      liste.replaceChildren(...res.map(x => {
+        const li = el('li');
+        li.append(knap(x.name + (x.admin2 || x.admin1 ? ' · ' + (x.admin2 || x.admin1) : ''), 'sted-valg',
+          () => gemSted({ lat: Math.round(x.latitude * 100) / 100, lon: Math.round(x.longitude * 100) / 100, navn: x.name })));
+        return li;
+      }));
+    } catch { status.textContent = 'Kunne ikke søge lige nu. Tjek internettet.'; }
+  });
+  const minPlacering = knap('📍 Brug min placering', 'lille-knap', () => {
+    if (!navigator.geolocation) { status.textContent = 'Enheden kan ikke give en placering.'; return; }
+    status.textContent = 'Finder placering…';
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const lat = Math.round(pos.coords.latitude * 10) / 10, lon = Math.round(pos.coords.longitude * 10) / 10;
+      let navn = 'Min placering';
+      try {
+        const svar = await fetch('https://api.bigdatacloud.net/data/reverse-geocode-client?localityLanguage=da&latitude=' + lat + '&longitude=' + lon);
+        const d = await svar.json();
+        navn = d.city || d.locality || navn;
+      } catch { /* navnet er ikke vigtigt */ }
+      gemSted({ lat, lon, navn });
+    }, () => { status.textContent = 'Fik ikke lov til at bruge placeringen.'; }, { timeout: 15000 });
+  });
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('Luk', 'knap', () => lukArk()));
+  aabnArk('By til vejr og sol', form, status, liste, minPlacering,
+    el('p', 'hint', 'Gælder hele familien. Placeringen gemmes kun groft (ca. 10 km).'), knapper);
+  setTimeout(() => soeg.focus(), 50);
 }

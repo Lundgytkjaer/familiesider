@@ -82,7 +82,7 @@ async function familieSted() {
 }
 
 // ---------- Solopgang og solnedgang (forenklet NOAA-beregning, ±1-2 min) ----------
-const STANDARD_STED = { lat: 56.0, lon: 10.0 };   // midt i Danmark – kan ændres under Udseende
+const STANDARD_STED = { lat: 56.0, lon: 10.0, navn: 'Midt i Danmark' };   // kan ændres under Vejret → Skift by
 function solTider(dato, sted = STANDARD_STED) {
   const rad = Math.PI / 180;
   const dagNr = Math.round((Date.UTC(dato.getFullYear(), dato.getMonth(), dato.getDate()) - Date.UTC(2000, 0, 1)) / 86400000) + 0.5;
@@ -99,3 +99,9 @@ function solTider(dato, sted = STANDARD_STED) {
   return { op: tilDato(transit - H), ned: tilDato(transit + H) };
 }
 const klokken = d => String(d.getHours()).padStart(2, '0') + '.' + String(d.getMinutes()).padStart(2, '0');
+// Diskret visning af sol op/ned: "Sol ↑ 07.33 ↓ 18.42"
+function solSpan(sol) {
+  const s = el('span', 'sol-tekst');
+  s.append('Sol ', el('span', 'sol-pil', '↑'), ' ' + klokken(sol.op) + '  ', el('span', 'sol-pil', '↓'), ' ' + klokken(sol.ned));
+  return s;
+}
