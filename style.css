@@ -765,3 +765,10 @@ body.barn .uge input[readonly] { background: transparent; }
 .tidlig-fri { font-weight: 800; color: var(--accent); }
 .lektion.aflyst { opacity: .45; text-decoration: line-through; }
 .kort-top .fravaer-knap { margin-left: auto; min-height: 30px; padding: 0 10px; font-size: 13px; }
+
+/* Helligdage og mærkedage */
+.c-hellig { --p: #d64545; }
+.c-dag { --p: #8a8f98; }
+.beg.c-dag, .beg.c-hellig { cursor: default; }
+.md-dag.hellig .md-nr { color: #d64545; }
+.sol-linje { margin-top: 2px; }
