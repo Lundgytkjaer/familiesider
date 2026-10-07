@@ -5,6 +5,27 @@ const lokal = {
   set(k, v) { try { localStorage.setItem('familietavle:' + k, v); } catch {} }
 };
 
+// Flag-emoji (🇩🇰 ved fødselsdage): Windows viser kun bogstaverne "DK". Kan browseren ikke tegne flag,
+// hentes en lille flag-skrifttype (Twemoji, CC-BY 4.0) – kun til flag-tegnene, alt andet er uændret.
+(function flagSkrift() {
+  try {
+    const tegn = t => {
+      const c = document.createElement('canvas'); c.width = c.height = 1;
+      const x = c.getContext('2d', { willReadFrequently: true });
+      x.textBaseline = 'top'; x.font = '100px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif'; x.scale(.01, .01);
+      const farve = f => { x.clearRect(0, 0, 100, 100); x.fillStyle = f; x.fillText(t, 0, 0); return x.getImageData(0, 0, 1, 1).data.join(','); };
+      const a = farve('#fff'), b = farve('#000');
+      return a === b && !a.startsWith('0,0,0,');   // farvet emoji = samme farve uanset tekstfarve
+    };
+    if (!tegn('\u{1F60A}') || tegn('\u{1F1E9}\u{1F1F0}')) return;
+    const st = document.createElement('style');
+    st.textContent = '@font-face { font-family: "Twemoji Country Flags"; unicode-range: U+1F1E6-1F1FF; font-display: swap; '
+      + 'src: url("https://cdn.jsdelivr.net/npm/country-flag-emoji-polyfill@0.1/dist/TwemojiCountryFlags.woff2") format("woff2"); }';
+    document.head.append(st);
+    document.documentElement.classList.add('flag-skrift');
+  } catch {}
+})();
+
 const BOERN = ['Oliver', 'Villads'];
 const DAGE = ['Man', 'Tir', 'Ons', 'Tor', 'Fre', 'Lør', 'Søn'];
 const DAGE_LANG = ['Mandag', 'Tirsdag', 'Onsdag', 'Torsdag', 'Fredag', 'Lørdag', 'Søndag'];
@@ -104,6 +125,7 @@ function visFane(navn) {
   lokal.set('fane', navn);
   opdaterTilbage();
   if (navn === 'vejr' && typeof tegnVejr === 'function') tegnVejr();   // fra vejr.js
+  if (typeof holdSkaermTaendt === 'function') holdSkaermTaendt(navn === 'indkob' && handler);   // handletilstand holder skærmen tændt (handel.js)
   if (navn === 'familie' && typeof tegnFamilie === 'function') tegnFamilie();   // fra familie.js (træet skal måles, når siden er synlig)
 }
 function opdaterTilbage() {
@@ -264,7 +286,8 @@ function redigerTodo(p) {
 async function redigerVare(p) {
   const navn = input('text', 'vare-navn', p.tekst);
   const butikker = (await Data.list('favoritter')).filter(f => f.type === 'butik')
-    .sort((a, b) => (b.brugt || 0) - (a.brugt || 0) || a.tekst.localeCompare(b.tekst, 'da')).map(f => f.tekst);
+    .sort((a, b) => (b.brugt || 0) - (a.brugt || 0) || a.tekst.localeCompare(b.tekst, 'da')).map(f => f.tekst)
+    .filter((t, i, a) => a.findIndex(x => x.toLowerCase() === t.toLowerCase()) === i);   // ingen dubletter
   if (p.butik && !butikker.includes(p.butik)) butikker.push(p.butik);
   let butik = p.butik || '';
   const muligheder = ['', ...butikker];
@@ -351,7 +374,11 @@ async function redigerVare(p) {
   const faerdig = knap('Færdig', 'knap', () => lukArk());
   const knapper = el('div', 'ark-knapper'); knapper.append(slet, faerdig);
 
-  aabnArk('Vare', felt('Vare', navn), felt('Butik', butikValg), nyButik, tilbudLabel,
+  // Kategori (bestemmer hvor varen står i handletilstand) – huskes til næste gang
+  const fav = await Data.list('favoritter');
+  const katValg = chipValg(KATEGORIER.map(k => k[0]), varensKategori(p, fav), async k => { await saetKategori(p, k); tegnAlt(); },
+    k => KAT[k].ikon + ' ' + KAT[k].navn);
+  aabnArk('Vare', felt('Vare', navn), felt('Butik', butikValg), nyButik, felt('Kategori', katValg), tilbudLabel,
     felt('Note', note), felt('Billede', billedBoks), fejl, gemtTekst, knapper);
 }
 
@@ -371,6 +398,7 @@ async function tegnListe(navn) {
     if (butikFilter) viste = punkter.filter(p => !p.butik || p.butik === butikFilter);
   }
 
+  if (navn === 'indkob' && typeof tegnHandleliste === 'function') tegnHandleliste(viste);   // fra handel.js
   if (!viste.length) ul.append(el('li', 'tom', TOM_TEKST[navn]));
 
   for (const p of viste) {
@@ -2539,7 +2567,7 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     dele.push(el('p', 'hint', 'Vælg hvem du retter for:'), chipValg(folk, hvem, v => aabnIndstillinger(v), v => v));
   }
   const MULIGHEDER = [['helligdage', '🎄 Helligdage'], ['maerkedage', '🎃 Mærkedage (halloween, mors dag …)'],
-    ['sol', '🌅 Solopgang og solnedgang'], ['vejr', '🌦️ Vejret'],
+    ['sol', '🌅 Solopgang og solnedgang'], ['vejr', '🌦️ Vejret'], ['relationer', '👪 Familierelation ved fødselsdage – fx "Jonna (mormor)"'],
     ...(BOERN.includes(hvem) ? [['nedtaelling', '⏳ Nedtælling på tavlen'], ['makker', '🐰 Makker på tavlen']] : [])];
   const seg = el('div', 'seg wrap tilpas-valg');
   for (const [felt, tekst] of MULIGHEDER) {
@@ -2553,7 +2581,8 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     k.setAttribute('aria-checked', valg[felt]);
     seg.append(k);
   }
-  dele.push(seg, el('p', 'hint', hvem === mig ? 'Gælder din kalender og din I dag-side – på alle dine enheder.' : 'Gælder ' + hvem + 's tavle og kalender.'));
+  dele.push(seg, el('p', 'hint', (hvem === mig ? 'Gælder din kalender og din I dag-side – på alle dine enheder.' : 'Gælder ' + hvem + 's tavle og kalender.')
+    + ' Relationen kan også slås til og fra for den enkelte person på personens kort under Mere → Familie.'));
   // Voksne vælger, hvilke faner et barn kan se (tavlen er der altid)
   if (!erBarn() && BOERN.includes(hvem)) {
     const faner = new Set(Array.isArray(valg.faner) ? valg.faner : BOERNE_FANER);

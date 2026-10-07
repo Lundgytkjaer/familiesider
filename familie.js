@@ -170,16 +170,25 @@ async function famSetFra(navn) {
 async function foedselsListe(hvem = Data.bruger()?.navn) {
   const egne = await Data.list('foedselsdage');
   const r = await famSetFra(hvem);
+  const visRel = await famVisRelation(hvem);
   const fra = [];
   for (const p of r.fd.alle) {
     if (!famHarDato(p) || (p.doed && !p.minde)) continue;
-    const rel = p.bruger ? null : r.kort(p.id);
+    const rel = p.bruger || !visRel(p.id) ? null : r.kort(p.id);
     fra.push({ id: p.id, person: p, navn: famKort(p) + (rel ? ' (' + rel + ')' : ''), dato: p.foedt, minde: !!p.doed, bruger: p.bruger || null });
   }
   // En gammel række med samme fornavn og dato som en person vises ikke to gange
   const fornavn = s => (s || '').trim().split(/\s+/)[0].toLowerCase();
   const rest = egne.filter(f => !(f.dato && !f.aarsdag && fra.some(x => x.dato === f.dato && fornavn(famKort(x.person)) === fornavn(f.navn))));
   return [...rest, ...fra];
+}
+
+// Vises relationen ved fødselsdagen? Pr. person, der kigger (personvalg): relationer (til/fra for alle)
+// + relUndtag = personer, der er undtaget (skjult når "til", vist når "fra"). Rettes i Indstillinger og på personkortet.
+async function famVisRelation(hvem) {
+  const valg = await valgFor(hvem);   // fra dage.js
+  const undtag = new Set(valg.relUndtag || []);
+  return id => (valg.relationer !== false) !== undtag.has(id);
 }
 
 // ---------- Siden "Familie" (under Mere) ----------
@@ -281,6 +290,22 @@ async function visPerson(id) {
   if (p.doed) fakta.push('† Død' + (p.doedDato ? ' ' + kortDag(p.doedDato) + ' ' + p.doedDato.slice(0, 4) : ''));
   if (p.doed && famHarDato(p) && !erBarn()) fakta.push(p.minde ? '🕯️ Mindedag vises i kalenderen' : 'Mindedag vises ikke i kalenderen');
   for (const f of fakta) dele.push(el('p', 'fam-fakta', f));
+  // Vis/skjul relationen ved fødselsdagen i kalenderen – for den, man ser familien fra
+  const kortRel = r.mig && !p.bruger && famHarDato(p) && (!p.doed || p.minde) ? r.kort(id) : null;
+  if (kortRel && (!erBarn() || fra === Data.bruger()?.navn)) {
+    const vis = (await famVisRelation(fra))(id);
+    const lbl = el('label', 'check fam-rel-valg');
+    const cb = el('input'); cb.type = 'checkbox'; cb.checked = vis;
+    cb.addEventListener('change', async () => {
+      const valg = await valgFor(fra);
+      const undtag = new Set(valg.relUndtag || []);
+      if (undtag.has(id)) undtag.delete(id); else undtag.add(id);
+      await saetValg(fra, 'relUndtag', [...undtag]);   // fra dage.js
+      tegnAlt();
+    });
+    lbl.append(cb, 'Skriv "' + kortRel + '" ved fødselsdagen i ' + (fra === Data.bruger()?.navn ? 'din' : famGenitiv(fra)) + ' kalender');
+    dele.push(lbl);
+  }
   // Kontaktinfo – kun voksne (ligger i 'kontakter', som børn slet ikke kan hente fra databasen)
   if (!erBarn()) {
     const k = (await Data.list('kontakter')).find(x => x.person === id);

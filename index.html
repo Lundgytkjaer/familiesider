@@ -23,7 +23,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-07j">
+  <link rel="stylesheet" href="style.css?v=2026-10-07k">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -145,7 +145,7 @@
 
     <!-- INDKØB -->
     <section id="indkob" class="fane" hidden>
-      <div class="sek-hoved"><h2>Indkøb</h2><span class="taeller" data-taeller="indkob"></span></div>
+      <div class="sek-hoved"><h2>Indkøb</h2><span class="taeller" data-taeller="indkob"></span><button type="button" class="lille-knap handle-knap" id="handle-knap" aria-pressed="false">🛒 Handle</button></div>
       <form class="tilfoj" data-liste="indkob">
         <input type="text" id="ny-indkob" placeholder="Fx mælk" aria-label="Ny vare" autocomplete="off" enterkeyhint="done">
         <button class="knap">Tilføj</button>
@@ -153,7 +153,8 @@
       <div class="forslag" data-forslag="indkob"></div>
       <div class="seg" id="butik-filter" role="radiogroup" aria-label="Vis varer fra butik" hidden></div>
       <ul class="liste" data-liste="indkob"></ul>
-      <p class="hint kun-voksen">Tryk på ⋯ for at sætte butik, tilbud eller billede på en vare.</p>
+      <div id="handle-liste" class="handle-liste"></div>
+      <p class="hint kun-voksen indkob-hint">Tryk på ⋯ for at sætte butik, kategori, tilbud eller billede på en vare. 🛒 Handle viser listen sorteret efter, hvor tingene står i butikken.</p>
       <button type="button" class="ryd" data-liste="indkob" data-tekst="Ryd det købte">Ryd det købte</button>
     </section>
 
@@ -427,12 +428,13 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="data.js?v=2026-10-07j"></script>
-<script src="dage.js?v=2026-10-07j"></script>
-<script src="vejr.js?v=2026-10-07j"></script>
-<script src="app.js?v=2026-10-07j"></script>
-<script src="mere.js?v=2026-10-07j"></script>
-<script src="sjov.js?v=2026-10-07j"></script>
-<script src="familie.js?v=2026-10-07j"></script>
+<script src="data.js?v=2026-10-07k"></script>
+<script src="dage.js?v=2026-10-07k"></script>
+<script src="vejr.js?v=2026-10-07k"></script>
+<script src="app.js?v=2026-10-07k"></script>
+<script src="mere.js?v=2026-10-07k"></script>
+<script src="sjov.js?v=2026-10-07k"></script>
+<script src="familie.js?v=2026-10-07k"></script>
+<script src="handel.js?v=2026-10-07k"></script>
 </body>
 </html>

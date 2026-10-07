@@ -1173,3 +1173,38 @@ textarea.k-tekst { display: block; padding: 12px 14px; resize: vertical; line-he
 .flamme-fest.milepael .ff-flamme { font-size: 110px; filter: drop-shadow(0 0 22px rgb(255 200 0 / .85)); }
 .flamme-fest.milepael .ff-tekst { padding: 12px 22px; }
 .flamme-fest.milepael .ff-tekst b { font-size: 24px; }
+/* Flag-skrift på Windows (se flagSkrift i app.js) – bruges kun til flag-tegn */
+html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui, -apple-system, sans-serif; --font-titel: "Twemoji Country Flags", "Bricolage Grotesque", system-ui, sans-serif; }
+
+/* Indkøb: handletilstand (handel.js) – kompakt liste sorteret efter butikkens rækkefølge */
+#indkob .sek-hoved { align-items: center; }
+.handle-knap { margin-left: auto; border-color: var(--accent); color: var(--accent); font-weight: 700; }
+.handle-knap[aria-pressed="true"] { background: var(--accent); color: var(--paa-accent); }
+#indkob.handler ul[data-liste="indkob"], #indkob.handler .forslag, #indkob.handler .indkob-hint { display: none; }
+#indkob.handler .tilfoj { margin-bottom: 8px; }
+.handle-status { display: flex; align-items: center; gap: 10px; margin: 4px 0 10px; font-size: 14px; font-weight: 700; color: var(--daempet); }
+.handle-bar { flex: 1; height: 8px; border-radius: 4px; background: var(--linje); overflow: hidden; }
+.handle-bar span { display: block; height: 100%; background: var(--accent); border-radius: 4px; transition: width .3s; }
+.handle-gruppe { margin-bottom: 10px; }
+.handle-titel { position: sticky; top: 0; z-index: 2; margin: 0; padding: 6px 2px; font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--daempet); background: var(--bg); }
+.handle-ul { list-style: none; margin: 0; padding: 0; background: var(--flade); border-radius: 14px; overflow: hidden; }
+.handle-vare { display: flex; align-items: center; }
+.handle-vare + .handle-vare { border-top: 1px solid var(--linje); }
+.handle-tjek { flex: 1; min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 2px 12px; min-height: 46px; padding: 6px 12px; border: 0; background: none; text-align: left; }
+.handle-tjek .tjek { flex: none; width: 24px; height: 24px; }
+.handle-tekst { flex: 1; min-width: 0; font-size: 17px; font-weight: 600; overflow-wrap: anywhere; }
+.handle-ekstra { flex-basis: 100%; padding-left: 36px; margin-top: -2px; font-size: 12.5px; color: var(--daempet); }
+.handle-ekstra.tilbud { color: var(--tilbud); font-weight: 700; }
+.handle-vare.klaret .handle-tekst { text-decoration: line-through; color: var(--daempet); font-weight: 500; }
+.handle-kat { flex: none; width: 44px; height: 44px; margin-right: 4px; border: 0; border-radius: 12px; background: none; font-size: 18px; opacity: .55; }
+.handle-kat.ukendt { opacity: 1; background: var(--accent-blod); }
+.handle-kurv { margin-top: 14px; }
+.handle-kurv summary { cursor: pointer; padding: 8px 2px; font-weight: 700; color: var(--daempet); }
+.handle-faerdig { text-align: center; font-size: 18px; font-weight: 800; margin: 18px 0; }
+.kat-valg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.kat-knap { display: flex; align-items: center; gap: 10px; min-height: 54px; padding: 8px 12px; border: 2px solid var(--linje); border-radius: 14px; background: var(--bg); font-weight: 700; text-align: left; }
+.kat-knap.valgt { border-color: var(--accent); background: var(--accent-blod); }
+.kat-ikon { font-size: 22px; }
+.fam-rel-valg { font-size: 14.5px; }
+.handle-vare.klaret .tjek { background: var(--accent); border-color: var(--accent); }
+.handle-vare.klaret .tjek svg { opacity: 1; }
