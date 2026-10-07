@@ -67,8 +67,8 @@ function ugeSpan(man) {
 const kortDag = iso => { const d = new Date(iso + 'T00:00'); return d.getDate() + '. ' + MDR[d.getMonth()]; };
 
 // ---------- Faner ----------
-const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp'];
-const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp'];   // sider man når via "Mere"
+const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie'];
+const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie'];   // sider man når via "Mere"
 const FANE_NAVN = { idag: 'I dag', kalender: 'Kalender', madplan: 'Madplan', indkob: 'Indkøb', todo: 'To do', mere: 'Mere' };
 // Børn ser kun de faner, de voksne har slået til for dem (personvalg.faner). Tavlen ("I dag") er der altid.
 const BOERNE_FANER = ['kalender', 'madplan', 'mere'];   // standard for børn
@@ -1300,7 +1300,7 @@ async function tegnMaaned() {
   document.getElementById('kal-dato').textContent = '';
 
   const aftaler = await kalenderAftaler();
-  const alleFoed = await Data.list('foedselsdage');
+  const alleFoed = await foedselsListe();   // fra familie.js (personer + gamle rækker)
   const mineValg = await valgFor(Data.bruger()?.navn);
   const idagIso = isoDato(new Date());
   if (kalValgtDag.slice(0, 7) !== isoDato(foerste).slice(0, 7)) {
@@ -1329,7 +1329,7 @@ async function tegnMaaned() {
       const titler = el('span', 'md-titler');
       for (const f of foed) {
         prikker.append(el('span', 'prik ' + dagKlasse(f)));
-        titler.append(el('span', 'md-titel ' + dagKlasse(f), f.indbygget ? f.ikon + ' ' + f.navn : (f.dato ? (f.aarsdag ? '🎉 ' : '🇩🇰 ') : '') + f.navn));
+        titler.append(el('span', 'md-titel ' + dagKlasse(f), f.indbygget ? f.ikon + ' ' + f.navn : foedIkon(f) + f.navn));
       }
       if (foed.some(f => f.hellig)) k.classList.add('hellig');
       for (const a of dagens) {
@@ -1377,7 +1377,7 @@ async function tegnKalender() {
   document.getElementById('kal-dato').textContent = son.getFullYear() !== new Date().getFullYear() ? son.getFullYear() : '';
 
   const aftaler = await kalenderAftaler();
-  const alleFoed = await Data.list('foedselsdage');
+  const alleFoed = await foedselsListe();   // fra familie.js (personer + gamle rækker)
   const mineValg = await valgFor(Data.bruger()?.navn);
   const idagIso = isoDato(new Date());
   const g = document.getElementById('kal');
@@ -1411,8 +1411,8 @@ async function tegnKalender() {
           const b = el('button', 'beg c-foed');
           b.type = 'button';
           const alder = alderPaa(f, d);
-          b.append(el('b', null, (f.dato ? (f.aarsdag ? '🎉 ' : '🇩🇰 ') : '') + f.navn));
-          if (alder != null) b.append(el('span', null, alder + ' år'));
+          b.append(el('b', null, foedIkon(f) + f.navn));
+          if (alder != null && !f.minde) b.append(el('span', null, alder + ' år'));
           b.addEventListener('click', e => { e.stopPropagation(); redigerFoed(f); });
           celle.append(b);
         }
@@ -2163,14 +2163,16 @@ function naesteGang(f, fra) {
   return d;
 }
 const alderPaa = (f, d) => (f.dato ? d.getFullYear() - Number(f.dato.slice(0, 4)) : null);
+const foedIkon = f => (f.minde ? '🕯️ ' : f.dato ? (f.aarsdag ? '🎉 ' : '🇩🇰 ') : '');
 const foedTekst = f => (f.indbygget ? f.ikon + ' ' + f.navn
+  : f.minde ? '🕯️ ' + f.navn + ' · mindedag'
   : f.aarsdag && f.alder != null ? '🎉 ' + f.navn + ' · ' + f.alder + ' år'
   : f.alder != null ? '🇩🇰 ' + f.navn + ' fylder ' + f.alder : f.navn);
 // Fødselsdage, årsdage og mærkedage den dag – inkl. helligdage/mærkedage fra dage.js
 async function foedselsdageDen(iso, hvem = Data.bruger()?.navn) {
   const d = new Date(iso + 'T00:00');
   const valg = await valgFor(hvem);   // fra dage.js
-  const egne = (await Data.list('foedselsdage'))
+  const egne = (await foedselsListe(hvem))
     .filter(f => isoDato(datoIAar(f, d.getFullYear())) === iso)
     .map(f => ({ ...f, alder: alderPaa(f, d) }));
   return [...egne, ...indbyggedeDageDen(iso, egne, valg)];
@@ -2180,7 +2182,7 @@ const dagKlasse = f => (f.indbygget ? (f.hellig ? 'c-hellig' : 'c-dag') : 'c-foe
 async function tegnFoedselsdage() {
   const ul = document.getElementById('foed-liste');
   const idag = new Date(); idag.setHours(0, 0, 0, 0);
-  const alle = (await Data.list('foedselsdage')).map(f => {
+  const alle = (await foedselsListe()).map(f => {
     const d = naesteGang(f, idag);
     return { f, d, dage: Math.round((d - idag) / 86400000), alder: alderPaa(f, d) };
   }).sort((a, b) => a.d - b.d || a.f.navn.localeCompare(b.f.navn, 'da'));
@@ -2194,7 +2196,7 @@ async function tegnFoedselsdage() {
     dato.append(el('b', null, r.d.getDate()), el('small', null, MDR[r.d.getMonth()]));
     const midt = el('span', 'foed-midt');
     midt.append(el('span', 'foed-navn', r.f.navn),
-      el('span', 'foed-under', r.alder == null ? 'Mærkedag' : r.f.aarsdag ? '🎉 ' + r.alder + ' år' : '🇩🇰 Fylder ' + r.alder + ' år'));
+      el('span', 'foed-under', r.f.minde ? '🕯️ Mindedag' : r.alder == null ? 'Mærkedag' : r.f.aarsdag ? '🎉 ' + r.alder + ' år' : '🇩🇰 Fylder ' + r.alder + ' år'));
     const naar = r.dage === 0 ? 'I dag' : r.dage === 1 ? 'I morgen' : 'Om ' + r.dage + ' dage';
     b.append(dato, midt, el('span', 'foed-naar', naar));
     li.append(b);
@@ -2208,6 +2210,7 @@ document.getElementById('foed-alle').addEventListener('click', () => { visAlleFo
 document.getElementById('ny-foed').addEventListener('click', () => redigerFoed({}));
 
 function redigerFoed(f) {
+  if (f.person) return visPerson(f.person.id);   // fødselsdage fra familien rettes på personen (familie.js)
   if (erBarn()) return;
   const ny = !f.id;
   const navn = input('text', 'foed-navn', f.navn, 'Fx Mormor');
@@ -2691,6 +2694,7 @@ function tegnAlt() {
   tegnListe('indkob'); tegnListe('todo'); tegnMadplan(); tegnFastPlan(); tegnSkema(); tegnKalender(); tegnOverblik();
   tegnForslag('indkob'); tegnForslag('todo'); tegnForslag('ret'); tegnForslag('morgen'); tegnForslag('frokost');
   tegnFoedselsdage();
+  tegnFamilie();   // fra familie.js
   tegnMere();   // fra mere.js
   tegnVejr();   // fra vejr.js (tegner kun, når siden er åben)
   anvendFaner();

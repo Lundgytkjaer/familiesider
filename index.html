@@ -23,7 +23,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-07d">
+  <link rel="stylesheet" href="style.css?v=2026-10-07e">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -199,6 +199,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>
           <span class="mere-navn">Skoleskema</span><span class="under">Drengenes skemaer med farver</span>
         </button>
+        <button type="button" class="kort mere-kort" data-gaa="familie">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="2.5"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M12 7.5V12M5.5 16v-2a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v2"/></svg>
+          <span class="mere-navn">Familie</span><span class="under">Hvem er hvem – og hvornår har de fødselsdag</span>
+        </button>
         <button type="button" class="kort mere-kort" data-gaa="rutiner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2.5h6"/></svg>
           <span class="mere-navn">Rutiner</span><span class="under">Tandbørstning, sengetid og andet med billeder</span>
@@ -224,6 +228,13 @@
           <span class="mere-navn">Sådan virker det</span><span class="under">Kort guide til Familietavlen</span>
         </button>
       </div>
+    </section>
+
+    <!-- FAMILIE -->
+    <section id="familie" class="fane" hidden>
+      <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
+      <div class="sek-hoved"><h2>Familie</h2><button type="button" class="lille-knap" id="ny-person" hidden>Tilføj</button></div>
+      <div id="familie-indhold"></div>
     </section>
 
     <!-- RUTINER -->
@@ -287,7 +298,7 @@
             <li>Tryk <b>+ Ny aftale</b> eller i et tomt felt. Tryk på en aftale for at rette eller slette den.</li>
             <li>En aftale kan være for flere personer, vare flere dage og gentages. <b>🌴 Ferie / fri</b> gør, at skolen vises som fri.</li>
             <li><b>🔒 Kun voksne</b> kan børnene ikke se. <b>👤 Kun mig</b> kan kun du se.</li>
-            <li>Fødselsdage, årsdage og mærkedage står nederst og kommer automatisk i kalenderen.</li>
+            <li>Fødselsdage, årsdage og mærkedage står nederst og kommer automatisk i kalenderen. Familiens fødselsdage rettes under <b>Mere → Familie</b>.</li>
           </ul>
         </div>
 
@@ -322,6 +333,7 @@
           <h3>Mere</h3>
           <ul>
             <li><b>Rutiner</b> er en guide med billeder (fx tandbørstning og sengetid) – der skal ikke krydses noget af.</li>
+            <li><b>Familie</b> viser hele familien – hvem der er mormor, faster, fætter osv. Tryk på en person for at se forældre, søskende og børn<span class="kun-voksen">, rette eller tilføje familie (+ Barn, + Forælder …). Afdøde kan få en 🕯️ mindedag i kalenderen</span>.</li>
             <li><b>Skoleskema</b>, <b>Pakkelister</b>, <b>Ugens konkurrence</b> (hvem cykler eller går længst) og <b>Vejret</b>.</li>
           </ul>
         </div>
@@ -402,11 +414,12 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="data.js?v=2026-10-07d"></script>
-<script src="dage.js?v=2026-10-07d"></script>
-<script src="vejr.js?v=2026-10-07d"></script>
-<script src="app.js?v=2026-10-07d"></script>
-<script src="mere.js?v=2026-10-07d"></script>
-<script src="sjov.js?v=2026-10-07d"></script>
+<script src="data.js?v=2026-10-07e"></script>
+<script src="dage.js?v=2026-10-07e"></script>
+<script src="vejr.js?v=2026-10-07e"></script>
+<script src="app.js?v=2026-10-07e"></script>
+<script src="mere.js?v=2026-10-07e"></script>
+<script src="sjov.js?v=2026-10-07e"></script>
+<script src="familie.js?v=2026-10-07e"></script>
 </body>
 </html>

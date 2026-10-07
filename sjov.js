@@ -499,9 +499,9 @@ async function nedtaellingKort(barn) {
 
   // Fødselsdage i familien (og Alfies)
   const familie = [...PERSONER.filter(p => p !== 'Fælles'), 'Alfie'];
-  for (const f of await Data.list('foedselsdage')) {
-    if (!f.dato || f.aarsdag) continue;
-    const hvem = (f.navn || '').trim().split(/\s+/)[0];
+  for (const f of await foedselsListe(barn)) {   // fra familie.js
+    if (!f.dato || f.aarsdag || f.minde) continue;
+    const hvem = f.bruger || (f.navn || '').trim().split(/\s+/)[0];
     if (!familie.includes(hvem)) continue;
     const d = naesteGang(f, idag);
     const alder = alderPaa(f, d);
