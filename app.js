@@ -38,10 +38,24 @@ function ugenummer(dato) {
 // "8.00-8.45" -> [480, 525] minutter
 function tidSomMin(tid) {
   const dele = (tid || '').split(/[-–]/).map(s => s.trim().replace(':', '.'));
-  const tilMin = s => { const [t, m] = s.split('.').map(Number); return isNaN(t) ? null : t * 60 + (m || 0); };
+  const tilMin = s => { if (!s) return null; const [t, m] = s.split('.').map(Number); return isNaN(t) ? null : t * 60 + (m || 0); };   // tom tid = ukendt (ikke kl. 0)
   return [tilMin(dele[0] || ''), tilMin(dele[1] || '')];
 }
 const slutTid = tid => ((tid || '').split(/[-–]/)[1] || '').trim();
+// Mødetid og fri-tid for en skoledag (alle = dagensTimer). Har skolen kun givet en mødetid og en hjemtid
+// (ingen tider på de enkelte timer), er den sidste tid efter mødetiden hjemtiden.
+function skoleTider(alle) {
+  const medFag = alle.filter(t => t.fag);
+  if (!medFag.length) return { start: '', slut: '', harTimer: false };
+  const start = (medFag[0].tid.split(/[-–]/)[0] || '').trim();
+  let slut = slutTid(medFag[medFag.length - 1].tid);
+  const harTimer = alle.some(t => slutTid(t.tid));
+  if (!slut && !harTimer) {
+    const efter = alle.slice(alle.indexOf(medFag[0]) + 1).map(t => (t.tid || '').trim()).filter(Boolean);
+    if (efter.length) slut = efter[efter.length - 1].split(/[-–]/)[0].trim();
+  }
+  return { start, slut, harTimer };
+}
 // Klokkeslæt vises altid med punktum, som resten af appen: 08.00–08.45
 const visTider = s => (s || '').replace(/:/g, '.').replace(/\s*[-–]\s*/, '–');
 // Ugens dage som tekst: "5.–11. okt." eller "28. sep.–4. okt." (bruges alle steder, hvor en uge vises)
@@ -1088,9 +1102,9 @@ async function tegnSkema() {
   const fkBoks = document.getElementById('skema-forklaring');
   fkBoks.replaceChildren(redigerer ? '' : forklaring(farver, new Set(medFag.map(t => t.farve))));
 
-  const sidste = friDag ? null : medFag[medFag.length - 1];
+  const { slut: friKl } = friDag ? {} : skoleTider(timer);
   const fod = [];
-  if (sidste && slutTid(sidste.tid)) fod.push('Fri kl. ' + visTid(slutTid(sidste.tid)));
+  if (friKl) fod.push('Fri kl. ' + visTid(friKl));
   if (kontakt && !redigerer) fod.push('Kontakt: ' + kontakt);
   document.getElementById('fri-kl').textContent = fod.join(' · ');
 
@@ -1670,13 +1684,13 @@ async function tegnBoernetavle(barn) {
   } else {
     const tidlig = aftalerDen(await Data.list('kalender'), iso, [barn]).find(a => a.type === 'tidlig' && a.tid);
     const tidligMin = tidlig ? tidSomMin(tidlig.tid)[0] : null;
-    const timer = (await dagensTimer(barn, dagNr)).filter(t => t.fag);
+    const alleRaekker = await dagensTimer(barn, dagNr);
+    const timer = alleRaekker.filter(t => t.fag);
     if (!timer.length) {
       skemaKort = kort('Skole', el('p', 'under', 'Intet skema lagt ind for ' + DAGE_LANG[dagNr].toLowerCase() + '.'));
       skemaKort.tavle = { stor: 'Skole', lille: 'Intet skema lagt ind' };
     } else {
-      const start = (timer[0].tid.split(/[-–]/)[0] || '').trim();
-      const slut = slutTid(timer[timer.length - 1].tid);
+      const { start, slut, harTimer } = skoleTider(alleRaekker);
       const tider = el('p', 'bt-tider');
       if (start) tider.append(el('span', null, 'Møder ' + visTid(start)));
       if (tidlig) tider.append(el('span', 'tidlig-fri', '⏰ Fri ' + visTid(tidlig.tid) + ' i dag'));
@@ -1694,15 +1708,17 @@ async function tegnBoernetavle(barn) {
       // Opsummering til tavle-visningen: hvad sker der nu / næste
       let friTid = tidlig ? tidlig.tid : slut;
       const nuTime = iso === idagIso ? timer.find(t => { const [fra, til] = tidSomMin(t.tid); return fra != null && til != null && nuMin >= fra && nuMin < til; }) : null;
-      const startMin = tidSomMin(timer[0].tid)[0];
-      const slutMin = tidligMin ?? tidSomMin(timer[timer.length - 1].tid)[1];
+      const startMin = tidSomMin(start)[0];
+      const slutMin = tidligMin ?? tidSomMin(slut)[0];
       friTid = visTid(friTid);
+      const friDel = friTid ? 'fri ' + friTid : '';
       if (iso === idagIso && slutMin != null && nuMin >= slutMin) skemaKort.tavle = { stor: 'Fri 🎉', lille: 'Skolen er slut for i dag', klar: true };
-      else if (nuTime) skemaKort.tavle = { stor: nuTime.fag, lille: 'Nu · fri ' + friTid };
+      else if (nuTime) skemaKort.tavle = { stor: nuTime.fag, lille: ['Nu', friDel].filter(Boolean).join(' · ') };
       else if (iso === idagIso && startMin != null && nuMin >= startMin) {
-        const naesteT = timer.find(t => (tidSomMin(t.tid)[0] ?? 0) > nuMin);
-        skemaKort.tavle = { stor: naesteT ? naesteT.fag : 'Pause', lille: (naesteT ? 'Næste · ' : '') + 'fri ' + friTid };
-      } else skemaKort.tavle = { stor: 'Møder ' + visTid(start), lille: timer[0].fag + ' · fri ' + friTid };
+        // I skole: uden tider på timerne vises bare "I skole"
+        const naesteT = harTimer ? timer.find(t => (tidSomMin(t.tid)[0] ?? -1) > nuMin) : null;
+        skemaKort.tavle = { stor: !harTimer ? 'I skole' : naesteT ? naesteT.fag : 'Pause', lille: [naesteT ? 'Næste' : '', friDel].filter(Boolean).join(' · ') };
+      } else skemaKort.tavle = { stor: start ? 'Møder ' + visTid(start) : 'Skole', lille: [timer[0].fag, friDel].filter(Boolean).join(' · ') };
     }
   }
 
@@ -2357,8 +2373,8 @@ async function tegnOverblik() {
     } else if (!timer.length) {
       linje.append(el('span', 'barn-fri', 'Intet skema'));
     } else {
-      const start = (timer[0].tid.split(/[-–]/)[0] || '').trim();
-      linje.append(el('span', 'barn-fri', 'Fri ' + visTid(slutTid(timer[timer.length - 1].tid))));
+      const { start, slut } = skoleTider(await dagensTimer(barn, dag));
+      linje.append(el('span', 'barn-fri', slut ? 'Fri ' + visTid(slut) : ''));
       linje.append(el('span', 'barn-fag', (start ? 'Møder ' + visTid(start) + ' · ' : '') + [...new Set(timer.map(t => t.fag))].join(', ')));
     }
     skole.append(linje);
@@ -2516,7 +2532,7 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
   }
   const MULIGHEDER = [['helligdage', '🎄 Helligdage'], ['maerkedage', '🎃 Mærkedage (halloween, mors dag …)'],
     ['sol', '🌅 Solopgang og solnedgang'], ['vejr', '🌦️ Vejret'],
-    ...(BOERN.includes(hvem) ? [['nedtaelling', '⏳ Nedtælling på tavlen']] : [])];
+    ...(BOERN.includes(hvem) ? [['nedtaelling', '⏳ Nedtælling på tavlen'], ['makker', '🐰 Makker på tavlen']] : [])];
   const seg = el('div', 'seg wrap tilpas-valg');
   for (const [felt, tekst] of MULIGHEDER) {
     const k = knap(tekst, null, async () => {

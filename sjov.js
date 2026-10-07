@@ -427,8 +427,12 @@ function vaelgMakker(barn, nu) {
     grid.append(k);
   }
   const knapper = el('div', 'ark-knapper');
-  knapper.append(knap('Luk', 'knap', () => lukArk()));
-  aabnArk('Vælg din makker', grid, el('p', 'hint', 'Makkeren bliver gladere, jo mere du klarer i dag.'), knapper);
+  knapper.append(knap('Ingen makker', 'knap sekundaer-knap', async () => {
+    await saetValg(barn, 'makker', false);
+    lukArk(); tegnAlt();
+    visStatus('Makkeren er væk. Den kan komme tilbage under Indstillinger.');
+  }), knap('Luk', 'knap', () => lukArk()));
+  aabnArk('Vælg din makker', grid, el('p', 'hint', 'Makkeren bliver gladere, jo mere du klarer i dag. "Ingen makker" fjerner den fra tavlen – den kan slås til igen under Indstillinger (din runde knap øverst).'), knapper);
 }
 
 // Kort til børnetavlen: makkeren bliver gladere, jo flere af dagens pligter der er klaret
@@ -441,6 +445,7 @@ async function alfieKort(barn) {
   const ialt = liste.length, klaret = liste.filter(r => r.f).length;
   if (!d.opgaver.length) return null;   // barnet har slet ingen pligter – så ingen makker
   const valg = await valgFor(barn);   // fra dage.js
+  if (valg.makker === false) return null;   // slået fra (Indstillinger eller "Skift makker")
   const m = makkerFor(valg);
   const syg = sygDen(d.kalender || [], iso, barn);
   const mangler = ialt - klaret;
