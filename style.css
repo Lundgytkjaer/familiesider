@@ -1163,3 +1163,13 @@ textarea.k-tekst { display: block; padding: 12px 14px; resize: vertical; line-he
 .bonus-linje.givet { color: var(--accent); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bonus-linje:not(.givet) { color: #ffab4d; } }
 :root[data-theme="dark"] .bonus-linje:not(.givet) { color: #ffab4d; }
+.bonus-linje.joker { color: #6d4fcf; }
+.bonus-linje.start { color: var(--daempet); font-weight: 600; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bonus-linje.joker { color: #a990ff; } }
+:root[data-theme="dark"] .bonus-linje.joker { color: #a990ff; }
+.streak-info { margin-top: -4px; }
+.ff-tekst .ff-ekstra { color: #c45a00; font-weight: 800; font-size: 15px; }
+.ff-tekst .ff-joker { font-size: 13px; }
+.flamme-fest.milepael .ff-flamme { font-size: 110px; filter: drop-shadow(0 0 22px rgb(255 200 0 / .85)); }
+.flamme-fest.milepael .ff-tekst { padding: 12px 22px; }
+.flamme-fest.milepael .ff-tekst b { font-size: 24px; }

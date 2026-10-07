@@ -19,6 +19,9 @@ function fejr(tekst) {
   setTimeout(() => besked.remove(), 2600);
 
   if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  konfetti();
+}
+function konfetti() {
   const c = el('canvas', 'konfetti');
   const dpr = window.devicePixelRatio || 1;
   const w = innerWidth, h = innerHeight;
@@ -52,46 +55,25 @@ function fejr(tekst) {
 }
 
 // ---------- Streak: dage i træk hvor alle dagens hver-dag-pligter blev klaret ----------
-// I dag tæller med, når den er klaret – men bryder ikke rækken, før dagen er gået.
-function streak(d) {
-  const daglige = d.opgaver.filter(o => !o.frivillig && !['uge', 'engang', 'interval'].includes(o.gentag));
-  if (!daglige.length) return d.streakAnker ? Math.max(0, Number(d.streakAnker.dage) || 0) : 0;
-  const klaret = new Set(d.flueben.map(f => f.opgave + '|' + f.periode));
-  const oprettetIso = o => (o.oprettet ? isoDato(new Date(o.oprettet)) : '0000-00-00');
-  const tidligste = daglige.map(oprettetIso).sort()[0];
-  let n = 0;
-  const dato = new Date();
-  const anker = d.streakAnker;   // voksen-justering: "rækken var X dage til og med denne dato"
-  for (let i = 0; i < 400; i++) {
-    const iso = isoDato(dato);
-    if (anker && iso <= anker.dato) { n += Math.max(0, Math.round(Number(anker.dage) || 0)); break; }
-    if (iso < tidligste) break;
-    const dag = (dato.getDay() + 6) % 7;
-    if (d.kalender && sygDen(d.kalender, iso, d.barn)) { dato.setDate(dato.getDate() - 1); continue; }   // sygedag: springes over
-    const planlagt = daglige.filter(o => (!o.dage || !o.dage.length || o.dage.includes(dag)) && oprettetIso(o) <= iso);
-    if (planlagt.length) {
-      if (planlagt.every(o => klaret.has(o.id + '|' + iso))) n++;
-      else if (i > 0) break;
-    }
-    dato.setDate(dato.getDate() - 1);
-  }
-  return n;
-}
-const streakTekst = n => '🔥 ' + n + (n === 1 ? ' dag' : ' dage') + ' i træk';
-
-// ---------- Streak-bonus: ekstra stjerne(r), når man holder rækken ----------
-// Data: 'streakbonus' {barn, dato, stjerner, dage}. Gives automatisk, når dagens sidste hver-dag-pligt krydses af.
-// Reglen er den SAMME som databasens streakbonus_ok (opdatering-streakbonus.sql) – ret begge steder:
-//   1) i dag er alle dagens hver-dag-pligter klaret (bonus og uge-/engangspligter tæller ikke)
-//   2) den seneste dag før i dag med hver-dag-pligter var også klaret (sygedage og dage uden pligter
-//      springes over, højst 7 dage tilbage). Første dag i en ny række giver altså ingen bonus.
-// Antal stjerner sættes af en voksen pr. barn (personregler.streakBonus: 0 = fra, standard 1).
+// Reglerne her er de SAMME som i databasen (opdatering-streakbonus-2.sql) – ret begge steder:
+//   • En dag tæller, når alle dagens hver-dag-pligter er klaret (bonus og uge-/engangspligter tæller ikke).
+//   • Dage uden hver-dag-pligter, sygedage (en "Syg"-aftale uden gentagelse) og dage reddet af jokeren springes over.
+//   • En voksen kan sætte rækken ("var X dage til og med dato" – justeringer type 'streak').
+//   • I dag tæller med, når den er klaret – men bryder ikke rækken, før dagen er gået.
+// Data: 'streakbonus' {barn, dato, stjerner, dage, milepael?}  – automatisk ekstra stjerne(r) fra dag 2 i træk
+//       'streakjoker' {barn, dato (den reddede dag), maaned 'ÅÅÅÅ-MM'} – én pr. måned redder en glemt dag
+// Regler pr. barn (personregler, sættes af en voksen): streakBonus (0 = fra, standard 1), joker (false = fra)
+const MILEPAELE = { 7: 3, 14: 5, 21: 5, 30: 10, 50: 10, 75: 15, 100: 20 };
+const milepaelStjerner = n => MILEPAELE[n] || (n > 100 && n % 50 === 0 ? 20 : 0);
+const naesteMilepael = n => { for (let m = n + 1; m < n + 60; m++) if (milepaelStjerner(m)) return m; return null; };
 const bonusStjerner = d => (d.regel.stjerner ? Math.max(0, Math.round(tal(d.regel.streakBonus ?? 1))) : 0);
+const jokerTil = d => d.regel.joker !== false;
+
+const oprettetIso = o => (o.oprettet ? isoDato(new Date(o.oprettet)) : '0000-00-00');
+const dagligePligter = d => d.opgaver.filter(o => !o.frivillig && !['uge', 'engang', 'interval'].includes(o.gentag));
 function dagligeDen(d, iso) {
   const dag = (new Date(iso + 'T00:00').getDay() + 6) % 7;
-  const oprettetIso = o => (o.oprettet ? isoDato(new Date(o.oprettet)) : '0000-00-00');
-  return d.opgaver.filter(o => !o.frivillig && !['uge', 'engang', 'interval'].includes(o.gentag)
-    && (!Array.isArray(o.dage) || !o.dage.length || o.dage.includes(dag)) && oprettetIso(o) <= iso);
+  return dagligePligter(d).filter(o => (!Array.isArray(o.dage) || !o.dage.length || o.dage.includes(dag)) && oprettetIso(o) <= iso);
 }
 // null = ingen hver-dag-pligter den dag, true = alle klaret, false = ikke alle
 function dagKlaret(d, iso) {
@@ -103,52 +85,117 @@ function dagKlaret(d, iso) {
 const sygSimpel = (d, iso) => (d.kalender || []).some(a => a.type === 'syg' && !a.gentag && a.dato <= iso
   && (a.tilDato && a.tilDato > a.dato ? a.tilDato : a.dato) >= iso
   && [].concat(a.hvem || []).some(h => h === d.barn || h === 'Fælles'));
-function igaarHoldt(d, iso) {
-  for (let i = 1; i <= 7; i++) {
+const jokerDen = (d, iso) => (d.jokere || []).some(j => j.dato === iso);
+const springOverDag = (d, iso) => sygSimpel(d, iso) || jokerDen(d, iso);
+const tidligstePligt = d => dagligePligter(d).map(oprettetIso).sort()[0] || '9999-99-99';
+
+function streak(d) {
+  const anker = d.streakAnker;   // voksen-justering: "rækken var X dage til og med denne dato"
+  if (!dagligePligter(d).length) return anker ? Math.max(0, Math.round(tal(anker.dage))) : 0;
+  const idag = isoDato(new Date()), tidligste = tidligstePligt(d);
+  let n = 0;
+  for (let i = 0; i < 400; i++) {
+    const iso = plusDage(idag, -i);
+    if (anker && iso <= anker.dato) { n += Math.max(0, Math.round(tal(anker.dage))); break; }
+    if (iso < tidligste) break;
+    if (springOverDag(d, iso)) continue;
+    const k = dagKlaret(d, iso);
+    if (k === null) continue;
+    if (k) n++;
+    else if (i > 0) break;
+  }
+  return n;
+}
+const streakTekst = n => '🔥 ' + n + (n === 1 ? ' dag' : ' dage') + ' i træk';
+
+// Den seneste dag før 'iso', der tæller: true = holdt (klaret eller voksen-sat række), false = brudt.
+// Giver også datoen, så jokeren ved, hvilken dag den skal redde.
+function forrigeDag(d, iso) {
+  const anker = d.streakAnker, tidligste = tidligstePligt(d);
+  for (let i = 1; i <= 400; i++) {
     const dag = plusDage(iso, -i);
-    if (sygSimpel(d, dag)) continue;
+    if (anker && dag <= anker.dato) return { holdt: Math.round(tal(anker.dage)) > 0, dato: null };
+    if (dag < tidligste) return { holdt: false, dato: null };
+    if (springOverDag(d, dag)) continue;
     const k = dagKlaret(d, dag);
     if (k === null) continue;
-    return k;
+    return { holdt: k, dato: dag };
   }
-  return false;
+  return { holdt: false, dato: null };
 }
-// Status til kortene: kan man få bonus i dag, og er den allerede givet?
+// Kan jokeren redde rækken i dag? (gårsdagen – eller den seneste dag med pligter – blev glemt, men dagen før var holdt)
+function jokerKanRedde(d, iso) {
+  if (!jokerTil(d) || (d.jokere || []).some(j => j.maaned === iso.slice(0, 7))) return null;
+  const f = forrigeDag(d, iso);
+  if (f.holdt || !f.dato) return null;
+  return forrigeDag(d, f.dato).holdt ? f.dato : null;
+}
+// Status til kortene
 function bonusStatus(d) {
   const iso = isoDato(new Date());
   const n = bonusStjerner(d);
   const givet = (d.bonus || []).find(b => b.dato === iso) || null;
-  return { n, givet, mulig: n > 0 && !givet && dagKlaret(d, iso) === false && igaarHoldt(d, iso) };
+  const klaretIdag = dagKlaret(d, iso);
+  const holdt = forrigeDag(d, iso).holdt;
+  const joker = klaretIdag === false && !holdt ? jokerKanRedde(d, iso) : null;
+  const naeste = streak(d) + (klaretIdag === true ? 0 : 1);   // rækken, hvis i dag bliver klaret
+  return {
+    n, givet, joker, klaretIdag,
+    mulig: n > 0 && !givet && klaretIdag === false && (holdt || !!joker),
+    starter: n > 0 && !givet && klaretIdag !== null && !holdt && !joker,   // første dag i en ny række
+    milepael: klaretIdag === false ? milepaelStjerner(naeste) : 0, naeste,
+    jokerBrugt: (d.jokere || []).some(j => j.maaned === iso.slice(0, 7))
+  };
 }
-// Kaldes efter hvert flueben: giver bonus, når den er fortjent – og tager den igen, hvis et flueben fjernes
+// Kaldes efter hvert flueben: bruger jokeren hvis det redder rækken, giver bonus (+ milepæl) –
+// og tager bonussen igen, hvis et flueben fjernes
 async function opdaterStreakBonus(barn) {
-  const d = await pligtData(barn);   // fra mere.js
+  let d = await pligtData(barn);   // fra mere.js
   const iso = isoDato(new Date());
-  const n = bonusStjerner(d);
-  const givet = d.bonus.find(b => b.dato === iso);
-  const fortjent = n > 0 && dagKlaret(d, iso) === true && igaarHoldt(d, iso);
+  const klaret = dagKlaret(d, iso) === true;
+  let jokerBrugt = false;
   try {
+    if (klaret && !forrigeDag(d, iso).holdt) {
+      const redde = jokerKanRedde(d, iso);
+      if (redde) {
+        await Data.add('streakjoker', { barn, dato: redde, maaned: iso.slice(0, 7) });
+        jokerBrugt = true;
+        d = await pligtData(barn);
+      }
+    }
+    const n = bonusStjerner(d);
+    const givet = d.bonus.find(b => b.dato === iso);
+    const fortjent = n > 0 && klaret && forrigeDag(d, iso).holdt;
     if (fortjent && !givet) {
-      await Data.add('streakbonus', { barn, dato: iso, stjerner: n, dage: streak(d) });
-      return { n, dage: streak(d) };
+      const dage = streak(d);
+      const ekstra = milepaelStjerner(dage);
+      await Data.add('streakbonus', { barn, dato: iso, stjerner: n + ekstra, dage, ...(ekstra ? { milepael: dage } : {}) });
+      return { n, ekstra, dage, jokerBrugt };
     }
     if (!fortjent && givet) await Data.stille(() => Data.remove('streakbonus', givet.id));
   } catch (e) { console.warn('Streak-bonus:', e); }
-  return null;
+  return jokerBrugt ? { n: 0, ekstra: 0, dage: streak(d), jokerBrugt } : null;
 }
 
-// Animation: flammen blusser op og "spytter" en stjerne ud, der flyver hen til stjernerne
-function flammeStjerne(n, dage) {
-  const boks = el('div', 'flamme-fest');
+// Animation: flammen blusser op og "spytter" stjerner ud, der flyver hen til stjernerne.
+// Ved en milepæl: medalje, flere stjerner og konfetti. Jokeren vises med 🃏.
+function flammeStjerne({ n, ekstra = 0, dage, jokerBrugt = false }) {
+  const boks = el('div', 'flamme-fest' + (ekstra ? ' milepael' : ''));
   boks.setAttribute('role', 'status');
-  const flamme = el('div', 'ff-flamme', '🔥');
+  const flamme = el('div', 'ff-flamme', ekstra ? '🏅' : jokerBrugt && !n ? '🃏' : '🔥');
   const tekst = el('div', 'ff-tekst');
-  tekst.append(el('b', null, 'Streak-bonus! +' + n + ' ★'), el('span', null, streakTekst(dage)));
+  if (ekstra) tekst.append(el('b', null, dage + ' dage i træk!'), el('span', 'ff-ekstra', '+' + (n + ekstra) + ' ★ (heraf ' + ekstra + ' ekstra)'));
+  else if (n) tekst.append(el('b', null, 'Streak-bonus! +' + n + ' ★'), el('span', null, streakTekst(dage)));
+  else tekst.append(el('b', null, 'Jokeren reddede din streak!'), el('span', null, streakTekst(dage)));
+  if (jokerBrugt && n) tekst.append(el('span', 'ff-joker', '🃏 Jokeren reddede den glemte dag'));
   boks.append(flamme, tekst);
   document.body.append(boks);
+  const varighed = ekstra ? 3800 : 2900;
   const vaek = () => { boks.classList.add('vaek'); setTimeout(() => boks.remove(), 450); };
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { setTimeout(vaek, 2400); return; }
-  // Stjernerne flyver ud af flammen hen mod stjerne-tallet (belønningsfeltet), ellers op og væk
+  setTimeout(vaek, varighed);
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (ekstra) konfetti();
+  if (!n) return;
   const maal = [...document.querySelectorAll('.flise[data-noegle="beloenninger"], .stjerne-stat, .kort-pil')]
     .find(e => e.offsetParent && e.getBoundingClientRect().bottom > 0 && e.getBoundingClientRect().top < innerHeight);
   setTimeout(() => {
@@ -156,19 +203,19 @@ function flammeStjerne(n, dage) {
     const fx = f.left + f.width / 2, fy = f.top + f.height * 0.35;
     const m = maal ? maal.getBoundingClientRect() : { left: innerWidth / 2, top: -40, width: 0, height: 0 };
     const mx = m.left + m.width / 2, my = m.top + m.height / 2;
-    for (let i = 0; i < Math.min(5, n + 2); i++) {
+    const antal = Math.min(ekstra ? 9 : 5, n + ekstra + 2);
+    for (let i = 0; i < antal; i++) {
       const stj = el('div', 'ff-stjerne', '★');
       document.body.append(stj);
-      const ud = (i - 1) * 40;
+      const ud = (i - (antal - 1) / 2) * 34;
       stj.animate([
         { transform: `translate(${fx}px, ${fy}px) scale(.3)`, opacity: 0 },
-        { transform: `translate(${fx + ud}px, ${fy - 90 - i * 12}px) scale(1.5)`, opacity: 1, offset: 0.35 },
+        { transform: `translate(${fx + ud}px, ${fy - 90 - (i % 3) * 14}px) scale(1.5)`, opacity: 1, offset: 0.35 },
         { transform: `translate(${mx}px, ${my}px) scale(.6)`, opacity: .9 }
-      ], { duration: 1200 + i * 120, delay: i * 110, easing: 'cubic-bezier(.3,.1,.3,1)', fill: 'forwards' })
+      ], { duration: 1200 + i * 110, delay: i * 100, easing: 'cubic-bezier(.3,.1,.3,1)', fill: 'forwards' })
         .finished.then(() => { stj.remove(); if (maal && i === 0) maal.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: 350 }); });
     }
   }, 650);
-  setTimeout(vaek, 2900);
 }
 
 // ---------- Alfie – orange løvehoved-dværgkanin ----------

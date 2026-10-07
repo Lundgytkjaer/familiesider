@@ -2464,7 +2464,7 @@ function barnMaa(handling, liste, felter, gammel) {
   const navn = Data.bruger()?.navn;
   if (handling === 'ny') {
     if (liste === 'flueben') return felter.barn === navn;
-    if (liste === 'streakbonus') return felter.barn === navn;   // databasen tjekker selve reglen (streakbonus_ok)
+    if (liste === 'streakbonus' || liste === 'streakjoker') return felter.barn === navn;   // databasen tjekker selve reglen (streakbonus_ok / streakjoker_ok)
     if (liste === 'indloesninger') return felter.barn === navn && felter.status === 'afventer';
     if (liste === 'motion') return felter.hvem === navn;
     if (liste === 'personvalg') return felter.navn === navn;

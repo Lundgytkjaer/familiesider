@@ -326,7 +326,7 @@ async function regelFor(navn) {
   const r = (await Data.list('personregler')).find(x => x.navn === navn);
   const barn = BOERN.includes(navn);
   // streakBonus = stjerner for at holde rækken (sjov.js); 0 = fra, standard 1
-  return r ? { kr: !!r.kr, stjerner: !!r.stjerner, streakBonus: r.streakBonus ?? 1 } : { kr: barn, stjerner: barn, streakBonus: 1 };
+  return r ? { kr: !!r.kr, stjerner: !!r.stjerner, streakBonus: r.streakBonus ?? 1, joker: r.joker !== false } : { kr: barn, stjerner: barn, streakBonus: 1, joker: true };
 }
 async function saetRegel(navn, felt, vaerdi) {
   const r = (await Data.list('personregler')).find(x => x.navn === navn);
@@ -335,8 +335,8 @@ async function saetRegel(navn, felt, vaerdi) {
 }
 
 async function pligtData(barn) {
-  const [opgaver, flueben, beloenninger, indl, udb, just, bonus] = await Promise.all(
-    ['opgaver', 'flueben', 'beloenninger', 'indloesninger', 'udbetalinger', 'justeringer', 'streakbonus'].map(l => Data.list(l)));
+  const [opgaver, flueben, beloenninger, indl, udb, just, bonus, jokere] = await Promise.all(
+    ['opgaver', 'flueben', 'beloenninger', 'indloesninger', 'udbetalinger', 'justeringer', 'streakbonus', 'streakjoker'].map(l => Data.list(l)));
   const mineJust = just.filter(x => x.barn === barn);
   return {
     opgaver: opgaver.filter(o => o.barn === barn),
@@ -345,6 +345,7 @@ async function pligtData(barn) {
     indl: indl.filter(x => x.barn === barn),
     udb: udb.filter(x => x.barn === barn),
     bonus: bonus.filter(x => x.barn === barn),   // streak-bonus (sjov.js)
+    jokere: jokere.filter(x => x.barn === barn),   // rednings-jokere (sjov.js)
     just: mineJust.filter(x => x.type !== 'streak'),   // + / − stjerner og kr fra en voksen
     streakAnker: mineJust.filter(x => x.type === 'streak').sort((a, b) => (a.oprettet || '').localeCompare(b.oprettet || '')).pop() || null,
     regel: await regelFor(barn),
@@ -452,7 +453,7 @@ async function skiftFlueben(barn, r, regel) {
     else if (liste.length && liste.every(x => x.f)) { fejr('Alle pligter er klaret! 🎉'); fejret = true; }
   }
   tegnAlt();
-  if (bonus) setTimeout(() => flammeStjerne(bonus.n, bonus.dage), fejret ? 1700 : 300);
+  if (bonus) setTimeout(() => flammeStjerne(bonus), fejret ? 1700 : 300);
 }
 
 function opgaveLi(barn, r, regel) {
@@ -487,6 +488,18 @@ function opgaveLi(barn, r, regel) {
 }
 
 // Kort med dagens pligter – bruges på drengenes tavle og som "Mine pligter" på de voksnes I dag
+// Linjen om streak-bonus på pligt-kortet (lokker, forklarer eller fejrer)
+function bonusLinje(bs) {
+  if (!bs.n) return null;
+  if (bs.givet) return el('p', 'bonus-linje givet', (bs.givet.milepael ? '🏅 ' + bs.givet.milepael + ' dage i træk! ' : '🔥 Streak-bonus i dag: ') + '+★ ' + bs.givet.stjerner);
+  if (bs.joker) return el('p', 'bonus-linje joker', '🃏 Du glemte en dag – klar alle pligter i dag, så redder jokeren din streak (+★ ' + (bs.n + bs.milepael) + ')');
+  if (bs.mulig) return el('p', 'bonus-linje', bs.milepael
+    ? '🏅 Klar alt i dag = ' + bs.naeste + ' dage i træk og +★ ' + (bs.n + bs.milepael) + '!'
+    : '🔥 Klar alle dine pligter i dag = +★ ' + bs.n + ' i streak-bonus');
+  if (bs.starter) return el('p', 'bonus-linje start', bs.klaretIdag ? '🔥 Godt! Klar alt i morgen også = +★ ' + bs.n : '🔥 Klar alt i dag og i morgen – så giver hver dag i træk +★ ' + bs.n);
+  return null;
+}
+
 async function pligtKort(barn, titel = 'Pligter i dag') {
   const d = await pligtData(barn);
   if (!d.opgaver.length) return null;
@@ -509,8 +522,8 @@ async function pligtKort(barn, titel = 'Pligter i dag') {
   k.append(top, ul);
   // Streak-bonus: lok med den, og vis den, når den er givet
   const bs = d.regel.stjerner ? bonusStatus(d) : { n: 0 };   // fra sjov.js
-  if (bs.givet) k.append(el('p', 'bonus-linje givet', '🔥 Streak-bonus i dag: +★ ' + bs.givet.stjerner));
-  else if (bs.mulig) k.append(el('p', 'bonus-linje', '🔥 Klar alle dine pligter i dag = +★ ' + bs.n + ' i streak-bonus'));
+  const bl = bonusLinje(bs);
+  if (bl) k.append(bl);
   if (liste.some(r => r.o.piktogram)) k.append(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
   // Opsummering til tavle-visningen
   const pligt = skalKlares(liste.filter(r => !r.sprunget));
@@ -520,7 +533,7 @@ async function pligtKort(barn, titel = 'Pligter i dag') {
   k.tavle = { noegle: 'pligter', ikon: '✅', titel: titel === 'Pligter i dag' ? 'Pligter' : titel,
     andel: pligt.length ? klaret / pligt.length : 0, klar: pligt.length > 0 && !naesteP,
     stor: !pligt.length ? (bonus ? bonus + ' bonus' : 'Ingen i dag') : !naesteP ? 'Alle klaret' : klaret + ' af ' + pligt.length,
-    lille: naesteP ? (bs.mulig ? '🔥 +★ ' + bs.n + ' når alt er klaret' : 'Næste: ' + naesteP.o.navn)
+    lille: naesteP ? (bs.joker ? '🃏 Jokeren kan redde din streak' : bs.mulig ? (bs.milepael ? '🏅 +★ ' + (bs.n + bs.milepael) + ' når alt er klaret' : '🔥 +★ ' + bs.n + ' når alt er klaret') : 'Næste: ' + naesteP.o.navn)
       : bs.givet ? '🔥 +★ ' + bs.givet.stjerner + ' streak-bonus' : st >= 2 ? streakTekst(st) : bonus ? 'Bonus venter ⭐' : 'Sejt! 🎉' };
   return k;
 }
@@ -566,6 +579,14 @@ async function tegnPligter() {
   }
   const st = streak(d);
   if (st >= 1) dele.push(el('p', 'streak-linje', streakTekst(st) + (st >= 2 ? ' – sejt!' : '')));
+  if (d.regel.stjerner && bonusStjerner(d)) {   // fra sjov.js
+    const bs = bonusStatus(d), nm = naesteMilepael(st);
+    const info = [nm ? '🏅 Næste milepæl: ' + nm + ' dage (+★ ' + milepaelStjerner(nm) + ' ekstra)' : '',
+      jokerTil(d) ? (bs.jokerBrugt ? '🃏 Jokeren er brugt i denne måned' : '🃏 1 joker i denne måned') : ''].filter(Boolean);
+    const bl = bonusLinje(bs);
+    if (bl) dele.push(bl);
+    if (info.length) dele.push(el('p', 'hint streak-info', info.join(' · ')));
+  }
 
   if (erVoksen() && (d.regel.kr || d.regel.stjerner || d.opgaver.length)) {
     dele.push(knap('Justér stjerner, kr eller dage i træk', 'lille-knap juster-knap', () => justerSaldo(barn, d, s, st)));
@@ -631,7 +652,8 @@ async function tegnPligter() {
         tekst: (x.status === 'afventer' ? 'Ønsket: ' : x.status === 'afvist' ? 'Ikke godkendt: ' : 'Indløst: ') + x.navn,
         vaerdi: x.status === 'afvist' ? '' : (x.status === 'afventer' ? '(★ ' + x.stjerner + ')' : '−★ ' + x.stjerner) })),
       ...d.udb.map(x => ({ dato: x.dato, tekst: 'Lommepenge udbetalt', vaerdi: '−' + kr(tal(x.kr)) })),
-      ...(d.bonus || []).map(x => ({ dato: x.dato, tekst: '🔥 Streak-bonus' + (x.dage ? ' (' + x.dage + ' dage i træk)' : ''), vaerdi: '+★ ' + x.stjerner })),
+      ...(d.bonus || []).map(x => ({ dato: x.dato, tekst: (x.milepael ? '🏅 Milepæl' : '🔥 Streak-bonus') + (x.dage ? ' (' + x.dage + ' dage i træk)' : ''), vaerdi: '+★ ' + x.stjerner })),
+      ...(d.jokere || []).map(x => ({ dato: x.dato, tekst: '🃏 Jokeren reddede dagen', vaerdi: '' })),
       ...d.just.map(x => ({ dato: x.dato, tekst: 'Justering' + (x.tekst ? ': ' + x.tekst : ''),
         vaerdi: [tal(x.kr) ? (tal(x.kr) > 0 ? '+' : '') + kr(tal(x.kr)) : '', tal(x.stjerner) ? (tal(x.stjerner) > 0 ? '+★ ' : '−★ ') + Math.abs(tal(x.stjerner)) : ''].filter(Boolean).join(' ') }))
     ].sort((a, b) => (b.dato || '').localeCompare(a.dato || '')).slice(0, 8);
@@ -667,7 +689,13 @@ async function tegnPligter() {
         dele.push(el('h3', 'lille-titel', '🔥 Streak-bonus'),
           valgSeg([0, 1, 2, 3], Math.round(tal(d.regel.streakBonus ?? 1)), async v => { await saetRegel(barn, 'streakBonus', v); tegnAlt(); },
             v => (v === 0 ? 'Fra' : '+★ ' + v + ' pr. dag')),
-          el('p', 'hint', 'Gives automatisk (med flamme-animation), når alle hver-dag-pligter er klaret – fra dag 2 i træk. Sygedage bryder ikke rækken.'));
+          el('p', 'hint', 'Gives automatisk (med flamme-animation), når alle hver-dag-pligter er klaret – fra dag 2 i træk. Milepæle giver ekstra: 7 dage +3, 14 +5, 21 +5, 30 +10, 50 +10, 75 +15, 100 +20. Sygedage bryder ikke rækken.'));
+        const jk = knap('🃏 Rednings-joker (1 pr. måned)', null, async () => { await saetRegel(barn, 'joker', !jokerTil(d)); tegnAlt(); });
+        jk.setAttribute('role', 'checkbox');
+        jk.setAttribute('aria-checked', jokerTil(d));
+        const jseg = el('div', 'seg wrap');
+        jseg.append(jk);
+        dele.push(jseg, el('p', 'hint', 'Glemmer barnet en dag, redder jokeren automatisk rækken, når næste dag klares – én gang pr. måned.'));
       }
 
       const GENTAG = { dag: 'Hver dag', uge: 'Én gang om ugen', engang: 'Kun én gang', interval: '' };
