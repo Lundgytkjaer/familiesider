@@ -210,6 +210,9 @@ async function tegnFamilie() {
   if (!famVisFra || !husets.includes(famVisFra)) famVisFra = husets.includes(Data.bruger()?.navn) ? Data.bruger().navn : husets[0] || null;
   const r = await famSetFra(famVisFra);
   document.getElementById('ny-person').hidden = erBarn();
+  const visKnap = document.getElementById('fam-visning');
+  visKnap.textContent = famVisning === 'trae' ? '☰ Vis som liste' : '🌳 Vis som træ';
+  visKnap.hidden = !fd.alle.length;
 
   const dele = [];
   if (!fd.alle.length) {
@@ -219,7 +222,13 @@ async function tegnFamilie() {
   }
   if (husets.length > 1) {
     dele.push(el('p', 'hint fam-setfra-hint', 'Se familien fra:'),
-      chipValg(husets, famVisFra, v => { famVisFra = v; tegnFamilie(); }));
+      chipValg(husets, famVisFra, v => { famVisFra = v; famFokus = null; tegnFamilie(); }));
+  }
+  if (famVisning === 'trae') {
+    dele.push(...famTrae(fd, r, boks));
+    boks.replaceChildren(...dele);
+    famCentrer(boks);
+    return;
   }
 
   const grupper = new Map();
@@ -414,6 +423,133 @@ async function famPartnerSymmetri(fd, id, gammel, ny) {
       await Data.update('personer', ny, { partner: id });
     }
   }
+}
+
+
+// ---------- Familietræet (grafisk) ----------
+// Ét udsnit ad gangen omkring en "midterperson": bedsteforældre, forældre, søskende, partner og børn.
+// Tryk på en anden = træet flytter sig derhen. Tryk på midterpersonen = kortet med det hele.
+let famVisning = lokal.get('fam-visning') === 'liste' ? 'liste' : 'trae';
+let famFokus = null;   // id på midterpersonen (null = den man ser familien fra)
+document.getElementById('fam-visning')?.addEventListener('click', () => {
+  famVisning = famVisning === 'trae' ? 'liste' : 'trae';
+  lokal.set('fam-visning', famVisning);
+  tegnFamilie();
+});
+
+const famEfterAar = (fd, ids) => ids.map(id => fd.efterId.get(id)).filter(Boolean)
+  .sort((a, b) => (famAar(a) || 9999) - (famAar(b) || 9999) || famKort(a).localeCompare(famKort(b), 'da')).map(p => p.id);
+const famFarFoerst = (fd, ids) => [...ids].sort((a, b) => (fd.efterId.get(a)?.koen === 'm' ? 0 : 1) - (fd.efterId.get(b)?.koen === 'm' ? 0 : 1));
+
+function famTrae(fd, r, boks) {
+  if (!famFokus || !fd.efterId.has(famFokus)) famFokus = r.mig?.id || fd.alle[0].id;
+  const f = famFokus;
+  const bred = (boks.clientWidth || 358) >= 600;
+  const W = bred ? 112 : 80, H = bred ? 100 : 92, GX = bred ? 14 : 8, GY = 38, PAD = 8, T = W + GX;
+
+  // Hvem er med
+  const foraeldre = famFarFoerst(fd, fd.foraeldre(f));
+  const partner = fd.partnere(f)[0] || null;
+  const soeskende = famEfterAar(fd, fd.soeskende(f));
+  const boern = famEfterAar(fd, fd.boern(f));
+  const bedste = foraeldre.map(x => famFarFoerst(fd, fd.foraeldre(x)));
+  const nyForaelder = !erBarn() && foraeldre.length < 2;   // voksne får en "+ Forælder"-plads
+
+  // Placering (x = venstre kant, regnet fra midterpersonen; rækker: 0 bedsteforældre, 1 forældre, 2 midten, 3 børn)
+  const noder = [];
+  const node = (id, x, raekke, slags = '') => { const n = { id, x, raekke, slags }; noder.push(n); return n; };
+  const midt = node(f, 0, 2, 'fokus');
+  const sos = soeskende.map((id, i) => node(id, -(soeskende.length - i) * T, 2));
+  const part = partner ? node(partner, T, 2) : null;
+  const parMidt = part ? (W + T) / 2 : W / 2;   // midt mellem midterperson og partner
+  const bx0 = parMidt - (boern.length * T - GX) / 2;
+  const brn = boern.map((id, i) => node(id, bx0 + i * T, 3));
+  const gruppe = [...sos, midt];
+  const gMidt = (gruppe[0].x + midt.x + W) / 2;   // forældrene står over hele søskendeflokken
+  const fListe = [...foraeldre.map(id => ({ id })), ...(nyForaelder ? [{ ny: true }] : [])];
+  const begge = bedste.length === 2 && bedste[0].length && bedste[1].length;
+  const afst = begge ? 2 * T : T;
+  const fNoder = fListe.map((x, i) => node(x.id || null, fListe.length === 1 ? gMidt - W / 2 : gMidt - W / 2 + (i === 0 ? -afst / 2 : afst / 2), 1, x.ny ? 'ny' : ''));
+  const bNoder = bedste.map((par, i) => par.map((id, j) => node(id, fNoder[i].x + (par.length === 1 ? 0 : (j === 0 ? -T / 2 : T / 2)), 0)));
+
+  // Rækker uden nogen springes over
+  const brugte = [...new Set(noder.map(n => n.raekke))].sort();
+  const y = rk => brugte.indexOf(rk) * (H + GY);
+  const minX = Math.min(...noder.map(n => n.x)), maxX = Math.max(...noder.map(n => n.x + W));
+  const fuld = boks.clientWidth || 358;
+  const bredde = Math.max(fuld, maxX - minX + 2 * PAD);
+  const ox = PAD - minX + (bredde - (maxX - minX + 2 * PAD)) / 2;
+  const hoejde = (brugte.length - 1) * (H + GY) + H;
+  const X = n => n.x + ox, Y = n => y(n.raekke);
+
+  // Streger (SVG under personerne)
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', 'fam-streger'); svg.setAttribute('width', bredde); svg.setAttribute('height', hoejde);
+  svg.setAttribute('aria-hidden', 'true');
+  const linje = d => { const p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); svg.append(p); };
+  // Fra et par (eller én forælder) ned til børnene i rækken under
+  const nedTil = (foraeldreNoder, boernNoder) => {
+    const fr = foraeldreNoder.filter(n => n && n.slags !== 'ny');
+    if (!fr.length || !boernNoder.length) return;
+    let sx, sy;
+    if (fr.length === 2) {
+      const [a, b] = [...fr].sort((m, n) => m.x - n.x);
+      linje(`M${X(a) + W} ${Y(a) + H / 2}H${X(b)}`);   // parstreg
+      sx = (X(a) + W + X(b)) / 2; sy = Y(a) + H / 2;
+    } else { sx = X(fr[0]) + W / 2; sy = Y(fr[0]) + H; }
+    const busY = Y(boernNoder[0]) - GY / 2;
+    const xs = boernNoder.map(n => X(n) + W / 2);
+    linje(`M${sx} ${sy}V${busY}`);
+    linje(`M${Math.min(sx, ...xs)} ${busY}H${Math.max(sx, ...xs)}`);
+    for (const x of xs) linje(`M${x} ${busY}V${Y(boernNoder[0])}`);
+  };
+  bNoder.forEach((par, i) => nedTil(par, [fNoder[i]]));
+  nedTil(fNoder, gruppe);
+  if (part && !brn.length) linje(`M${X(midt) + W} ${Y(midt) + H / 2}H${X(part)}`);
+  nedTil(part ? [midt, part] : [midt], brn);
+
+  // Personerne
+  const laerred = el('div', 'fam-laerred');
+  laerred.style.width = bredde + 'px'; laerred.style.height = hoejde + 'px';
+  laerred.style.setProperty('--w', W + 'px'); laerred.style.setProperty('--h', H + 'px');
+  laerred.append(svg);
+  for (const n of noder) {
+    let b;
+    if (n.slags === 'ny') {
+      b = knap('', 'fam-node ny', () => { const q = fd.efterId.get(f); redigerPerson({ _barnAf: f, efternavn: q?.efternavn }); });
+      b.append(el('span', 'fam-node-plus', '+'), el('span', 'fam-node-navn', 'Forælder'));
+    } else {
+      const p = fd.efterId.get(n.id);
+      b = knap('', 'fam-node' + (n.slags === 'fokus' ? ' fokus' : '') + (p.doed ? ' doed' : '') + (r.mig?.id === p.id ? ' mig' : ''),
+        () => { if (n.slags === 'fokus') visPerson(p.id); else { famFokus = p.id; tegnFamilie(); } });
+      const farve = FAM_FARVE[p.bruger];
+      const rel = r.mig ? (r.mig.id === p.id ? (famVisFra === Data.bruger()?.navn ? 'Dig' : '') : r.relation(p.id)) : '';
+      b.append(el('span', 'fam-avatar ' + (farve || (p.koen === 'm' ? 'fam-m' : p.koen === 'k' ? 'fam-k' : '')), famKort(p)[0].toUpperCase()),
+        el('span', 'fam-node-navn', famKort(p) + (p.doed ? ' †' : '')));
+      if (rel) b.append(el('span', 'fam-node-rel', rel[0].toUpperCase() + rel.slice(1)));
+      b.setAttribute('aria-label', famFuldt(p) + (rel ? ', ' + rel : '') + (n.slags === 'fokus' ? ' – tryk for at se mere' : ' – tryk for at flytte træet hertil'));
+    }
+    b.style.left = X(n) + 'px'; b.style.top = Y(n) + 'px';
+    if (n.slags === 'fokus') b.dataset.fokus = '';
+    laerred.append(b);
+  }
+  const ramme = el('div', 'fam-trae');
+  ramme.append(laerred);
+
+  const dele = [];
+  const fokusP = fd.efterId.get(f);
+  const top = el('div', 'fam-trae-top');
+  top.append(el('span', 'fam-trae-titel', famGenitiv(famKort(fokusP)) + ' familie'));
+  if (r.mig && f !== r.mig.id) top.append(knap('↺ ' + famKort(r.mig), 'lille-knap', () => { famFokus = null; tegnFamilie(); }));
+  dele.push(top, ramme, el('p', 'hint fam-trae-hint', 'Tryk på en person for at flytte træet. Tryk på personen i midten for at se mere.'));
+  return dele;
+}
+// Træet rulles, så midterpersonen står i midten (når det er bredere end skærmen)
+function famCentrer(boks) {
+  const ramme = boks.querySelector('.fam-trae'), fokus = boks.querySelector('.fam-node.fokus');
+  if (!ramme || !fokus) return;
+  ramme.scrollLeft = fokus.offsetLeft + fokus.offsetWidth / 2 - ramme.clientWidth / 2;
 }
 
 document.getElementById('ny-person')?.addEventListener('click', () => redigerPerson({}));

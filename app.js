@@ -103,6 +103,7 @@ function visFane(navn) {
   lokal.set('fane', navn);
   opdaterTilbage();
   if (navn === 'vejr' && typeof tegnVejr === 'function') tegnVejr();   // fra vejr.js
+  if (navn === 'familie' && typeof tegnFamilie === 'function') tegnFamilie();   // fra familie.js (træet skal måles, når siden er synlig)
 }
 function opdaterTilbage() {
   const pakAaben = aktivFane === 'pakkelister' && typeof pakValgt !== 'undefined' && pakValgt;
