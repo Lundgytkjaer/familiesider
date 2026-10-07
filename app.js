@@ -1798,14 +1798,16 @@ async function tegnBoernetavle(barn) {
   const tomt = !foed.length && !aftaler.length && !info.length;
   const skerTitel = iso === idagIso ? 'Det sker i dag' : iso === isoDato(imorgen) ? 'Det sker i morgen' : 'Det sker';
   let skerKort = null;
-  if (voksen || !tomt) {
+  {
+    // Kortet laves altid (tavlen har altid feltet); i listen skjules et tomt kort for børn
     if (tomt) liste.append(el('li', 'tom-husk', 'Intet særligt endnu.'));
     const dele = [liste];
     if (info.some(x => x.piktogram)) dele.push(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
     if (voksen) dele.push(knap('+ Tilføj', 'lille-knap', () => redigerInfo(barn, iso, {})));
     skerKort = kort(skerTitel, ...dele);
     const tekster = [...liste.querySelectorAll('.husk-tekst')].map(x => x.textContent).filter(Boolean);
-    skerKort.tavle = { noegle: 'sker', ikon: '🗓️', titel: skerTitel, bred: !tomt, stor: tomt ? 'Intet endnu' : '',
+    skerKort.kunTavle = tomt && !voksen;
+    skerKort.tavle = { noegle: 'sker', ikon: '🗓️', titel: skerTitel, bred: true, stor: tomt ? 'Intet særligt i dag' : '',
       linjer: tomt ? null : tekster.slice(0, 3), lille: tekster.length > 3 ? '+ ' + (tekster.length - 3) + ' mere' : '',
       billede: info.map(infoBillede).find(Boolean) || '' };
   }
@@ -1823,7 +1825,7 @@ async function tegnBoernetavle(barn) {
   const beloen = await beloenningKort(barn);   // fra mere.js
   const nedtael = await nedtaellingKort(barn);   // fra sjov.js
   const raekke = [skerKort, pligter, beloen, rutiner, skemaKort, madKort, nedtael].filter(Boolean);
-  gitter.append(...raekke);
+  gitter.append(...raekke.filter(k => !k.kunTavle));
   // Vejr (og evt. sol) for den viste dag – efter barnets egne valg; hentes i baggrunden
   const barnValg = await valgFor(barn);
   const vejrPlads = el('div', 'vejr-plads');
