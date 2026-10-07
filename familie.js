@@ -164,7 +164,7 @@ async function famSetFra(navn) {
   };
 }
 
-// ---------- Fødselsdage: personer med fødselsdato + de gamle 'foedselsdage'-rækker ----------
+// ---------- Fødselsdage: personer med fødselsdato + de gamle 'foedselsdage'-raekker ----------
 // Personer vises med relationen i parentes (fx "Jonna (mormor)") – undtagen dem, der bor her.
 // Afdøde vises kun, hvis en voksen har slået mindedag til.
 async function foedselsListe(hvem = Data.bruger()?.navn) {
@@ -461,7 +461,7 @@ function famTrae(fd, r, boks) {
   const bedste = foraeldre.map(x => famFarFoerst(fd, fd.foraeldre(x)));
   const nyForaelder = !erBarn() && foraeldre.length < 2;   // voksne får en "+ Forælder"-plads
 
-  // Placering (x = venstre kant, regnet fra midterpersonen; rækker: 0 bedsteforældre, 1 forældre, 2 midten, 3 børn)
+  // Placering (x = venstre kant, regnet fra midterpersonen; raekker: 0 bedsteforældre, 1 forældre, 2 midten, 3 børn)
   const noder = [];
   const node = (id, x, raekke, slags = '') => { const n = { id, x, raekke, slags }; noder.push(n); return n; };
   const midt = node(f, 0, 2, 'fokus');
@@ -614,22 +614,31 @@ async function tegnKontakter() {
   const fd = await famData();
   const r = await famSetFra(Data.bruger()?.navn);
   const alle = [];
-  for (const k of await Data.list('kontakter')) {
+  const raekker = await Data.list('kontakter');
+  for (const k of raekker) {
     if (k.person && !fd.efterId.has(k.person)) continue;   // personen er slettet
+    if (k.person && fd.efterId.get(k.person).doed) continue;
     const navn = await kontaktNavn(k, fd);
     const rel = k.person ? (r.mig?.id === k.person ? 'Dig' : r.relation(k.person)) : (k.relation || '');
     alle.push({ k, navn, rel, kat: k.person ? 'familie' : (KONTAKT_KAT[k.kategori] ? k.kategori : 'andet') });
+  }
+  // Hele familien (levende) står i kontaktbogen – også dem uden nummer endnu
+  for (const p of fd.alle) {
+    if (p.doed || raekker.some(k => k.person === p.id)) continue;
+    alle.push({ k: { person: p.id }, navn: famFuldt(p), rel: r.mig?.id === p.id ? 'Dig' : r.relation(p.id), kat: 'familie', tom: true });
   }
   const s = kontaktSoeg.trim().toLowerCase();
   const vis = alle.filter(x => !s || [x.navn, x.rel, x.k.telefon, x.k.telefon2, x.k.email, x.k.adresse, x.k.note].some(v => (v || '').toLowerCase().includes(s)));
 
   const soeg = document.getElementById('kontakt-soeg');
   soeg.hidden = alle.length < 6;
+  const afstand = x => (x.k.person ? r.afstand(x.k.person) : 0);
   const dele = [];
   if (!alle.length) dele.push(el('p', 'tom-husk', 'Ingen kontakter endnu. Tryk "Tilføj" – eller åbn en person under Familie og tryk "+ Telefon, mail og adresse".'));
   else if (!vis.length) dele.push(el('p', 'tom-husk', 'Ingen kontakter passer på "' + kontaktSoeg.trim() + '".'));
   for (const kat of Object.keys(KONTAKT_KAT)) {
-    const liste = vis.filter(x => x.kat === kat).sort((a, b) => a.navn.localeCompare(b.navn, 'da'));
+    // Familien: nærmeste først (partner, børn, forældre …); de andre grupper alfabetisk
+    const liste = vis.filter(x => x.kat === kat).sort((a, b) => (kat === 'familie' ? afstand(a) - afstand(b) : 0) || a.navn.localeCompare(b.navn, 'da'));
     if (!liste.length) continue;
     const ul = el('ul', 'kontakt-liste');
     for (const x of liste) {
@@ -642,6 +651,7 @@ async function tegnKontakter() {
       midt.append(el('span', 'kontakt-navn', x.navn));
       const under = [x.rel && x.rel[0].toUpperCase() + x.rel.slice(1), x.k.hvem && x.k.hvem !== 'Fælles' && !x.k.person ? x.k.hvem : ''].filter(Boolean).join(' · ');
       if (under) midt.append(el('span', 'kontakt-under', under));
+      if (x.tom) { li.classList.add('uden-info'); midt.append(el('span', 'kontakt-under kontakt-mangler', 'Ingen kontaktinfo endnu')); }
       b.append(midt);
       li.append(b);
       // Ring direkte fra listen

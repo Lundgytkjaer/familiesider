@@ -1130,3 +1130,5 @@ textarea.k-tekst { display: block; padding: 12px 14px; resize: vertical; line-he
 .kontakt-note { margin: 2px 0 0; color: var(--daempet); white-space: pre-line; }
 .fam-kontakt-knap { margin: 10px 0 2px; }
 .kontakt-forslag { margin-top: 8px; }
+.kontakt-mangler { font-size: 12.5px; opacity: .75; }
+.kontakt-liste li.uden-info .kontakt-navn { font-weight: 600; }
