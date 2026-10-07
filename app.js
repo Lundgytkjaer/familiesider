@@ -2464,6 +2464,7 @@ function barnMaa(handling, liste, felter, gammel) {
   const navn = Data.bruger()?.navn;
   if (handling === 'ny') {
     if (liste === 'flueben') return felter.barn === navn;
+    if (liste === 'streakbonus') return felter.barn === navn;   // databasen tjekker selve reglen (streakbonus_ok)
     if (liste === 'indloesninger') return felter.barn === navn && felter.status === 'afventer';
     if (liste === 'motion') return felter.hvem === navn;
     if (liste === 'personvalg') return felter.navn === navn;
@@ -2476,7 +2477,7 @@ function barnMaa(handling, liste, felter, gammel) {
     const foer = new Set(gammel.kanLide || []), efter = new Set(felter.kanLide || []);
     return [...foer, ...efter].every(n => n === navn || (foer.has(n) && efter.has(n)));
   }
-  if (liste === 'flueben') return gammel.barn === navn;
+  if (liste === 'flueben' || liste === 'streakbonus') return gammel.barn === navn;
   if (liste === 'motion') return gammel.hvem === navn;
   if (liste === 'indloesninger') return gammel.barn === navn && gammel.status === 'afventer';
   if (liste === 'indkob') return gammel._af === Data.bruger()?.id;

@@ -325,7 +325,8 @@ function pligtPersoner() {
 async function regelFor(navn) {
   const r = (await Data.list('personregler')).find(x => x.navn === navn);
   const barn = BOERN.includes(navn);
-  return r ? { kr: !!r.kr, stjerner: !!r.stjerner } : { kr: barn, stjerner: barn };
+  // streakBonus = stjerner for at holde rækken (sjov.js); 0 = fra, standard 1
+  return r ? { kr: !!r.kr, stjerner: !!r.stjerner, streakBonus: r.streakBonus ?? 1 } : { kr: barn, stjerner: barn, streakBonus: 1 };
 }
 async function saetRegel(navn, felt, vaerdi) {
   const r = (await Data.list('personregler')).find(x => x.navn === navn);
@@ -334,8 +335,8 @@ async function saetRegel(navn, felt, vaerdi) {
 }
 
 async function pligtData(barn) {
-  const [opgaver, flueben, beloenninger, indl, udb, just] = await Promise.all(
-    ['opgaver', 'flueben', 'beloenninger', 'indloesninger', 'udbetalinger', 'justeringer'].map(l => Data.list(l)));
+  const [opgaver, flueben, beloenninger, indl, udb, just, bonus] = await Promise.all(
+    ['opgaver', 'flueben', 'beloenninger', 'indloesninger', 'udbetalinger', 'justeringer', 'streakbonus'].map(l => Data.list(l)));
   const mineJust = just.filter(x => x.barn === barn);
   return {
     opgaver: opgaver.filter(o => o.barn === barn),
@@ -343,6 +344,7 @@ async function pligtData(barn) {
     beloenninger: beloenninger.filter(b => b.barn === barn || (b.barn === 'Begge' && BOERN.includes(barn))),
     indl: indl.filter(x => x.barn === barn),
     udb: udb.filter(x => x.barn === barn),
+    bonus: bonus.filter(x => x.barn === barn),   // streak-bonus (sjov.js)
     just: mineJust.filter(x => x.type !== 'streak'),   // + / − stjerner og kr fra en voksen
     streakAnker: mineJust.filter(x => x.type === 'streak').sort((a, b) => (a.oprettet || '').localeCompare(b.oprettet || '')).pop() || null,
     regel: await regelFor(barn),
@@ -354,7 +356,7 @@ async function pligtData(barn) {
 function saldo(d) {
   const man = isoDato(mandagDenneUge());
   return {
-    stjerner: sum(d.flueben, 'stjerner') + sum(d.just || [], 'stjerner') - sum(d.indl.filter(x => x.status !== 'afvist'), 'stjerner'),
+    stjerner: sum(d.flueben, 'stjerner') + sum(d.bonus || [], 'stjerner') + sum(d.just || [], 'stjerner') - sum(d.indl.filter(x => x.status !== 'afvist'), 'stjerner'),
     tilGode: sum(d.flueben, 'kr') + sum(d.just || [], 'kr') - sum(d.udb, 'kr'),
     ugeKr: sum(d.flueben.filter(f => f.dato >= man), 'kr')
   };
@@ -442,12 +444,15 @@ async function skiftFlueben(barn, r, regel) {
     kr: regel.kr ? tal(r.o.kr) : 0,
     stjerner: regel.stjerner ? Math.round(tal(r.o.stjerner)) : 0
   });
+  const bonus = await opdaterStreakBonus(barn);   // fra sjov.js – giver/tager streak-bonus
+  let fejret = false;
   if (!r.f) {
     const liste = skalKlares(dagensOpgaver(await pligtData(barn)));
-    if (r.o.frivillig) fejr('Bonus! ⭐ Sejt gået');   // fra sjov.js
-    else if (liste.length && liste.every(x => x.f)) fejr('Alle pligter er klaret! 🎉');
+    if (r.o.frivillig) { fejr('Bonus! ⭐ Sejt gået'); fejret = true; }   // fra sjov.js
+    else if (liste.length && liste.every(x => x.f)) { fejr('Alle pligter er klaret! 🎉'); fejret = true; }
   }
   tegnAlt();
+  if (bonus) setTimeout(() => flammeStjerne(bonus.n, bonus.dage), fejret ? 1700 : 300);
 }
 
 function opgaveLi(barn, r, regel) {
@@ -502,6 +507,10 @@ async function pligtKort(barn, titel = 'Pligter i dag') {
   liste.forEach(r => ul.append(opgaveLi(barn, r, d.regel)));
   if (!liste.length) ul.append(el('li', 'tom', 'Ingen pligter i dag'));
   k.append(top, ul);
+  // Streak-bonus: lok med den, og vis den, når den er givet
+  const bs = d.regel.stjerner ? bonusStatus(d) : { n: 0 };   // fra sjov.js
+  if (bs.givet) k.append(el('p', 'bonus-linje givet', '🔥 Streak-bonus i dag: +★ ' + bs.givet.stjerner));
+  else if (bs.mulig) k.append(el('p', 'bonus-linje', '🔥 Klar alle dine pligter i dag = +★ ' + bs.n + ' i streak-bonus'));
   if (liste.some(r => r.o.piktogram)) k.append(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
   // Opsummering til tavle-visningen
   const pligt = skalKlares(liste.filter(r => !r.sprunget));
@@ -511,7 +520,8 @@ async function pligtKort(barn, titel = 'Pligter i dag') {
   k.tavle = { noegle: 'pligter', ikon: '✅', titel: titel === 'Pligter i dag' ? 'Pligter' : titel,
     andel: pligt.length ? klaret / pligt.length : 0, klar: pligt.length > 0 && !naesteP,
     stor: !pligt.length ? (bonus ? bonus + ' bonus' : 'Ingen i dag') : !naesteP ? 'Alle klaret' : klaret + ' af ' + pligt.length,
-    lille: naesteP ? 'Næste: ' + naesteP.o.navn : st >= 2 ? streakTekst(st) : bonus ? 'Bonus venter ⭐' : 'Sejt! 🎉' };
+    lille: naesteP ? (bs.mulig ? '🔥 +★ ' + bs.n + ' når alt er klaret' : 'Næste: ' + naesteP.o.navn)
+      : bs.givet ? '🔥 +★ ' + bs.givet.stjerner + ' streak-bonus' : st >= 2 ? streakTekst(st) : bonus ? 'Bonus venter ⭐' : 'Sejt! 🎉' };
   return k;
 }
 
@@ -621,6 +631,7 @@ async function tegnPligter() {
         tekst: (x.status === 'afventer' ? 'Ønsket: ' : x.status === 'afvist' ? 'Ikke godkendt: ' : 'Indløst: ') + x.navn,
         vaerdi: x.status === 'afvist' ? '' : (x.status === 'afventer' ? '(★ ' + x.stjerner + ')' : '−★ ' + x.stjerner) })),
       ...d.udb.map(x => ({ dato: x.dato, tekst: 'Lommepenge udbetalt', vaerdi: '−' + kr(tal(x.kr)) })),
+      ...(d.bonus || []).map(x => ({ dato: x.dato, tekst: '🔥 Streak-bonus' + (x.dage ? ' (' + x.dage + ' dage i træk)' : ''), vaerdi: '+★ ' + x.stjerner })),
       ...d.just.map(x => ({ dato: x.dato, tekst: 'Justering' + (x.tekst ? ': ' + x.tekst : ''),
         vaerdi: [tal(x.kr) ? (tal(x.kr) > 0 ? '+' : '') + kr(tal(x.kr)) : '', tal(x.stjerner) ? (tal(x.stjerner) > 0 ? '+★ ' : '−★ ') + Math.abs(tal(x.stjerner)) : ''].filter(Boolean).join(' ') }))
     ].sort((a, b) => (b.dato || '').localeCompare(a.dato || '')).slice(0, 8);
@@ -651,6 +662,13 @@ async function tegnPligter() {
         regelSeg.append(k);
       }
       dele.push(regelSeg, el('p', 'hint', 'Slå begge fra for pligter uden belønning.'));
+      if (d.regel.stjerner) {
+        // Streak-bonus: ekstra stjerner, når alle hver-dag-pligter er klaret to (eller flere) dage i træk
+        dele.push(el('h3', 'lille-titel', '🔥 Streak-bonus'),
+          valgSeg([0, 1, 2, 3], Math.round(tal(d.regel.streakBonus ?? 1)), async v => { await saetRegel(barn, 'streakBonus', v); tegnAlt(); },
+            v => (v === 0 ? 'Fra' : '+★ ' + v + ' pr. dag')),
+          el('p', 'hint', 'Gives automatisk (med flamme-animation), når alle hver-dag-pligter er klaret – fra dag 2 i træk. Sygedage bryder ikke rækken.'));
+      }
 
       const GENTAG = { dag: 'Hver dag', uge: 'Én gang om ugen', engang: 'Kun én gang', interval: '' };
       dele.push(el('h3', 'lille-titel', erMig ? 'Mine pligter' : 'Pligter for ' + barn));
@@ -720,6 +738,8 @@ async function ugeOverblik(uge = 0) {
     linje('Pligter klaret', String(fb.filter(f => !erBonus(f)).length));
     if (fb.some(erBonus)) linje('Bonus klaret', String(fb.filter(erBonus).length));
     if (d.regel.stjerner) linje('Stjerner tjent på pligter', '★ ' + stj);
+    const ugeBonus = (d.bonus || []).filter(iUgen);
+    if (ugeBonus.length) linje('🔥 Streak-bonus', '★ ' + sum(ugeBonus, 'stjerner') + ' (' + ugeBonus.length + (ugeBonus.length === 1 ? ' dag)' : ' dage)'));
     if (d.regel.kr) linje('Lommepenge tjent på pligter', kr(kroner));
     if (justStj || justKr) linje('Justeret af en voksen', [justKr ? (justKr > 0 ? '+' : '') + kr(justKr) : '', justStj ? (justStj > 0 ? '+★ ' : '−★ ') + Math.abs(justStj) : ''].filter(Boolean).join(' '));
     if (indl.length) linje('Belønninger indløst', indl.map(x => x.navn).join(', '));
@@ -824,7 +844,7 @@ async function beloenningKort(barn) {
   sorteret.forEach(b => ul.append(beloenLi(barn, b, d, s)));
   // Sammenhæng med pligterne: hvad er tjent i dag, og hvad kan stadig nås
   const idagIso = isoDato(new Date());
-  const tjentIdag = sum(d.flueben.filter(f => f.dato === idagIso), 'stjerner');
+  const tjentIdag = sum(d.flueben.filter(f => f.dato === idagIso), 'stjerner') + sum((d.bonus || []).filter(b => b.dato === idagIso), 'stjerner');
   const kanNaas = dagensOpgaver(d).filter(r => !r.f && !r.sprunget).reduce((n, r) => n + Math.round(tal(r.o.stjerner)), 0);
   const idagLinje = el('p', 'beloen-idag');
   if (tjentIdag) idagLinje.append(el('span', 'tjent', '+★ ' + tjentIdag + ' i dag'));

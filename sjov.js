@@ -79,6 +79,98 @@ function streak(d) {
 }
 const streakTekst = n => '🔥 ' + n + (n === 1 ? ' dag' : ' dage') + ' i træk';
 
+// ---------- Streak-bonus: ekstra stjerne(r), når man holder rækken ----------
+// Data: 'streakbonus' {barn, dato, stjerner, dage}. Gives automatisk, når dagens sidste hver-dag-pligt krydses af.
+// Reglen er den SAMME som databasens streakbonus_ok (opdatering-streakbonus.sql) – ret begge steder:
+//   1) i dag er alle dagens hver-dag-pligter klaret (bonus og uge-/engangspligter tæller ikke)
+//   2) den seneste dag før i dag med hver-dag-pligter var også klaret (sygedage og dage uden pligter
+//      springes over, højst 7 dage tilbage). Første dag i en ny række giver altså ingen bonus.
+// Antal stjerner sættes af en voksen pr. barn (personregler.streakBonus: 0 = fra, standard 1).
+const bonusStjerner = d => (d.regel.stjerner ? Math.max(0, Math.round(tal(d.regel.streakBonus ?? 1))) : 0);
+function dagligeDen(d, iso) {
+  const dag = (new Date(iso + 'T00:00').getDay() + 6) % 7;
+  const oprettetIso = o => (o.oprettet ? isoDato(new Date(o.oprettet)) : '0000-00-00');
+  return d.opgaver.filter(o => !o.frivillig && !['uge', 'engang', 'interval'].includes(o.gentag)
+    && (!Array.isArray(o.dage) || !o.dage.length || o.dage.includes(dag)) && oprettetIso(o) <= iso);
+}
+// null = ingen hver-dag-pligter den dag, true = alle klaret, false = ikke alle
+function dagKlaret(d, iso) {
+  const planlagt = dagligeDen(d, iso);
+  if (!planlagt.length) return null;
+  return planlagt.every(o => d.flueben.some(f => f.opgave === o.id && f.periode === iso && !f.sprunget));
+}
+// Syg den dag (simpel udgave som i databasen: en "Syg"-aftale uden gentagelse, der dækker dagen)
+const sygSimpel = (d, iso) => (d.kalender || []).some(a => a.type === 'syg' && !a.gentag && a.dato <= iso
+  && (a.tilDato && a.tilDato > a.dato ? a.tilDato : a.dato) >= iso
+  && [].concat(a.hvem || []).some(h => h === d.barn || h === 'Fælles'));
+function igaarHoldt(d, iso) {
+  for (let i = 1; i <= 7; i++) {
+    const dag = plusDage(iso, -i);
+    if (sygSimpel(d, dag)) continue;
+    const k = dagKlaret(d, dag);
+    if (k === null) continue;
+    return k;
+  }
+  return false;
+}
+// Status til kortene: kan man få bonus i dag, og er den allerede givet?
+function bonusStatus(d) {
+  const iso = isoDato(new Date());
+  const n = bonusStjerner(d);
+  const givet = (d.bonus || []).find(b => b.dato === iso) || null;
+  return { n, givet, mulig: n > 0 && !givet && dagKlaret(d, iso) === false && igaarHoldt(d, iso) };
+}
+// Kaldes efter hvert flueben: giver bonus, når den er fortjent – og tager den igen, hvis et flueben fjernes
+async function opdaterStreakBonus(barn) {
+  const d = await pligtData(barn);   // fra mere.js
+  const iso = isoDato(new Date());
+  const n = bonusStjerner(d);
+  const givet = d.bonus.find(b => b.dato === iso);
+  const fortjent = n > 0 && dagKlaret(d, iso) === true && igaarHoldt(d, iso);
+  try {
+    if (fortjent && !givet) {
+      await Data.add('streakbonus', { barn, dato: iso, stjerner: n, dage: streak(d) });
+      return { n, dage: streak(d) };
+    }
+    if (!fortjent && givet) await Data.stille(() => Data.remove('streakbonus', givet.id));
+  } catch (e) { console.warn('Streak-bonus:', e); }
+  return null;
+}
+
+// Animation: flammen blusser op og "spytter" en stjerne ud, der flyver hen til stjernerne
+function flammeStjerne(n, dage) {
+  const boks = el('div', 'flamme-fest');
+  boks.setAttribute('role', 'status');
+  const flamme = el('div', 'ff-flamme', '🔥');
+  const tekst = el('div', 'ff-tekst');
+  tekst.append(el('b', null, 'Streak-bonus! +' + n + ' ★'), el('span', null, streakTekst(dage)));
+  boks.append(flamme, tekst);
+  document.body.append(boks);
+  const vaek = () => { boks.classList.add('vaek'); setTimeout(() => boks.remove(), 450); };
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches) { setTimeout(vaek, 2400); return; }
+  // Stjernerne flyver ud af flammen hen mod stjerne-tallet (belønningsfeltet), ellers op og væk
+  const maal = [...document.querySelectorAll('.flise[data-noegle="beloenninger"], .stjerne-stat, .kort-pil')]
+    .find(e => e.offsetParent && e.getBoundingClientRect().bottom > 0 && e.getBoundingClientRect().top < innerHeight);
+  setTimeout(() => {
+    const f = flamme.getBoundingClientRect();
+    const fx = f.left + f.width / 2, fy = f.top + f.height * 0.35;
+    const m = maal ? maal.getBoundingClientRect() : { left: innerWidth / 2, top: -40, width: 0, height: 0 };
+    const mx = m.left + m.width / 2, my = m.top + m.height / 2;
+    for (let i = 0; i < Math.min(5, n + 2); i++) {
+      const stj = el('div', 'ff-stjerne', '★');
+      document.body.append(stj);
+      const ud = (i - 1) * 40;
+      stj.animate([
+        { transform: `translate(${fx}px, ${fy}px) scale(.3)`, opacity: 0 },
+        { transform: `translate(${fx + ud}px, ${fy - 90 - i * 12}px) scale(1.5)`, opacity: 1, offset: 0.35 },
+        { transform: `translate(${mx}px, ${my}px) scale(.6)`, opacity: .9 }
+      ], { duration: 1200 + i * 120, delay: i * 110, easing: 'cubic-bezier(.3,.1,.3,1)', fill: 'forwards' })
+        .finished.then(() => { stj.remove(); if (maal && i === 0) maal.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: 350 }); });
+    }
+  }, 650);
+  setTimeout(vaek, 2900);
+}
+
 // ---------- Alfie – orange løvehoved-dværgkanin ----------
 // hvordan: 'venter' | 'glad' | 'super' | 'sover'
 function alfieSvg(hvordan) {

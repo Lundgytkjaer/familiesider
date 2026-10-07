@@ -1132,3 +1132,34 @@ textarea.k-tekst { display: block; padding: 12px 14px; resize: vertical; line-he
 .kontakt-forslag { margin-top: 8px; }
 .kontakt-mangler { font-size: 12.5px; opacity: .75; }
 .kontakt-liste li.uden-info .kontakt-navn { font-weight: 600; }
+
+/* Streak-bonus: flammen blusser op og sender stjerner hen til stjerne-tallet (sjov.js flammeStjerne) */
+.flamme-fest {
+  position: fixed; left: 50%; top: 38%; z-index: 202; transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
+  transition: opacity .45s, transform .45s;
+}
+.flamme-fest.vaek { opacity: 0; transform: translate(-50%, -62%) scale(.9); }
+.ff-flamme {
+  font-size: 96px; line-height: 1; transform-origin: 50% 90%;
+  filter: drop-shadow(0 0 18px rgb(255 140 0 / .75));
+  animation: ff-op .55s cubic-bezier(.2, 1.7, .4, 1) both, ff-blafre .5s ease-in-out .55s 4 alternate;
+}
+@keyframes ff-op { from { transform: scale(.1) translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes ff-blafre { from { transform: scale(1) rotate(-3deg); } to { transform: scale(1.12, 1.18) rotate(3deg); filter: drop-shadow(0 0 30px rgb(255 170 0 / .9)); } }
+.ff-tekst {
+  display: flex; flex-direction: column; align-items: center; padding: 10px 18px; border-radius: 18px;
+  background: var(--flade); color: var(--fg); box-shadow: 0 12px 40px rgb(0 0 0 / .18);
+  animation: fejr-tekst .45s .25s cubic-bezier(.2, 1.6, .4, 1) both;
+}
+.ff-tekst b { font-size: 20px; white-space: nowrap; }
+.ff-tekst span { font-size: 14px; font-weight: 600; color: var(--daempet); }
+@keyframes fejr-tekst { from { transform: scale(.6); opacity: 0; } to { transform: none; opacity: 1; } }
+.ff-stjerne {
+  position: fixed; left: 0; top: 0; z-index: 203; margin: -14px 0 0 -14px; pointer-events: none;
+  font-size: 28px; line-height: 1; color: #ffc61a; text-shadow: 0 0 10px rgb(255 190 0 / .8), 0 1px 2px rgb(0 0 0 / .3);
+}
+.bonus-linje { margin: 8px 2px 0; font-size: 14px; font-weight: 700; color: #c45a00; }
+.bonus-linje.givet { color: var(--accent); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bonus-linje:not(.givet) { color: #ffab4d; } }
+:root[data-theme="dark"] .bonus-linje:not(.givet) { color: #ffab4d; }
