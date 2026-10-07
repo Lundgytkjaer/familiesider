@@ -1807,7 +1807,7 @@ async function tegnBoernetavle(barn) {
     skerKort = kort(skerTitel, ...dele);
     const tekster = [...liste.querySelectorAll('.husk-tekst')].map(x => x.textContent).filter(Boolean);
     skerKort.kunTavle = tomt && !voksen;
-    skerKort.tavle = { noegle: 'sker', ikon: '🗓️', titel: skerTitel, bred: true, stor: tomt ? 'Intet særligt i dag' : '',
+    skerKort.tavle = { noegle: 'sker', ikon: '🗓️', titel: skerTitel, bred: true, stor: tomt ? (iso === idagIso ? 'Intet særligt i dag' : iso === isoDato(imorgen) ? 'Intet særligt i morgen' : 'Intet særligt') : '',
       linjer: tomt ? null : tekster.slice(0, 3), lille: tekster.length > 3 ? '+ ' + (tekster.length - 3) + ' mere' : '',
       billede: info.map(infoBillede).find(Boolean) || '' };
   }

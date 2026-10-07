@@ -966,7 +966,9 @@ body.barn .uge input[readonly] { background: transparent; }
 /* Store skærme: makker og "Det sker" side om side øverst (hver 2 af 4 kolonner) */
 @media (min-width: 1000px) { .flise.bred { grid-column: span 2; } }
 /* Alle små fliser er lige store, uanset indhold (teksten afkortes i stedet) */
-.flise:not(.bred) { height: 132px; overflow: hidden; }
+.flise:not(.bred) { height: 132px; }
+/* Ingen overflow: hidden på selve flisen – så klippes magneten af. I stedet krymper indholdet (teksten afkortes) */
+.flise:not(.bred) > * { min-height: 0; flex-shrink: 1; }
 @media (max-width: 520px) { .flise:not(.bred) { height: 124px; } }
 .flise .fl-lille { flex: none; }
 .fl-linjer { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 3px; width: 100%; }
