@@ -77,7 +77,7 @@ h2 { font-family: var(--font-titel); font-weight: 700; font-size: 19px; margin: 
 
 /* Felter og knapper */
 .tilfoj { display: flex; gap: 8px; margin-bottom: 10px; }
-input[type="text"], input[type="date"], input[type="time"], input[type="password"] {
+input[type="text"], input[type="date"], input[type="time"], input[type="password"], input[type="tel"], input[type="email"], input[type="search"], textarea.k-tekst {
   flex: 1; min-width: 0; min-height: 48px; padding: 0 14px;
   font: inherit; color: var(--fg); background: var(--flade);
   border: 2px solid var(--linje); border-radius: var(--radius);
@@ -158,7 +158,7 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 }
 .ark-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
 .ark-luk { width: 44px; height: 44px; border: 0; border-radius: 50%; background: var(--bg); font-size: 18px; }
-.ark input[type="text"], .ark input[type="date"], .ark input[type="time"] { width: 100%; background: var(--bg); }
+.ark input[type="text"], .ark input[type="date"], .ark input[type="time"], .ark input[type="tel"], .ark input[type="email"], .ark textarea.k-tekst { width: 100%; background: var(--bg); }
 .felt-label { display: block; font-size: 13px; font-weight: 700; color: var(--daempet); margin: 14px 0 6px; }
 .to-felter { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .to-felter > div { min-width: 0; }
@@ -1107,3 +1107,26 @@ body.barn .gentag-knap { pointer-events: none; }
 .fam-node-plus { font-size: 26px; line-height: 1; font-weight: 300; }
 .fam-trae-hint { margin-top: 6px; }
 @media (min-width: 600px) { .fam-node-navn { font-size: 15px; } .fam-node-rel { font-size: 12.5px; } }
+
+/* Kontakter (kun voksne) */
+textarea.k-tekst { display: block; padding: 12px 14px; resize: vertical; line-height: 1.35; }
+.kontakt-soeg { width: 100%; margin-bottom: 4px; }
+.kontakt-liste { list-style: none; margin: 0 0 10px; padding: 0; background: var(--flade); border-radius: var(--radius); overflow: hidden; }
+.kontakt-liste li { display: flex; align-items: center; }
+.kontakt-liste li + li { border-top: 1px solid var(--linje); }
+.kontakt { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 14px; border: 0; background: none; text-align: left; }
+.kontakt-midt { display: flex; flex-direction: column; min-width: 0; }
+.kontakt-navn { font-weight: 700; overflow-wrap: anywhere; }
+.kontakt-under { font-size: 13.5px; color: var(--daempet); overflow-wrap: anywhere; }
+.kontakt-ring { flex: none; width: 48px; height: 48px; margin-right: 8px; border-radius: 50%; display: grid; place-content: center; text-decoration: none; font-size: 20px; background: var(--accent-blod); }
+.kontakt-boks { display: grid; gap: 8px; margin: 12px 0 4px; }
+.kontakt-raekke { display: flex; align-items: center; gap: 6px; padding: 8px 8px 8px 12px; border-radius: 12px; background: var(--bg); }
+.kontakt-vaerdi { flex: 1; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.kontakt-adresse { white-space: pre-line; }
+.kontakt-handling {
+  flex: none; min-height: 40px; min-width: 56px; padding: 0 12px; display: grid; place-content: center; border-radius: 999px;
+  background: var(--accent); color: var(--paa-accent); font-weight: 700; font-size: 14px; text-decoration: none;
+}
+.kontakt-note { margin: 2px 0 0; color: var(--daempet); white-space: pre-line; }
+.fam-kontakt-knap { margin: 10px 0 2px; }
+.kontakt-forslag { margin-top: 8px; }

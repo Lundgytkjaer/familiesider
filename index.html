@@ -23,7 +23,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-07f">
+  <link rel="stylesheet" href="style.css?v=2026-10-07g">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -203,6 +203,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="5" r="2.5"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M12 7.5V12M5.5 16v-2a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v2"/></svg>
           <span class="mere-navn">Familie</span><span class="under">Hvem er hvem – og hvornår har de fødselsdag</span>
         </button>
+        <button type="button" class="kort mere-kort kun-voksen" data-gaa="kontakter">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5h4l1.6 4.2-2.3 1.5a11 11 0 0 0 5.5 5.5l1.5-2.3 4.2 1.6v4a1.5 1.5 0 0 1-1.6 1.5A16.5 16.5 0 0 1 3.5 6.1 1.5 1.5 0 0 1 5 4.5z"/></svg>
+          <span class="mere-navn">Kontakter</span><span class="under">Telefon, mail og adresser – kun for voksne</span>
+        </button>
         <button type="button" class="kort mere-kort" data-gaa="rutiner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2.5h6"/></svg>
           <span class="mere-navn">Rutiner</span><span class="under">Tandbørstning, sengetid og andet med billeder</span>
@@ -235,6 +239,14 @@
       <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
       <div class="sek-hoved"><h2>Familie</h2><div class="fam-hoved-knapper"><button type="button" class="lille-knap" id="fam-visning" hidden>☰ Vis som liste</button><button type="button" class="lille-knap" id="ny-person" hidden>Tilføj</button></div></div>
       <div id="familie-indhold"></div>
+    </section>
+
+    <!-- KONTAKTER (kun voksne – databasen giver ikke børn listen) -->
+    <section id="kontakter" class="fane" hidden>
+      <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
+      <div class="sek-hoved"><h2>Kontakter</h2><button type="button" class="lille-knap" id="ny-kontakt">Tilføj</button></div>
+      <input type="search" id="kontakt-soeg" class="kontakt-soeg" placeholder="Søg navn, nummer eller by" autocomplete="off" enterkeyhint="search" hidden>
+      <div id="kontakter-indhold"></div>
     </section>
 
     <!-- RUTINER -->
@@ -333,6 +345,7 @@
           <h3>Mere</h3>
           <ul>
             <li><b>Rutiner</b> er en guide med billeder (fx tandbørstning og sengetid) – der skal ikke krydses noget af.</li>
+            <li class="kun-voksen"><b>Kontakter</b> samler telefon, mail og adresser – familiens står også på personens kort under Familie. Tryk 📞 for at ringe direkte. Kun voksne kan se kontakter.</li>
             <li><b>Familie</b> viser hele familien – hvem der er mormor, faster, fætter osv. Tryk på en person for at se forældre, søskende og børn<span class="kun-voksen">, rette eller tilføje familie (+ Barn, + Forælder …). Afdøde kan få en 🕯️ mindedag i kalenderen</span>.</li>
             <li><b>Skoleskema</b>, <b>Pakkelister</b>, <b>Ugens konkurrence</b> (hvem cykler eller går længst) og <b>Vejret</b>.</li>
           </ul>
@@ -414,12 +427,12 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="data.js?v=2026-10-07f"></script>
-<script src="dage.js?v=2026-10-07f"></script>
-<script src="vejr.js?v=2026-10-07f"></script>
-<script src="app.js?v=2026-10-07f"></script>
-<script src="mere.js?v=2026-10-07f"></script>
-<script src="sjov.js?v=2026-10-07f"></script>
-<script src="familie.js?v=2026-10-07f"></script>
+<script src="data.js?v=2026-10-07g"></script>
+<script src="dage.js?v=2026-10-07g"></script>
+<script src="vejr.js?v=2026-10-07g"></script>
+<script src="app.js?v=2026-10-07g"></script>
+<script src="mere.js?v=2026-10-07g"></script>
+<script src="sjov.js?v=2026-10-07g"></script>
+<script src="familie.js?v=2026-10-07g"></script>
 </body>
 </html>

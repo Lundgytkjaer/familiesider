@@ -281,6 +281,12 @@ async function visPerson(id) {
   if (p.doed) fakta.push('† Død' + (p.doedDato ? ' ' + kortDag(p.doedDato) + ' ' + p.doedDato.slice(0, 4) : ''));
   if (p.doed && famHarDato(p) && !erBarn()) fakta.push(p.minde ? '🕯️ Mindedag vises i kalenderen' : 'Mindedag vises ikke i kalenderen');
   for (const f of fakta) dele.push(el('p', 'fam-fakta', f));
+  // Kontaktinfo – kun voksne (ligger i 'kontakter', som børn slet ikke kan hente fra databasen)
+  if (!erBarn()) {
+    const k = (await Data.list('kontakter')).find(x => x.person === id);
+    if (k) dele.push(...kontaktLinjer(k));
+    dele.push(knap(k ? '✏️ Ret kontaktinfo' : '+ Telefon, mail og adresse', 'lille-knap fam-kontakt-knap', () => redigerKontakt(k || { person: id })));
+  }
 
   const raekke = (titel, ids) => {
     if (!ids.length) return;
@@ -553,3 +559,173 @@ function famCentrer(boks) {
 }
 
 document.getElementById('ny-person')?.addEventListener('click', () => redigerPerson({}));
+
+// ---------- Kontakter (kun voksne) ----------
+// Data: 'kontakter' {person?: id (en i familien) | navn (en anden), relation?, kategori?: 'venner'|'skole'|'sundhed'|'andet',
+//   hvem?: 'Fælles'|'Timmo'|… (hvis kontakt det er), telefon?, telefon2?, email?, adresse?, note?}
+// Listen 'kontakter' kan kun voksne se og rette (databasens regler kun_voksne) – børn får den aldrig.
+// Familiens kontaktinfo hænger på personen, så navn og relation altid kommer fra familietræet.
+const KONTAKT_KAT = { familie: 'Familie', venner: 'Venner og naboer', skole: 'Skole og fritid', sundhed: 'Læge og sundhed', andet: 'Andre' };
+const KONTAKT_FORSLAG = ['Ven', 'Nabo', 'Læge', 'Tandlæge', 'Skole', 'SFO', 'Træner', 'Babysitter', 'Håndværker'];
+let kontaktSoeg = '';
+const telLink = nr => 'tel:' + (nr || '').replace(/[^\d+]/g, '');
+const kortLink = adr => (/iPhone|iPad|Macintosh/.test(navigator.userAgent) ? 'https://maps.apple.com/?q=' : 'https://www.google.com/maps/search/?api=1&query=') + encodeURIComponent(adr.replace(/\n/g, ', '));
+
+async function kontaktNavn(k, fd) {
+  const p = k.person ? fd.efterId.get(k.person) : null;
+  return p ? famFuldt(p) : (k.navn || '?');
+}
+
+// Telefon, mail, adresse som store knapper (ring, sms, mail, kort)
+function kontaktLinjer(k) {
+  const ud = [];
+  const linkKnap = (tekst, href, klasse = '') => {
+    const a = el('a', 'kontakt-handling ' + klasse, tekst);
+    a.href = href;
+    if (href.startsWith('http')) { a.target = '_blank'; a.rel = 'noopener'; }
+    return a;
+  };
+  for (const nr of [k.telefon, k.telefon2].filter(Boolean)) {
+    const r = el('div', 'kontakt-raekke');
+    r.append(el('span', 'kontakt-vaerdi', '📞 ' + nr), linkKnap('Ring', telLink(nr)), linkKnap('SMS', 'sms:' + (nr || '').replace(/[^\d+]/g, '')));
+    ud.push(r);
+  }
+  if (k.email) {
+    const r = el('div', 'kontakt-raekke');
+    r.append(el('span', 'kontakt-vaerdi', '✉️ ' + k.email), linkKnap('Mail', 'mailto:' + k.email));
+    ud.push(r);
+  }
+  if (k.adresse) {
+    const r = el('div', 'kontakt-raekke');
+    r.append(el('span', 'kontakt-vaerdi kontakt-adresse', '📍 ' + k.adresse), linkKnap('Kort', kortLink(k.adresse)));
+    ud.push(r);
+  }
+  if (k.note) ud.push(el('p', 'kontakt-note', k.note));
+  if (!ud.length) ud.push(el('p', 'hint', 'Ingen kontaktinfo endnu.'));
+  const boks = el('div', 'kontakt-boks');
+  boks.append(...ud);
+  return [boks];
+}
+
+async function tegnKontakter() {
+  const boks = document.getElementById('kontakter-indhold');
+  if (!boks) return;
+  if (erBarn()) { boks.replaceChildren(); return; }
+  const fd = await famData();
+  const r = await famSetFra(Data.bruger()?.navn);
+  const alle = [];
+  for (const k of await Data.list('kontakter')) {
+    if (k.person && !fd.efterId.has(k.person)) continue;   // personen er slettet
+    const navn = await kontaktNavn(k, fd);
+    const rel = k.person ? (r.mig?.id === k.person ? 'Dig' : r.relation(k.person)) : (k.relation || '');
+    alle.push({ k, navn, rel, kat: k.person ? 'familie' : (KONTAKT_KAT[k.kategori] ? k.kategori : 'andet') });
+  }
+  const s = kontaktSoeg.trim().toLowerCase();
+  const vis = alle.filter(x => !s || [x.navn, x.rel, x.k.telefon, x.k.telefon2, x.k.email, x.k.adresse, x.k.note].some(v => (v || '').toLowerCase().includes(s)));
+
+  const soeg = document.getElementById('kontakt-soeg');
+  soeg.hidden = alle.length < 6;
+  const dele = [];
+  if (!alle.length) dele.push(el('p', 'tom-husk', 'Ingen kontakter endnu. Tryk "Tilføj" – eller åbn en person under Familie og tryk "+ Telefon, mail og adresse".'));
+  else if (!vis.length) dele.push(el('p', 'tom-husk', 'Ingen kontakter passer på "' + kontaktSoeg.trim() + '".'));
+  for (const kat of Object.keys(KONTAKT_KAT)) {
+    const liste = vis.filter(x => x.kat === kat).sort((a, b) => a.navn.localeCompare(b.navn, 'da'));
+    if (!liste.length) continue;
+    const ul = el('ul', 'kontakt-liste');
+    for (const x of liste) {
+      const li = el('li');
+      const b = knap('', 'kontakt', () => visKontakt(x.k));
+      const p = x.k.person ? fd.efterId.get(x.k.person) : null;
+      const farve = (p && FAM_FARVE[p.bruger]) || (x.k.hvem && x.k.hvem !== 'Fælles' ? PK[x.k.hvem] : '');
+      b.append(el('span', 'fam-avatar ' + (farve || (p?.koen === 'm' ? 'fam-m' : p?.koen === 'k' ? 'fam-k' : '')), x.navn[0].toUpperCase()));
+      const midt = el('span', 'kontakt-midt');
+      midt.append(el('span', 'kontakt-navn', x.navn));
+      const under = [x.rel && x.rel[0].toUpperCase() + x.rel.slice(1), x.k.hvem && x.k.hvem !== 'Fælles' && !x.k.person ? x.k.hvem : ''].filter(Boolean).join(' · ');
+      if (under) midt.append(el('span', 'kontakt-under', under));
+      b.append(midt);
+      li.append(b);
+      // Ring direkte fra listen
+      if (x.k.telefon) {
+        const a = el('a', 'kontakt-ring', '📞');
+        a.href = telLink(x.k.telefon);
+        a.setAttribute('aria-label', 'Ring til ' + x.navn);
+        li.append(a);
+      }
+      ul.append(li);
+    }
+    dele.push(el('h3', 'lille-titel fam-gruppe', KONTAKT_KAT[kat]), ul);
+  }
+  boks.replaceChildren(...dele);
+}
+
+async function visKontakt(k) {
+  if (k.person) return visPerson(k.person);   // familie: personkortet har både familie og kontaktinfo
+  const dele = [];
+  const under = [k.relation, k.hvem && k.hvem !== 'Fælles' ? k.hvem + 's kontakt' : ''].filter(Boolean).join(' · ');
+  if (under) dele.push(el('p', 'fam-kort-rel', under));
+  dele.push(...kontaktLinjer(k));
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('Ret', 'knap', () => redigerKontakt(k)));
+  dele.push(knapper);
+  aabnArk(k.navn || 'Kontakt', ...dele);
+}
+
+async function redigerKontakt(k) {
+  if (erBarn()) return;
+  const fd = await famData();
+  const ny = !k.id;
+  const familie = !!k.person;
+  const navn = input('text', 'k-navn', k.navn, 'Fx Lone Jensen');
+  const relation = input('text', 'k-relation', k.relation, 'Fx Olivers vens mor');
+  let kategori = KONTAKT_KAT[k.kategori] && k.kategori !== 'familie' ? k.kategori : 'venner';
+  let katValg = null;
+  const lavKat = () => chipValg(['venner', 'skole', 'sundhed', 'andet'], kategori, v => { kategori = v; }, v => KONTAKT_KAT[v]);
+  katValg = lavKat();
+  // Hurtigvalg: udfylder "Hvem er det?" og vælger en passende gruppe
+  const forslag = el('div', 'seg wrap kontakt-forslag');
+  for (const f of KONTAKT_FORSLAG) forslag.append(knap(f, null, () => {
+    relation.value = f;
+    kategori = { Ven: 'venner', Nabo: 'venner', Læge: 'sundhed', Tandlæge: 'sundhed', Skole: 'skole', SFO: 'skole', Træner: 'skole' }[f] || 'andet';
+    const nyt = lavKat();
+    katValg.replaceWith(nyt);
+    katValg = nyt;
+  }));
+  let hvem = k.hvem || 'Fælles';
+  const hvemValg = chipValg(PERSONER, hvem, v => { hvem = v; });
+  const tlf = input('tel', 'k-tlf', k.telefon, 'Fx 20 30 40 50');
+  const tlf2 = input('tel', 'k-tlf2', k.telefon2, 'Fx arbejde eller fastnet');
+  const email = input('email', 'k-email', k.email, 'navn@eksempel.dk');
+  const adresse = el('textarea', 'k-tekst'); adresse.id = 'k-adresse'; adresse.rows = 2; adresse.value = k.adresse || ''; adresse.placeholder = 'Vej og nummer\nPostnr. og by';
+  const note = el('textarea', 'k-tekst'); note.id = 'k-note'; note.rows = 2; note.value = k.note || ''; note.placeholder = 'Fx portkode, allergier ved legeaftaler, åbningstider';
+  for (const i of [tlf, tlf2]) i.inputMode = 'tel';
+  email.inputMode = 'email';
+
+  const fejl = el('p', 'fejl'); fejl.hidden = true;
+  const gem = knap('Gem', 'knap', async () => {
+    if (!familie && !navn.value.trim()) { navn.focus(); return; }
+    if (email.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())) { fejl.textContent = 'Mailadressen ser forkert ud.'; fejl.hidden = false; return; }
+    const felter = {
+      telefon: tlf.value.trim(), telefon2: tlf2.value.trim(), email: email.value.trim(),
+      adresse: adresse.value.trim(), note: note.value.trim()
+    };
+    if (familie) felter.person = k.person;
+    else Object.assign(felter, { navn: navn.value.trim(), relation: relation.value.trim(), kategori, hvem });
+    if (ny) await Data.add('kontakter', felter); else await Data.update('kontakter', k.id, felter);
+    lukArk(); tegnAlt();
+    setTimeout(() => (familie ? visPerson(k.person) : null), 60);
+  });
+  const knapper = el('div', 'ark-knapper');
+  if (!ny) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('kontakter', k.id); lukArk(); tegnAlt(); }));
+  knapper.append(gem);
+
+  const p = familie ? fd.efterId.get(k.person) : null;
+  aabnArk(familie ? 'Kontaktinfo · ' + famKort(p) : ny ? 'Ny kontakt' : 'Ret ' + (k.navn || 'kontakt'),
+    ...(familie ? [] : [felt('Navn', navn), felt('Hvem er det?', relation), forslag, felt('Gruppe', katValg), felt('Hvis kontakt', hvemValg)]),
+    felt('Telefon', tlf), felt('Anden telefon', tlf2), felt('Mail', email), felt('Adresse', adresse), felt('Note', note),
+    el('p', 'hint', 'Kontaktinfo kan kun de voksne se.' + (familie ? '' : ' Familie tilføjes under Familie, så de også kommer med i træet og fødselsdagene.')),
+    fejl, knapper);
+  setTimeout(() => (familie ? tlf : navn).focus(), 50);
+}
+
+document.getElementById('ny-kontakt')?.addEventListener('click', () => redigerKontakt({}));
+document.getElementById('kontakt-soeg')?.addEventListener('input', e => { kontaktSoeg = e.target.value; tegnKontakter(); });

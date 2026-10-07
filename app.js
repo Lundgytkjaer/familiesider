@@ -67,8 +67,8 @@ function ugeSpan(man) {
 const kortDag = iso => { const d = new Date(iso + 'T00:00'); return d.getDate() + '. ' + MDR[d.getMonth()]; };
 
 // ---------- Faner ----------
-const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie'];
-const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie'];   // sider man når via "Mere"
+const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter'];
+const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter'];   // sider man når via "Mere"
 const FANE_NAVN = { idag: 'I dag', kalender: 'Kalender', madplan: 'Madplan', indkob: 'Indkøb', todo: 'To do', mere: 'Mere' };
 // Børn ser kun de faner, de voksne har slået til for dem (personvalg.faner). Tavlen ("I dag") er der altid.
 const BOERNE_FANER = ['kalender', 'madplan', 'mere'];   // standard for børn
@@ -92,6 +92,7 @@ let aktivFane = null, tilbageTil = null;
 function visFane(navn) {
   if (typeof lukZoom === 'function') lukZoom();
   if (!FANER.includes(navn)) navn = 'idag';
+  if (navn === 'kontakter' && erBarn()) navn = 'idag';   // kontakter er kun for voksne
   if (navn !== 'hjaelp' && tilladteFaner && !tilladteFaner.includes(UNDER_MERE.includes(navn) ? 'mere' : navn)) navn = 'idag';
   const fra = aktivFane;
   if (!UNDER_MERE.includes(navn)) tilbageTil = null;
@@ -2696,6 +2697,7 @@ function tegnAlt() {
   tegnForslag('indkob'); tegnForslag('todo'); tegnForslag('ret'); tegnForslag('morgen'); tegnForslag('frokost');
   tegnFoedselsdage();
   tegnFamilie();   // fra familie.js
+  tegnKontakter();   // fra familie.js (kun voksne)
   tegnMere();   // fra mere.js
   tegnVejr();   // fra vejr.js (tegner kun, når siden er åben)
   anvendFaner();
