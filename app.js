@@ -476,29 +476,45 @@ async function tegnListe(navn) {
 }
 
 // Hold fingeren på et punkt (ca. ½ sekund) → slet eller ret. Det almindelige tryk (afkrydsning) sker så ikke.
+// Valget åbnes først, når fingeren slippes – ellers rammer slip-trykket det nye vindue (fx ✕).
 function langtTryk(elm, fn) {
-  let timer = null, x = 0, y = 0, slugKlik = false;
+  let timer = null, x = 0, y = 0, klar = false, slugKlik = false;
   const stop = () => { clearTimeout(timer); timer = null; };
+  const aabn = () => {
+    if (!klar) return;
+    klar = false; slugKlik = true;
+    elm.classList.remove('holdt');
+    setTimeout(() => { fn(); setTimeout(() => { slugKlik = false; }, 400); }, 60);
+  };
   elm.addEventListener('pointerdown', e => {
-    x = e.clientX; y = e.clientY; stop();
-    timer = setTimeout(() => { timer = null; slugKlik = true; if (navigator.vibrate) navigator.vibrate(15); fn(); }, 550);
+    x = e.clientX; y = e.clientY; stop(); klar = false;
+    timer = setTimeout(() => { timer = null; klar = true; elm.classList.add('holdt'); if (navigator.vibrate) navigator.vibrate(15); }, 500);
   });
   elm.addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - x, e.clientY - y) > 10) stop(); });
-  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => elm.addEventListener(t, stop));
-  elm.addEventListener('click', e => { if (slugKlik) { e.stopImmediatePropagation(); e.preventDefault(); slugKlik = false; } }, true);
+  elm.addEventListener('pointerup', () => { stop(); aabn(); });
+  elm.addEventListener('pointercancel', () => { stop(); aabn(); });
+  elm.addEventListener('pointerleave', () => { if (!klar) stop(); });
+  elm.addEventListener('click', e => { if (slugKlik) { e.stopImmediatePropagation(); e.preventDefault(); } }, true);
   elm.addEventListener('contextmenu', e => e.preventDefault());
 }
-function punktValg(liste, p) {
+// Lille vindue med store knapper efter et langt tryk: Slet, Ret og evt. flere
+function holdValg(titel, { slet, ret, retTekst = '✏️ Ret', ekstra = [] }) {
+  const boks = el('div', 'punkt-valg');
+  if (slet) boks.append(knap('🗑 Slet', 'knap fare stor-slet', async () => { await slet(); lukArk(); tegnAlt(); }));
+  if (ret) boks.append(knap(retTekst, 'knap sekundaer', () => { lukArk(); ret(); }));
+  boks.append(...ekstra);
+  aabnArk(titel, boks);
+}
+function punktValg(liste, p, ekstra = []) {
   // Børn må kun slette deres egne indkøbsønsker
   const maaSlette = !erBarn() || (liste === 'indkob' && p._af === Data.bruger()?.id);
   if (!maaSlette) return;
-  const dele = [];
-  const slet = knap('🗑 Slet', 'knap fare stor-slet', async () => { await Data.remove(liste, p.id); lukArk(); tegnAlt(); });
-  dele.push(slet);
-  if (!erBarn()) dele.push(knap(liste === 'indkob' ? '✏️ Note, tilbud, billede …' : '✏️ Ret opgave', 'knap sekundaer', () => { lukArk(); liste === 'indkob' ? redigerVare(p) : redigerTodo(p); }));
-  const boks = el('div', 'punkt-valg');
-  boks.append(...dele);
-  aabnArk(p.tekst, boks);
+  holdValg(p.tekst, {
+    slet: () => Data.remove(liste, p.id),
+    ret: erBarn() ? null : () => (liste === 'indkob' ? redigerVare(p) : redigerTodo(p)),
+    retTekst: liste === 'indkob' ? '✏️ Note, tilbud, billede …' : '✏️ Ret opgave',
+    ekstra
+  });
 }
 
 // Prioritet til nye opgaver
@@ -1842,6 +1858,7 @@ async function tegnBoernetavle(barn) {
       li.append(el('span', 'prik'));
     }
     const tekstEl = voksen ? knap('', 'sker-knap', () => redigerInfo(barn, iso, x)) : el('span', 'sker-knap');
+    if (voksen) langtTryk(tekstEl, () => holdValg(x.tekst || 'Note', { slet: () => Data.remove('info', x.id), ret: () => redigerInfo(barn, iso, x) }));
     tekstEl.append(el('span', 'husk-tekst', (x.tekst || '') + (x.gentag === 'uge' ? ' ↻' : '')));
     li.append(tekstEl);
     if (voksen) {

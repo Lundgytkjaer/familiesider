@@ -3,18 +3,18 @@
 // huskes den på varens favorit (favoritter type 'indkob', felt kategori), så samme vare lander rigtigt næste gang.
 // Data: 'indkob' {..., kategori?}  (kategori på varen vinder over den huskede og den automatiske)
 
-// Rækkefølgen er typisk for en dansk butik: frugt og grønt først, frost sidst
+// Standard-rækkefølgen (Timmos valg): frugt og grønt først, kølevarer og frost til sidst
 const KATEGORIER = [
   ['groent', '🥦', 'Frugt og grønt'],
   ['broed', '🍞', 'Brød og bager'],
+  ['kolonial', '🥫', 'Kolonial og morgenmad'],
+  ['drikke', '🧃', 'Drikkevarer'],
+  ['hus', '🧻', 'Husholdning og pleje'],
   ['koed', '🥩', 'Kød og fisk'],
   ['koel', '🧀', 'Pålæg og køl'],
   ['mejeri', '🥛', 'Mejeri og æg'],
-  ['kolonial', '🥫', 'Kolonial og morgenmad'],
-  ['snacks', '🍫', 'Slik og snacks'],
-  ['drikke', '🧃', 'Drikkevarer'],
-  ['hus', '🧻', 'Husholdning og pleje'],
   ['frost', '🧊', 'Frost'],
+  ['snacks', '🍫', 'Slik og snacks'],
   ['andet', '📦', 'Andet']
 ];
 const KAT = Object.fromEntries(KATEGORIER.map(([k, ikon, navn], i) => [k, { ikon, navn, orden: i }]));
@@ -239,7 +239,8 @@ async function tegnHandleliste(viste) {
 function handleLi(p, k) {
   const li = el('li', 'handle-vare' + (p.klaret ? ' klaret' : ''));
   const b = knap('', 'handle-tjek', async () => { await Data.update('indkob', p.id, { klaret: !p.klaret }); tegnAlt(); });
-  langtTryk(b, () => punktValg('indkob', p));   // fra app.js: hold = slet / ret
+  // Hold = slet / ret / kategori (fra app.js)
+  langtTryk(b, () => punktValg('indkob', p, erBarn() ? [] : [knap('🏷️ Kategori: ' + KAT[k].ikon + ' ' + KAT[k].navn, 'knap sekundaer', () => vaelgKategori(p, k))]));
   b.setAttribute('aria-pressed', !!p.klaret);
   const tjek = el('span', 'tjek'); tjek.innerHTML = IKON_TJEK;
   const tekst = el('span', 'handle-tekst', p.tekst);
@@ -247,9 +248,10 @@ function handleLi(p, k) {
   const ekstra = [p.tilbud ? 'Tilbud' : '', p.note || '', p.butik && !butikFilter ? p.butik : ''].filter(Boolean);
   if (ekstra.length) b.append(el('span', 'handle-ekstra' + (p.tilbud ? ' tilbud' : ''), ekstra.join(' · ')));
   li.append(b);
-  if (!erBarn() && !p.klaret) {
-    const kat = knap(k === 'andet' ? '❔' : KAT[k].ikon, 'handle-kat' + (k === 'andet' ? ' ukendt' : ''), () => vaelgKategori(p, k));
-    kat.setAttribute('aria-label', 'Kategori for ' + p.tekst + ': ' + KAT[k].navn + '. Tryk for at ændre');
+  // Kun varer uden kategori har en knap – ellers ændres kategorien ved at holde fingeren på varen
+  if (!erBarn() && !p.klaret && k === 'andet') {
+    const kat = knap('❔', 'handle-kat ukendt', () => vaelgKategori(p, k));
+    kat.setAttribute('aria-label', 'Vælg kategori for ' + p.tekst);
     li.append(kat);
   }
   return li;

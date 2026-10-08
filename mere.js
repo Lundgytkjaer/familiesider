@@ -124,7 +124,9 @@ async function rutineKort(barn, dato) {
     const antal = (r.trin || []).length;
     const faerdig = antal && tjek.size >= antal;
     const li = el('li');
-    const b = knap('', 'rutine-raekke' + (r === naeste ? ' naeste' : '') + (faerdig ? ' faerdig' : ''), () => visRutine(r, iso));
+    // Uden trin er der intet at vise – så kan rækken ikke trykkes på
+    const b = antal ? knap('', 'rutine-raekke' + (r === naeste ? ' naeste' : '') + (faerdig ? ' faerdig' : ''), () => visRutine(r, iso))
+      : el('div', 'rutine-raekke uden-trin');
     const strip = el('span', 'rutine-strip');
     (r.trin || []).slice(0, 5).forEach(t => strip.append(trinBillede(t, 'mini-billede', () => tegnOverblik())));
     const info = el('span', 'rutine-info');
@@ -146,7 +148,9 @@ async function rutineKort(barn, dato) {
   const omTekst = m => (m < 60 ? 'om ' + m + ' min' : m < 90 ? 'om ca. 1 time' : 'om ca. ' + Math.round(m / 60) + ' timer');
   const nuR = erIdag ? rutiner.filter(r => r.tid && tilMin(r.tid) - 15 <= nuMin && nuMin - tilMin(r.tid) <= 45).pop() : null;
   const naesteR = rutiner.find(r => !erIdag || !r.tid || tilMin(r.tid) - 15 > nuMin);
-  if (nuR) Object.assign(t, { stor: 'Nu: ' + nuR.navn, lille: (r => r ? 'Bagefter: ' + r.navn + ' ' + visTid(r.tid) : (nuR.trin || []).length + ' trin – tryk for at se dem')(rutiner.find(r => r !== nuR && tilMin(r.tid) > tilMin(nuR.tid))) });
+  const antalTrin = r => (r.trin || []).length;
+  if (nuR) Object.assign(t, { stor: 'Nu: ' + nuR.navn, lille: (r => r ? 'Bagefter: ' + r.navn + ' ' + visTid(r.tid)
+    : antalTrin(nuR) ? antalTrin(nuR) + ' trin – tryk for at se dem' : 'Kl. ' + visTid(nuR.tid))(rutiner.find(r => r !== nuR && tilMin(r.tid) > tilMin(nuR.tid))) });
   else if (naesteR) Object.assign(t, { stor: naesteR.navn, lille: [visTid(naesteR.tid), erIdag && naesteR.tid ? omTekst(tilMin(naesteR.tid) - nuMin) : ''].filter(Boolean).join(' · ') });
   else Object.assign(t, { stor: 'Ikke flere i dag', klar: true, lille: 'Puha – fri for rutiner 😴' });
   k.tavle = t;
@@ -198,7 +202,8 @@ async function tegnRutiner() {
   const iso = isoDato(new Date());
   for (const r of rutiner) {
     const li = el('li');
-    const b = knap('', 'rutine-raekke', () => (erVoksen() ? redigerRutine(r) : visRutine(r, iso)));
+    const b = erVoksen() || (r.trin || []).length ? knap('', 'rutine-raekke', () => (erVoksen() ? redigerRutine(r) : visRutine(r, iso)))
+      : el('div', 'rutine-raekke uden-trin');   // børn: en rutine uden trin kan ikke åbnes
     const strip = el('span', 'rutine-strip');
     (r.trin || []).slice(0, 6).forEach(t => strip.append(trinBillede(t, 'mini-billede', () => tegnRutiner())));
     const dage = !r.dage || !r.dage.length || r.dage.length === 7 ? 'Hver dag' : r.dage.map(i => DAGE[i]).join(', ');
@@ -1147,7 +1152,11 @@ async function tegnPakkelister() {
       tb.append(tags);
     }
     b.append(tjek, tb);
-    if (erVoksen()) b.addEventListener('click', async () => { await Data.update('pakkepunkter', p.id, { pakket: !p.pakket }); tegnPakkelister(); });
+    if (erVoksen()) {
+      b.addEventListener('click', async () => { await Data.update('pakkepunkter', p.id, { pakket: !p.pakket }); tegnPakkelister(); });
+      // Hold fingeren på punktet = slet / ret (fra app.js)
+      langtTryk(b, () => holdValg(p.tekst, { slet: async () => { await Data.remove('pakkepunkter', p.id); tegnPakkelister(); }, ret: () => redigerPakkepunkt(p) }));
+    }
     const slet = knap('', 'slet', async () => { await Data.remove('pakkepunkter', p.id); tegnPakkelister(); });
     slet.innerHTML = IKON_SLET;
     slet.setAttribute('aria-label', 'Slet ' + p.tekst);
