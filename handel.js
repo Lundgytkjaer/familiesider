@@ -221,7 +221,7 @@ async function tegnHandleliste(viste) {
     const sektion = el('section', 'handle-gruppe');
     sektion.append(el('h3', 'handle-titel', ikon + ' ' + navn + ' · ' + liste.length));
     const ul = el('ul', 'handle-ul');
-    for (const p of liste.sort((a, b) => a.tekst.localeCompare(b.tekst, 'da'))) ul.append(handleLi(p, k));
+    for (const p of liste.sort((a, b) => Number(!!b.vigtig) - Number(!!a.vigtig) || a.tekst.localeCompare(b.tekst, 'da'))) ul.append(handleLi(p, k));
     sektion.append(ul);
     dele.push(sektion);
   }
@@ -243,7 +243,8 @@ function handleLi(p, k) {
   langtTryk(b, () => punktValg('indkob', p, erBarn() ? [] : [knap('🏷️ Kategori: ' + KAT[k].ikon + ' ' + KAT[k].navn, 'knap sekundaer', () => vaelgKategori(p, k))]));
   b.setAttribute('aria-pressed', !!p.klaret);
   const tjek = el('span', 'tjek'); tjek.innerHTML = IKON_TJEK;
-  const tekst = el('span', 'handle-tekst', p.tekst);
+  const tekst = el('span', 'handle-tekst', '');
+  tekst.append(el('span', p.vigtig && !p.klaret ? 'vigtig' : '', p.tekst));
   b.append(tjek, tekst);
   const ekstra = [p.tilbud ? 'Tilbud' : '', p.note || '', p.butik && !butikFilter ? p.butik : ''].filter(Boolean);
   if (ekstra.length) b.append(el('span', 'handle-ekstra' + (p.tilbud ? ' tilbud' : ''), ekstra.join(' · ')));

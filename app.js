@@ -314,6 +314,10 @@ async function redigerVare(p) {
   const tilbudLabel = el('label', 'check');
   const tilbud = el('input'); tilbud.type = 'checkbox'; tilbud.id = 'vare-tilbud'; tilbud.checked = !!p.tilbud;
   tilbudLabel.append(tilbud, 'På tilbud');
+  const vigtigLabel = el('label', 'check');
+  const vigtigTjek = el('input'); vigtigTjek.type = 'checkbox'; vigtigTjek.id = 'vare-vigtig'; vigtigTjek.checked = !!p.vigtig;
+  vigtigLabel.append(vigtigTjek, el('span', 'tekst vigtig', 'Vigtig'), ' – skal købes');
+  vigtigTjek.addEventListener('change', () => gemSnart());
   tilbud.addEventListener('change', () => gemSnart());
 
   const note = input('text', 'vare-note', p.note, 'Fx 2 for 30 kr. eller "den med blåt låg"');
@@ -351,7 +355,7 @@ async function redigerVare(p) {
     const tekst = navn.value.trim();
     if (!tekst) return;
     try {
-      await Data.update('indkob', p.id, { tekst, butik, tilbud: tilbud.checked, note: note.value.trim(), billede });
+      await Data.update('indkob', p.id, { tekst, butik, tilbud: tilbud.checked, vigtig: vigtigTjek.checked, note: note.value.trim(), billede });
       fejl.hidden = true;
       gemtTekst.textContent = 'Gemt';
       if (butik && butik !== sidsteButik) await gemFavorit('butik', butik);
@@ -378,7 +382,7 @@ async function redigerVare(p) {
   const fav = await Data.list('favoritter');
   const katValg = chipValg(KATEGORIER.map(k => k[0]), varensKategori(p, fav), async k => { await saetKategori(p, k); tegnAlt(); },
     k => KAT[k].ikon + ' ' + KAT[k].navn);
-  aabnArk('Vare', felt('Vare', navn), felt('Butik', butikValg), nyButik, tilbudLabel,
+  aabnArk('Vare', felt('Vare', navn), felt('Butik', butikValg), nyButik, vigtigLabel, tilbudLabel,
     felt('Note', note), felt('Billede', billedBoks), felt('Kategori (i handletilstand)', katValg), fejl, gemtTekst, knapper);
 }
 
@@ -386,7 +390,7 @@ async function redigerVare(p) {
 async function tegnListe(navn) {
   const ul = document.querySelector(`ul[data-liste="${navn}"]`);
   const punkter = await Data.list(navn);
-  punkter.sort((a, b) => Number(a.klaret) - Number(b.klaret) || (a.prio || 0) - (b.prio || 0)
+  punkter.sort((a, b) => Number(a.klaret) - Number(b.klaret) || Number(!!b.vigtig) - Number(!!a.vigtig) || (a.prio || 0) - (b.prio || 0)
     || (a.frist || '9999').localeCompare(b.frist || '9999')
     || (a.butik || 'ø').localeCompare(b.butik || 'ø', 'da'));
   ul.replaceChildren();
@@ -410,7 +414,7 @@ async function tegnListe(navn) {
     const tjek = el('span', 'tjek');
     tjek.innerHTML = IKON_TJEK;
     const tekstBoks = el('span', 'tekst-boks');
-    tekstBoks.append(el('span', 'tekst', p.tekst));
+    tekstBoks.append(el('span', 'tekst' + (p.vigtig && !p.klaret ? ' vigtig' : ''), p.tekst));
     if (p.butik || p.tilbud || p.note || p.af || p.hvem || p.frist) {
       const tags = el('span', 'tags');
       if (p.hvem) tags.append(el('span', 'hvem-tag ' + (PK[p.hvem] || ''), p.hvem));
@@ -498,8 +502,9 @@ function langtTryk(elm, fn) {
   elm.addEventListener('contextmenu', e => e.preventDefault());
 }
 // Lille vindue med store knapper efter et langt tryk: Slet, Ret og evt. flere
-function holdValg(titel, { slet, ret, retTekst = '✏️ Ret', ekstra = [] }) {
+function holdValg(titel, { slet, ret, retTekst = '✏️ Ret', ekstra = [], foerst = [] }) {
   const boks = el('div', 'punkt-valg');
+  boks.append(...foerst);
   if (slet) boks.append(knap('🗑 Slet', 'knap fare stor-slet', async () => { await slet(); lukArk(); tegnAlt(); }));
   if (ret) boks.append(knap(retTekst, 'knap sekundaer', () => { lukArk(); ret(); }));
   boks.append(...ekstra);
@@ -509,7 +514,12 @@ function punktValg(liste, p, ekstra = []) {
   // Børn må kun slette deres egne indkøbsønsker
   const maaSlette = !erBarn() || (liste === 'indkob' && p._af === Data.bruger()?.id);
   if (!maaSlette) return;
+  // Indkøb: markér som vigtig (som med en overstregningstusch på en papirseddel)
+  const foerst = liste === 'indkob' && !erBarn() && !p.klaret
+    ? [knap(p.vigtig ? '✖ Fjern markering' : '🖍️ Markér som vigtig', 'knap marker-knap', async () => { await Data.update('indkob', p.id, { vigtig: !p.vigtig }); lukArk(); tegnAlt(); })]
+    : [];
   holdValg(p.tekst, {
+    foerst,
     slet: () => Data.remove(liste, p.id),
     ret: erBarn() ? null : () => (liste === 'indkob' ? redigerVare(p) : redigerTodo(p)),
     retTekst: liste === 'indkob' ? '✏️ Note, tilbud, billede …' : '✏️ Ret opgave',
@@ -528,9 +538,12 @@ document.querySelectorAll('form.tilfoj[data-liste]').forEach(form => {
   form.addEventListener('submit', async e => {
     e.preventDefault();
     const felt = form.querySelector('input');
-    const tekst = felt.value.trim();
+    let tekst = felt.value.trim();
+    // "!mælk" eller "mælk!" = vigtig (indkøb)
+    const vigtig = form.dataset.liste === 'indkob' && /^!|!$/.test(tekst) && !erBarn();
+    tekst = tekst.replace(/^!+\s*|\s*!+$/g, '').trim();
     if (!tekst) return;
-    const felter = { tekst, klaret: false };
+    const felter = { tekst, klaret: false, ...(vigtig ? { vigtig: true } : {}) };
     if (form.dataset.liste === 'todo') felter.prio = nyPrio;
     const nyt = await tilfoejUdenDublet(form.dataset.liste, felter);
     if (nyt) await gemFavorit(form.dataset.liste, tekst);
@@ -547,7 +560,7 @@ async function tilfoejUdenDublet(liste, felter) {
   const findes = (await Data.list(liste)).find(p => p.tekst.trim().toLowerCase() === felter.tekst.trim().toLowerCase());
   if (findes && !findes.klaret) { visStatus(findes.tekst + ' står allerede på listen'); return false; }
   if (erBarn()) { await Data.add(liste, { ...felter, af: Data.bruger().navn }); return true; }   // børn: hvem ønskede det
-  if (findes) { await Data.update(liste, findes.id, { klaret: false, ...(felter.prio ? { prio: felter.prio } : {}) }); return true; }
+  if (findes) { await Data.update(liste, findes.id, { klaret: false, ...(felter.prio ? { prio: felter.prio } : {}), ...(felter.vigtig ? { vigtig: true } : {}) }); return true; }
   await Data.add(liste, felter);
   return true;
 }
