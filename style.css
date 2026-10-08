@@ -1265,3 +1265,14 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .boernevalg-knap { margin-top: 10px; }
 .oenske-form { display: flex; gap: 8px; margin-bottom: 10px; }
 .ark .oenske-form input[type="text"] { flex: 1; width: auto; }
+
+/* Noget venter på en voksen: rødt tal der pulserer på "I dag" og "Familien", rød ramme om 🎁 Ønsker */
+.venter-badge { animation: puls 1.6s ease-in-out infinite; box-shadow: 0 0 0 0 rgb(200 67 47 / .6); }
+@keyframes puls { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgb(200 67 47 / .55); } 50% { transform: scale(1.15); box-shadow: 0 0 0 6px rgb(200 67 47 / 0); } }
+@media (prefers-reduced-motion: reduce) { .venter-badge { animation: none; } }
+.valg-badge { display: inline-grid; place-content: center; min-width: 20px; height: 20px; margin-left: 6px; padding: 0 6px; border-radius: 10px; background: var(--p1); color: #fff; font-size: 12px; font-weight: 800; animation: puls 1.6s ease-in-out infinite; }
+#idag-valg button { position: relative; }
+.oensker-kort.venter { box-shadow: 0 0 0 3px var(--p1), 0 6px 20px rgb(200 67 47 / .18); }
+.oensker-kort.venter .kort-label { color: var(--p1); }
+/* Venlig besked (nej-svar) */
+.fejring.besked { font-size: 17px; font-weight: 700; background: var(--flade); border: 2px solid var(--linje); }

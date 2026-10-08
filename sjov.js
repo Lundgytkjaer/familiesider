@@ -2,6 +2,15 @@
 // Bruger hjælpere fra app.js og mere.js. Gemmer intet nyt i databasen – alt regnes ud fra
 // flueben (pligter) og rutinetrin (huskes på enheden).
 
+// ---------- Venlig besked (uden konfetti) – fx når mor og far har sagt nej ----------
+function besked(tekst) {
+  const b = el('div', 'fejring besked', tekst);
+  b.setAttribute('role', 'status');
+  document.body.append(b);
+  setTimeout(() => b.classList.add('vaek'), 3200);
+  setTimeout(() => b.remove(), 3800);
+}
+
 // ---------- Konfetti ----------
 const KONFETTI_FARVER = ['#f2a45a', '#a990ff', '#7aa5f5', '#ee86bd', '#5cc3a3', '#ffd34d'];
 let fejrerNu = false;

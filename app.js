@@ -1702,10 +1702,11 @@ function tegnTavleValg() {
     k.setAttribute('aria-checked', v === tavleVisning);
     return k;
   }));
+  opdaterVenter();   // rødt tal på "Familien", hvis noget venter
 }
 
 async function tegnBoernetavle(barn) {
-  if (typeof fejrNyeEkstra === 'function') fejrNyeEkstra(barn);   // ⭐ ros fra en voksen (mere.js)
+  if (typeof svarTilBarn === 'function') svarTilBarn(barn);   // besked om svar fra en voksen (mere.js)
   const boks = document.getElementById('boernetavle');
   const auto = tavleAutoDato();
   const valgt = tavleValgt || auto;
@@ -2899,6 +2900,24 @@ function visFortryd(g) {
 Data.onFortryd(visFortryd);
 
 // ---------- Start ----------
+// Hvad venter på en voksen? (børnenes ønsker, ekstra stjerner og madønsker uden for listen)
+// Vises meget tydeligt: rødt tal på "I dag" og på "Familien", en rød ramme om 🎁 Ønsker – og tal på app-ikonet, hvor telefonen kan.
+async function opdaterVenter() {
+  if (Data.bruger()?.rolle !== 'voksen') return;
+  const n = (await Data.list('indloesninger')).filter(x => x.status === 'afventer').length
+    + (await Data.list('ekstra')).filter(x => x.status === 'afventer').length
+    + (typeof madOenskeLinjer === 'function' ? (await madOenskeLinjer()).length : 0);
+  const badge = document.querySelector('[data-badge="idag"]');
+  badge.textContent = n; badge.hidden = !n;
+  const fam = document.querySelector('#idag-valg button');   // "Familien"
+  if (fam) {
+    fam.querySelector('.valg-badge')?.remove();
+    if (n) fam.append(el('span', 'valg-badge', String(n)));
+  }
+  document.getElementById('ov-oensker').classList.toggle('venter', n > 0);
+  try { if (n && navigator.setAppBadge) navigator.setAppBadge(n); else if (navigator.clearAppBadge) navigator.clearAppBadge(); } catch {}
+}
+
 function tegnAlt() {
   tegnListe('indkob'); tegnListe('todo'); tegnMadplan(); tegnFastPlan(); tegnSkema(); tegnKalender(); tegnOverblik();
   tegnForslag('indkob'); tegnForslag('todo'); tegnForslag('ret'); tegnForslag('morgen'); tegnForslag('frokost');
@@ -2908,6 +2927,7 @@ function tegnAlt() {
   tegnMere();   // fra mere.js
   tegnVejr();   // fra vejr.js (tegner kun, når siden er åben)
   anvendFaner();
+  opdaterVenter();
 }
 
 async function startTavle() {
