@@ -1016,7 +1016,8 @@ async function oenskerIndhold() {
   if (!erVoksen()) return [];
   const ventende = (await Data.list('indloesninger')).filter(x => x.status === 'afventer').sort((a, b) => a.dato.localeCompare(b.dato));
   const ekstra = (await Data.list('ekstra')).filter(x => x.status === 'afventer').sort((a, b) => a.dato.localeCompare(b.dato));
-  const antal = ventende.length + ekstra.length;
+  const mad = await madOenskeLinjer();   // fra app.js
+  const antal = ventende.length + ekstra.length + mad.length;
   if (!antal) return [];
   const top = el('div', 'kort-top');
   top.append(el('span', 'kort-label', '🎁 Ønsker'), el('span', 'kort-pil', antal === 1 ? '1 venter' : antal + ' venter'));
@@ -1033,6 +1034,7 @@ async function oenskerIndhold() {
     li.append(info, kn);
     ul.append(li);
   }
+  ul.append(...mad);
   return [top, ul];
 }
 

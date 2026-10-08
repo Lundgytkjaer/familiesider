@@ -1254,3 +1254,14 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 /* Ekstra stjerner */
 .ekstra-knap { margin-top: 10px; border-color: #e0b400; color: var(--fg); font-weight: 700; }
 .ekstra-liste { margin-top: 10px; }
+
+/* Madønsker fra børnene */
+.mad-nu { font-weight: 700; margin: 0 0 8px; }
+.mad-venter { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 12px; background: var(--bg); margin-bottom: 8px; font-weight: 600; }
+.mad-valg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 6px; }
+.mad-valg-knap { min-height: 52px; padding: 8px 10px; border: 2px solid var(--linje); border-radius: 14px; background: var(--bg); font-weight: 700; font-size: 16px; }
+.mad-valg-knap.valgt { border-color: var(--accent); background: var(--accent-blod); }
+.venter-tag { display: block; font-size: 12.5px; font-weight: 600; color: var(--daempet); margin-top: 2px; }
+.boernevalg-knap { margin-top: 10px; }
+.oenske-form { display: flex; gap: 8px; margin-bottom: 10px; }
+.ark .oenske-form input[type="text"] { flex: 1; width: auto; }

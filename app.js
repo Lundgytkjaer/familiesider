@@ -796,6 +796,13 @@ async function madFor(dato, barn = null) {
   if (barn) {
     const eget = (await madplanForUge(ugeIso, barn)).find(r => r.dag === dag) || {};
     for (const f of ['morgen', 'frokost', 'ret']) if (eget[f]) { res[f] = eget[f]; res.eget[f] = true; res.kilde[f] = 'eget'; }
+    // Barnets egne valg/godkendte ønsker gælder (en voksens senere valg "erstatter" dem)
+    const o = await madOensker(barn, isoDato(dato));
+    res.oenske = {}; res.venter = {};
+    for (const f of ['morgen', 'frokost', 'ret']) {
+      if (o.gaelder[f]) { res[f] = o.gaelder[f].ret; res.oenske[f] = true; res.kilde[f] = 'oenske'; }
+      if (o.venter[f]) res.venter[f] = o.venter[f].ret;
+    }
   }
   return res;
 }
@@ -952,7 +959,8 @@ async function tegnFastPlan() {
   boks.replaceChildren(
     el('h3', 'lille-titel', selv ? 'Min morgenmad og frokost' : 'Børnenes morgenmad og frokost – hver uge'),
     selv ? '' : el('p', 'hint', 'Går igen hver uge af sig selv – også når du skifter uge ovenfor. En enkelt dag ændres ved at trykke på maden på barnets tavle.'),
-    selv ? '' : seg, hoved, ol);
+    selv ? '' : seg, hoved, ol,
+    selv ? '' : knap('🧒 Hvad må børnene selv vælge?', 'lille-knap boernevalg-knap', () => redigerBoernevalg()));
 }
 
 // Terning: vælg tilfældigt fra listerne – undgå gentagelser i samme uge
@@ -1808,11 +1816,15 @@ async function tegnBoernetavle(barn) {
   const madKort = kort('Mad');
   for (const [felt, navn] of [['morgen', 'Morgen'], ['frokost', 'Frokost'], ['ret', 'Aften']]) {
     const ret = plan[felt];
-    const r = erBarn() ? el('div', 'maaltid') : knap('', 'maaltid', () => redigerMaaltid(barn, valgt, felt));
+    const fremtid = iso >= idagIso;
+    const r = erBarn() ? (fremtid ? knap('', 'maaltid', () => oenskMad(barn, valgt, felt)) : el('div', 'maaltid')) : knap('', 'maaltid', () => redigerMaaltid(barn, valgt, felt));
     if (!erBarn()) r.setAttribute('aria-label', navn + ': ' + (ret || 'ikke bestemt') + '. Tryk for at ændre');
     const retEl = el('span', 'm-ret' + (ret ? '' : ' tom-ret'), ret || 'Ikke bestemt');
-    if (plan.eget[felt]) retEl.append(el('span', 'eget-tag', 'Eget valg'));
-    r.append(el('span', 'm-navn', navn), retEl, erBarn() ? '' : el('span', 'm-pil', '›'));
+    // Kun de voksne ser, at retten er ændret for netop denne dag (barnet ser bare maden)
+    if (plan.eget[felt] && !plan.oenske?.[felt] && !erBarn()) retEl.append(el('span', 'eget-tag', 'Kun denne dag'));
+    if (plan.oenske?.[felt]) retEl.append(el('span', 'eget-tag', erBarn() ? 'Dit valg' : genitiv(barn) + ' valg'));
+    if (plan.venter?.[felt]) retEl.append(el('span', 'venter-tag', '⏳ ønsker ' + plan.venter[felt]));
+    r.append(el('span', 'm-navn', navn), retEl, erBarn() && !fremtid ? '' : el('span', 'm-pil', '›'));
     madKort.append(r);
   }
 
@@ -2166,6 +2178,7 @@ async function redigerMaaltid(barn, dato, felt) {
   const fastTjek = el('input'); fastTjek.type = 'checkbox'; fastTjek.id = 'goer-fast';
   fastLabel.append(fastTjek, 'Gør det fast hver ' + DAGE_LANG[dag].toLowerCase());
   const vaelg = async v => {
+    await erstatOensker(barn, isoDato(dato), felt);   // en voksens valg gælder frem for barnets ønske
     if (kanGoereFast && fastTjek.checked) {
       await gemFast(barn, dag, felt, v);
       if (plan.eget[felt]) await gemMad(dag, felt, '', ugeIso, barn);   // fjern dagens undtagelse
@@ -2215,6 +2228,120 @@ async function redigerMaaltid(barn, dato, felt) {
     : (standard ? 'Fast hver ' + DAGE_LANG[dag].toLowerCase() + ': ' + standard : 'Der er ikke noget fast for ' + DAGE_LANG[dag].toLowerCase() + '.');
   aabnArk(NAVN[felt] + ' til ' + barn + ' · ' + DAGE_LANG[dag].toLowerCase(),
     el('p', 'hint', forklaring), form, chips, kanGoereFast ? fastLabel : '', knapper);
+}
+
+// ---------- Madønsker fra børnene ----------
+// Data: 'madoensker' {barn, dato 'ÅÅÅÅ-MM-DD', felt 'morgen'|'frokost'|'ret', ret, status 'afventer'|'godkendt'|'afvist'|'erstattet', besvaret?}
+// De voksne markerer på listerne (favoritter.boernevalg), hvad børnene selv må vælge → så gælder valget med det samme.
+// Alt andet er et ønske, en voksen skal godkende. Vælger en voksen selv maden den dag, bliver ønsket "erstattet".
+// Databasen tjekker barnets ønsker (opdatering-madoensker.sql).
+const MAD_NAVN = { morgen: 'Morgenmad', frokost: 'Frokost', ret: 'Aftensmad' };
+async function maaVaelges(felt) {
+  return new Set((await Data.list('favoritter')).filter(f => f.type === felt && f.boernevalg).map(f => f.tekst.toLowerCase()));
+}
+// Gældende ønsker for et barn en dag: {felt: ønske} – og dem der venter: {felt: ønske}
+async function madOensker(barn, iso) {
+  const alle = (await Data.list('madoensker')).filter(x => x.barn === barn && x.dato === iso)
+    .sort((a, b) => (a.oprettet || '').localeCompare(b.oprettet || ''));
+  const gaelder = {}, venter = {};
+  for (const felt of ['morgen', 'frokost', 'ret']) {
+    const frit = await maaVaelges(felt);
+    for (const x of alle.filter(x => x.felt === felt)) {
+      if (x.status === 'godkendt' || (x.status === 'afventer' && frit.has((x.ret || '').toLowerCase()))) { gaelder[felt] = x; delete venter[felt]; }
+      else if (x.status === 'afventer') venter[felt] = x;
+    }
+  }
+  return { gaelder, venter };
+}
+// En voksen vælger selv maden → børnenes ønsker den dag (for det måltid) er erstattet
+async function erstatOensker(barn, iso, felt) {
+  for (const x of (await Data.list('madoensker')).filter(x => x.barn === barn && x.dato === iso && x.felt === felt && ['afventer', 'godkendt'].includes(x.status)))
+    await Data.update('madoensker', x.id, { status: 'erstattet', besvaret: isoDato(new Date()) });
+}
+
+// Barnet trykker på et måltid på sin tavle
+async function oenskMad(barn, dato, felt) {
+  const iso = isoDato(dato);
+  if (iso < isoDato(new Date())) return;   // ikke bagud i tiden
+  const plan = await madFor(dato, barn);
+  const { gaelder, venter } = await madOensker(barn, iso);
+  const frit = [...(await maaVaelges(felt))];
+  const favs = (await Data.list('favoritter')).filter(f => f.type === felt && f.boernevalg).map(f => f.tekst).sort((a, b) => a.localeCompare(b, 'da'));
+  const mine = async () => (await Data.list('madoensker')).filter(x => x.barn === barn && x.dato === iso && x.felt === felt && x.status === 'afventer');
+  const send = async (ret, frivalg) => {
+    for (const x of await mine()) await Data.remove('madoensker', x.id);   // et nyt valg erstatter det gamle
+    const r = await Data.add('madoensker', { barn, dato: iso, felt, ret, status: 'afventer' });
+    lukArk(); tegnAlt();
+    if (r) fejr(frivalg ? 'Godt valg! 😋' : 'Ønsket er sendt til mor og far 🍽️');   // fra sjov.js
+  };
+  const dele = [el('p', 'mad-nu', 'Nu: ' + (plan[felt] || 'ikke bestemt'))];
+  if (venter[felt]) {
+    const v = el('div', 'mad-venter');
+    v.append(el('span', null, '⏳ Du har ønsket: ' + venter[felt].ret), knap('Fortryd', 'lille-knap', async () => { await Data.remove('madoensker', venter[felt].id); lukArk(); tegnAlt(); }));
+    dele.push(v);
+  }
+  if (favs.length) {
+    const grid = el('div', 'mad-valg');
+    for (const v of favs) {
+      const b = knap(v, 'mad-valg-knap' + (v === plan[felt] ? ' valgt' : ''), () => send(v, true));
+      grid.append(b);
+    }
+    dele.push(el('h3', 'lille-titel', 'Vælg selv'), grid);
+  }
+  const inp = input('text', 'mad-oenske', '', 'Skriv hvad du har lyst til');
+  const form = el('form', 'oenske-form');   // ikke 'tilfoj' – de formularer er skjult for børn
+  form.append(inp, el('button', 'knap', 'Ønsk'));
+  form.addEventListener('submit', e => { e.preventDefault(); const t = inp.value.trim(); if (t) send(t, frit.includes(t.toLowerCase())); });
+  dele.push(el('h3', 'lille-titel', favs.length ? 'Eller ønsk noget andet' : 'Ønsk noget'), form,
+    el('p', 'hint', favs.length ? 'Det du vælger ovenfor, gælder med det samme. Andre ønsker skal mor eller far sige ja til.' : 'Mor eller far siger ja eller nej.'));
+  if (gaelder[felt] && gaelder[felt].status === 'afventer') {
+    dele.push(knap('Fortryd mit valg', 'lille-knap', async () => { await Data.remove('madoensker', gaelder[felt].id); lukArk(); tegnAlt(); }));
+  }
+  aabnArk(MAD_NAVN[felt] + ' · ' + DAGE_LANG[(dato.getDay() + 6) % 7].toLowerCase(), ...dele);
+}
+
+// Voksne: hvad må børnene selv vælge? (markeres på listerne)
+async function redigerBoernevalg() {
+  const favs = await Data.list('favoritter');
+  const dele = [el('p', 'hint', 'Det markerede kan børnene selv vælge på deres tavle – uden at spørge. Alt andet bliver et ønske, som I godkender under 🎁 Ønsker.')];
+  for (const felt of ['morgen', 'frokost', 'ret']) {
+    const seg = el('div', 'seg wrap');
+    for (const f of favs.filter(x => x.type === felt).sort((a, b) => a.tekst.localeCompare(b.tekst, 'da'))) {
+      const k = knap(f.tekst, null, async () => {
+        f.boernevalg = !f.boernevalg;
+        k.setAttribute('aria-checked', !!f.boernevalg);
+        await Data.update('favoritter', f.id, { boernevalg: !!f.boernevalg });
+      });
+      k.setAttribute('role', 'checkbox');
+      k.setAttribute('aria-checked', !!f.boernevalg);
+      seg.append(k);
+    }
+    if (!seg.children.length) seg.append(el('span', 'hint', 'Listen er tom – tilføj under "Vores lister".'));
+    dele.push(el('h3', 'lille-titel', MAD_NAVN[felt]), seg);
+  }
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('Færdig', 'knap', () => { lukArk(); tegnAlt(); }));
+  aabnArk('🧒 Hvad må børnene selv vælge?', ...dele, knapper);
+}
+
+// Til 🎁 Ønsker hos de voksne
+async function madOenskeLinjer() {
+  const ventende = [];
+  for (const x of (await Data.list('madoensker')).filter(x => x.status === 'afventer' && x.dato >= isoDato(new Date()))) {
+    const { venter } = await madOensker(x.barn, x.dato);
+    if (venter[x.felt]?.id === x.id) ventende.push(x);
+  }
+  return ventende.sort((a, b) => a.dato.localeCompare(b.dato)).map(x => {
+    const li = el('li', 'beloen oenske');
+    const info = el('div', 'beloen-info');
+    const d = new Date(x.dato + 'T00:00');
+    info.append(el('span', 'beloen-navn', '🍽️ ' + x.barn + ' ønsker: ' + x.ret), el('span', 'beloen-pris', MAD_NAVN[x.felt] + ' · ' + DAGE_LANG[(d.getDay() + 6) % 7].toLowerCase() + ' ' + d.getDate() + '/' + (d.getMonth() + 1)));
+    const kn = el('div', 'oenske-knapper');
+    kn.append(knap('Nej', 'lille-knap', async () => { await Data.update('madoensker', x.id, { status: 'afvist', besvaret: isoDato(new Date()) }); tegnAlt(); }),
+      knap('Ja', 'lille-knap godkend', async () => { await Data.update('madoensker', x.id, { status: 'godkendt', besvaret: isoDato(new Date()) }); tegnAlt(); }));
+    li.append(info, kn);
+    return li;
+  });
 }
 
 // ---------- Fødselsdage og mærkedage ----------
@@ -2538,7 +2665,8 @@ function barnMaa(handling, liste, felter, gammel) {
   if (handling === 'ny') {
     if (liste === 'flueben') return felter.barn === navn;
     if (liste === 'streakbonus' || liste === 'streakjoker') return felter.barn === navn;
-    if (liste === 'ekstra') return felter.barn === navn && felter.status === 'afventer';   // databasen tjekker antal (ekstra_ok)   // databasen tjekker selve reglen (streakbonus_ok / streakjoker_ok)
+    if (liste === 'ekstra') return felter.barn === navn && felter.status === 'afventer';   // databasen tjekker antal (ekstra_ok)
+    if (liste === 'madoensker') return felter.barn === navn && felter.status === 'afventer';   // databasen tjekker resten (madoensker_ok)   // databasen tjekker selve reglen (streakbonus_ok / streakjoker_ok)
     if (liste === 'indloesninger') return felter.barn === navn && felter.status === 'afventer';
     if (liste === 'motion') return felter.hvem === navn;
     if (liste === 'personvalg') return felter.navn === navn;
@@ -2553,7 +2681,7 @@ function barnMaa(handling, liste, felter, gammel) {
   }
   if (liste === 'flueben' || liste === 'streakbonus') return gammel.barn === navn;
   if (liste === 'motion') return gammel.hvem === navn;
-  if (liste === 'indloesninger' || liste === 'ekstra') return gammel.barn === navn && gammel.status === 'afventer';
+  if (liste === 'indloesninger' || liste === 'ekstra' || liste === 'madoensker') return gammel.barn === navn && gammel.status === 'afventer';
   if (liste === 'indkob') return gammel._af === Data.bruger()?.id;
   return false;
 }
