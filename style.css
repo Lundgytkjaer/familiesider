@@ -1208,3 +1208,27 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .fam-rel-valg { font-size: 14.5px; }
 .handle-vare.klaret .tjek { background: var(--accent); border-color: var(--accent); }
 .handle-vare.klaret .tjek svg { opacity: 1; }
+
+/* Knapperne nederst i et ark (Gem, Slet, Færdig …) bliver stående i bunden, så man ikke skal rulle efter dem */
+.ark .ark-knapper {
+  position: sticky; bottom: calc(-18px - env(safe-area-inset-bottom, 0px)); z-index: 3;
+  margin: 18px -16px 0; padding: 10px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+  background: var(--flade); box-shadow: 0 -1px 0 var(--linje);
+}
+#ark-indhold > .ark-knapper:last-child { margin-bottom: calc(-18px - env(safe-area-inset-bottom, 0px)); }
+
+/* Hold fingeren på et punkt: slet eller ret */
+.punkt-knap, .handle-tjek { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.punkt-valg { display: grid; gap: 10px; margin-top: 8px; }
+.punkt-valg .knap { width: 100%; min-height: 54px; font-size: 17px; }
+.knap.sekundaer { background: var(--bg); color: var(--fg); border: 1.5px solid var(--linje); }
+.punkt-valg .knap.fare { flex: none; }
+
+/* Rækkefølge i butikken */
+.handle-orden { flex: none; min-height: 36px; padding: 0 12px; border: 1.5px solid var(--linje); border-radius: 999px; background: var(--flade); font-size: 13px; font-weight: 700; color: var(--fg); }
+.orden-liste { list-style: none; margin: 4px 0 12px; padding: 0; background: var(--bg); border-radius: 14px; overflow: hidden; }
+.orden-raekke { display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 14px; }
+.orden-raekke + .orden-raekke { border-top: 1px solid var(--linje); }
+.orden-navn { flex: 1; font-weight: 600; }
+.orden-knap { width: 44px; height: 44px; border: 0; border-radius: 12px; background: var(--flade); font-size: 15px; }
+.orden-knap:disabled { opacity: .25; }

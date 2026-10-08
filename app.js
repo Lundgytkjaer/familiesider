@@ -378,8 +378,8 @@ async function redigerVare(p) {
   const fav = await Data.list('favoritter');
   const katValg = chipValg(KATEGORIER.map(k => k[0]), varensKategori(p, fav), async k => { await saetKategori(p, k); tegnAlt(); },
     k => KAT[k].ikon + ' ' + KAT[k].navn);
-  aabnArk('Vare', felt('Vare', navn), felt('Butik', butikValg), nyButik, felt('Kategori', katValg), tilbudLabel,
-    felt('Note', note), felt('Billede', billedBoks), fejl, gemtTekst, knapper);
+  aabnArk('Vare', felt('Vare', navn), felt('Butik', butikValg), nyButik, tilbudLabel,
+    felt('Note', note), felt('Billede', billedBoks), felt('Kategori (i handletilstand)', katValg), fejl, gemtTekst, knapper);
 }
 
 // ---------- Indkøb og to do ----------
@@ -423,6 +423,7 @@ async function tegnListe(navn) {
     }
     knap.append(tjek, tekstBoks);
     knap.addEventListener('click', async () => { await Data.update(navn, p.id, { klaret: !p.klaret }); tegnAlt(); });
+    langtTryk(knap, () => punktValg(navn, p));   // hold fingeren på punktet = slet / ret
     li.append(knap);
 
     if (p.billede) {
@@ -472,6 +473,32 @@ async function tegnListe(navn) {
   badge.classList.toggle('haster', aabne.some(p => p.prio === 1));
   document.querySelector(`[data-taeller="${navn}"]`).textContent = aabne.length ? aabne.length + (navn === 'indkob' ? ' mangler' : ' åbne') : '';
   document.querySelector(`.ryd[data-liste="${navn}"]`).hidden = !punkter.some(p => p.klaret);
+}
+
+// Hold fingeren på et punkt (ca. ½ sekund) → slet eller ret. Det almindelige tryk (afkrydsning) sker så ikke.
+function langtTryk(elm, fn) {
+  let timer = null, x = 0, y = 0, slugKlik = false;
+  const stop = () => { clearTimeout(timer); timer = null; };
+  elm.addEventListener('pointerdown', e => {
+    x = e.clientX; y = e.clientY; stop();
+    timer = setTimeout(() => { timer = null; slugKlik = true; if (navigator.vibrate) navigator.vibrate(15); fn(); }, 550);
+  });
+  elm.addEventListener('pointermove', e => { if (timer && Math.hypot(e.clientX - x, e.clientY - y) > 10) stop(); });
+  ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => elm.addEventListener(t, stop));
+  elm.addEventListener('click', e => { if (slugKlik) { e.stopImmediatePropagation(); e.preventDefault(); slugKlik = false; } }, true);
+  elm.addEventListener('contextmenu', e => e.preventDefault());
+}
+function punktValg(liste, p) {
+  // Børn må kun slette deres egne indkøbsønsker
+  const maaSlette = !erBarn() || (liste === 'indkob' && p._af === Data.bruger()?.id);
+  if (!maaSlette) return;
+  const dele = [];
+  const slet = knap('🗑 Slet', 'knap fare stor-slet', async () => { await Data.remove(liste, p.id); lukArk(); tegnAlt(); });
+  dele.push(slet);
+  if (!erBarn()) dele.push(knap(liste === 'indkob' ? '✏️ Note, tilbud, billede …' : '✏️ Ret opgave', 'knap sekundaer', () => { lukArk(); liste === 'indkob' ? redigerVare(p) : redigerTodo(p); }));
+  const boks = el('div', 'punkt-valg');
+  boks.append(...dele);
+  aabnArk(p.tekst, boks);
 }
 
 // Prioritet til nye opgaver

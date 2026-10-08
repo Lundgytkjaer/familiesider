@@ -118,6 +118,49 @@ function vaelgKategori(p, nu) {
   aabnArk('Hvor ligger ' + p.tekst + '?', grid, el('p', 'hint', 'Huskes til næste gang, varen kommer på listen.'));
 }
 
+// ---------- Rækkefølgen i butikken (kan justeres pr. butik) ----------
+// Data: 'indstillinger' {noegle: 'kategoriorden', vaerdi: {'': [standard], 'Netto': [...], ...}}
+const STANDARD_ORDEN = KATEGORIER.map(k => k[0]);
+async function ordenRaekke() { return (await Data.list('indstillinger')).find(x => x.noegle === 'kategoriorden') || null; }
+async function katOrden(butik) {
+  const v = (await ordenRaekke())?.vaerdi || {};
+  const o = (butik && v[butik]) || v[''] || STANDARD_ORDEN;
+  return [...o.filter(k => KAT[k]), ...STANDARD_ORDEN.filter(k => !o.includes(k))];   // nye kategorier kommer altid med
+}
+async function gemOrden(butik, orden) {
+  const r = await ordenRaekke();
+  const vaerdi = { ...(r?.vaerdi || {}), [butik || '']: orden };
+  if (orden === null) delete vaerdi[butik || ''];
+  if (r) await Data.update('indstillinger', r.id, { vaerdi }); else await Data.add('indstillinger', { noegle: 'kategoriorden', vaerdi });
+}
+async function redigerOrden(butik) {
+  const v = (await ordenRaekke())?.vaerdi || {};
+  const butikker = [...new Set([...(await Data.list('favoritter')).filter(f => f.type === 'butik').map(f => f.tekst), ...Object.keys(v).filter(Boolean)])]
+    .filter((t, i, a) => a.findIndex(x => x.toLowerCase() === t.toLowerCase()) === i).sort((a, b) => a.localeCompare(b, 'da'));
+  let valgt = butik || '';
+  const liste = el('ol', 'orden-liste');
+  const info = el('p', 'hint');
+  async function tegn() {
+    const egen = !!v[valgt];
+    const o = await katOrden(valgt);
+    info.textContent = valgt ? (egen ? valgt + ' har sin egen rækkefølge.' : valgt + ' bruger standard-rækkefølgen – flyt noget for at give ' + valgt + ' sin egen.') : 'Standard bruges, når der er valgt "Alle butikker", og for butikker uden egen rækkefølge.';
+    liste.replaceChildren(...o.map((k, i) => {
+      const li = el('li', 'orden-raekke');
+      li.append(el('span', 'orden-navn', KAT[k].ikon + ' ' + KAT[k].navn));
+      const flyt = async d => { const n = [...o]; [n[i], n[i + d]] = [n[i + d], n[i]]; v[valgt] = n; await gemOrden(valgt, n); tegn(); tegnListe('indkob'); };
+      const op = knap('▲', 'orden-knap', () => flyt(-1)); op.disabled = i === 0; op.setAttribute('aria-label', 'Flyt ' + KAT[k].navn + ' op');
+      const ned = knap('▼', 'orden-knap', () => flyt(1)); ned.disabled = i === o.length - 1; ned.setAttribute('aria-label', 'Flyt ' + KAT[k].navn + ' ned');
+      li.append(op, ned);
+      return li;
+    }));
+    nulstil.hidden = !egen;
+  }
+  const nulstil = knap('Brug standard igen', 'lille-knap', async () => { delete v[valgt]; await gemOrden(valgt, null); tegn(); tegnListe('indkob'); });
+  const valg = chipValg(['', ...butikker], valgt, b => { valgt = b; tegn(); }, b => b || 'Standard');
+  await tegn();
+  aabnArk('Rækkefølge i butikken', valg, info, liste, nulstil);
+}
+
 // ---------- Handletilstand ----------
 let handler = lokal.get('handletilstand') === 'ja';
 let skaermLaas = null;
@@ -157,6 +200,11 @@ async function tegnHandleliste(viste) {
   const fyld = el('span'); fyld.style.width = (ialt ? Math.round(100 * kurv.length / ialt) : 0) + '%';
   bar.append(fyld);
   status.append(bar);
+  if (!erBarn()) {
+    const ok = knap('⇅ Rækkefølge', 'handle-orden', () => redigerOrden(butikFilter));
+    ok.setAttribute('aria-label', 'Ret rækkefølgen af kategorierne i butikken');
+    status.append(ok);
+  }
   dele.push(status);
 
   const grupper = new Map();
@@ -165,7 +213,9 @@ async function tegnHandleliste(viste) {
     if (!grupper.has(k)) grupper.set(k, []);
     grupper.get(k).push(p);
   }
-  for (const [k, ikon, navn] of KATEGORIER) {
+  const orden = await katOrden(butikFilter);
+  for (const k of orden) {
+    const [, ikon, navn] = KATEGORIER.find(x => x[0] === k);
     const liste = grupper.get(k);
     if (!liste) continue;
     const sektion = el('section', 'handle-gruppe');
@@ -189,6 +239,7 @@ async function tegnHandleliste(viste) {
 function handleLi(p, k) {
   const li = el('li', 'handle-vare' + (p.klaret ? ' klaret' : ''));
   const b = knap('', 'handle-tjek', async () => { await Data.update('indkob', p.id, { klaret: !p.klaret }); tegnAlt(); });
+  langtTryk(b, () => punktValg('indkob', p));   // fra app.js: hold = slet / ret
   b.setAttribute('aria-pressed', !!p.klaret);
   const tjek = el('span', 'tjek'); tjek.innerHTML = IKON_TJEK;
   const tekst = el('span', 'handle-tekst', p.tekst);
