@@ -1272,7 +1272,7 @@ const FRAVAER = {
   hjemme: { ikon: '🏠', titel: 'Fri fra skolen', knap: '🏠 Fri fra skolen' },
   tidlig: { ikon: '⏰', titel: 'Tidligere fri', knap: '⏰ Tidligere fri' }
 };
-const friIkon = a => (FRAVAER[a.type]?.ikon || '🌴');
+const friIkon = a => (FRAVAER[a.type]?.ikon || '😎');
 const laas = a => (a.fri || a.type === 'tidlig' ? ' ' + friIkon(a) : '') + (a._privat ? ' 👤' : a._voksne ? ' 🔒' : '');   // markering på ferie/fri/fravær og kun-voksne-aftaler
 const fravaerDen = (aftaler, iso, barn) => aftalerDen(aftaler, iso, [barn]).find(a => FRAVAER[a.type]) || null;
 const sygDen = (aftaler, iso, barn) => aftalerDen(aftaler, iso, [barn]).some(a => a.type === 'syg');
@@ -1553,7 +1553,7 @@ function redigerAftale(a, forekomst) {
   const synligValg = chipValg(['alle', 'voksne', 'mig'], synlig, v => { synlig = v; },
     v => ({ alle: 'Alle', voksne: '🔒 Kun voksne', mig: '👤 Kun mig' })[v]);
   let fri = !!a.fri;
-  const friKnap = knap('🌴 Ferie / fri', null, () => { fri = !fri; friKnap.setAttribute('aria-checked', fri); });
+  const friKnap = knap('😎 Ferie / fri', null, () => { fri = !fri; friKnap.setAttribute('aria-checked', fri); });
   friKnap.setAttribute('role', 'checkbox');
   friKnap.setAttribute('aria-checked', fri);
   const voksneBoks = el('div', 'seg wrap');
@@ -1697,6 +1697,7 @@ function tegnTavleValg() {
 }
 
 async function tegnBoernetavle(barn) {
+  if (typeof fejrNyeEkstra === 'function') fejrNyeEkstra(barn);   // ⭐ ros fra en voksen (mere.js)
   const boks = document.getElementById('boernetavle');
   const auto = tavleAutoDato();
   const valgt = tavleValgt || auto;
@@ -2536,7 +2537,8 @@ function barnMaa(handling, liste, felter, gammel) {
   const navn = Data.bruger()?.navn;
   if (handling === 'ny') {
     if (liste === 'flueben') return felter.barn === navn;
-    if (liste === 'streakbonus' || liste === 'streakjoker') return felter.barn === navn;   // databasen tjekker selve reglen (streakbonus_ok / streakjoker_ok)
+    if (liste === 'streakbonus' || liste === 'streakjoker') return felter.barn === navn;
+    if (liste === 'ekstra') return felter.barn === navn && felter.status === 'afventer';   // databasen tjekker antal (ekstra_ok)   // databasen tjekker selve reglen (streakbonus_ok / streakjoker_ok)
     if (liste === 'indloesninger') return felter.barn === navn && felter.status === 'afventer';
     if (liste === 'motion') return felter.hvem === navn;
     if (liste === 'personvalg') return felter.navn === navn;
@@ -2551,7 +2553,7 @@ function barnMaa(handling, liste, felter, gammel) {
   }
   if (liste === 'flueben' || liste === 'streakbonus') return gammel.barn === navn;
   if (liste === 'motion') return gammel.hvem === navn;
-  if (liste === 'indloesninger') return gammel.barn === navn && gammel.status === 'afventer';
+  if (liste === 'indloesninger' || liste === 'ekstra') return gammel.barn === navn && gammel.status === 'afventer';
   if (liste === 'indkob') return gammel._af === Data.bruger()?.id;
   return false;
 }

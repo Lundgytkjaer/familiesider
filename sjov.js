@@ -668,7 +668,7 @@ async function nedtaellingKort(barn) {
       set.add(a.titel);
       // "til efterårsferie" med lille e (navne som "Legoland" beholder stort bogstav)
       const lille = /ferie$|^fri/i.test(a.titel.trim()) ? a.titel.trim()[0].toLowerCase() + a.titel.trim().slice(1) : a.titel;
-      ting.push({ n: i, ikon: '🌴', tekst: lille });
+      ting.push({ n: i, ikon: '😎', tekst: lille });
     }
   }
 

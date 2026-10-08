@@ -1250,3 +1250,7 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .punkt-knap.holdt, .handle-tjek.holdt { background: color-mix(in srgb, var(--accent) 14%, transparent); transition: background .15s; }
 .rutine-raekke.uden-trin { cursor: default; }
 .rutine-raekke.uden-trin:active { transform: none; }
+
+/* Ekstra stjerner */
+.ekstra-knap { margin-top: 10px; border-color: #e0b400; color: var(--fg); font-weight: 700; }
+.ekstra-liste { margin-top: 10px; }
