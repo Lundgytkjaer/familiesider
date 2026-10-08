@@ -2685,6 +2685,9 @@ function saetTema(tema) {
   else delete rod.dataset.theme;
   // Farven på telefonens statuslinje
   const farve = tema === 'lys' ? '#f2f5f3' : tema === 'moerk' ? '#0e1311' : null;
+  // Fortæl også browseren/Android om lys eller mørk (bruges bl.a. til systemets bjælker)
+  const cs = document.querySelector('meta[name="color-scheme"]');
+  if (cs) cs.content = tema === 'lys' ? 'light' : tema === 'moerk' ? 'dark' : 'light dark';
   document.querySelectorAll('meta[name="theme-color"]').forEach(m => {
     if (!m.dataset.standard) m.dataset.standard = m.content;
     m.content = farve || m.dataset.standard;
