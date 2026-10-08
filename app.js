@@ -2943,6 +2943,34 @@ function tegnAlt() {
   opdaterVenter();
 }
 
+// Har appen ikke været brugt i et stykke tid, starter man forfra på I dag (voksne på "Familien").
+// Undtagelse: handletilstand og et åbent ark (fx en halvt udfyldt formular) får lov at blive.
+const HJEM_EFTER_MIN = 30;
+function noterAktiv() { lokal.set('sidst-aktiv', String(Date.now())); }
+function laengeSiden() {
+  const t = Number(lokal.get('sidst-aktiv')) || 0;
+  return t > 0 && Date.now() - t > HJEM_EFTER_MIN * 60000;
+}
+function nulstilTilStart() {
+  lokal.set('fane', 'idag');
+  if (!erBarn()) { tavleVisning = 'familie'; lokal.set('tavle', 'familie'); }
+  tavleValgt = null;
+}
+function gaaHjemEfterPause() {
+  if (document.body.dataset.tilstand !== 'klar' || !laengeSiden()) return;
+  if (typeof handler !== 'undefined' && handler && aktivFane === 'indkob') return;
+  if (!arkEl.hidden) return;
+  nulstilTilStart();
+  visFane('idag');
+  tegnOverblik();
+  window.scrollTo(0, 0);
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') gaaHjemEfterPause();
+  noterAktiv();
+});
+document.addEventListener('pointerdown', noterAktiv, { passive: true });
+
 async function startTavle() {
   const profil = Data.bruger();
   const logUd = document.getElementById('log-ud');
@@ -2966,7 +2994,9 @@ async function startTavle() {
   if (!BOERN.includes(skemaBarn)) skemaBarn = BOERN[0];
   tegnNyPrio();
   tegnListeValg();
+  if (laengeSiden()) nulstilTilStart();   // har appen ligget længe, starter man på I dag / Familien
   visFane(lokal.get('fane'));
+  noterAktiv();
   tegnAlt();
   Data.onChange(tegnAlt);
   document.body.dataset.tilstand = 'klar';
