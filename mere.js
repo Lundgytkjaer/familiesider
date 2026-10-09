@@ -175,9 +175,10 @@ async function rutineKort(barn, dato) {
   const nuR = erIdag ? (rutiner.filter(r => !rutineDel(r) && iVindue(r)).pop() || rutiner.find(r => rutineDel(r) && iVindue(r))) : null;
   const naesteR = rutiner.find(r => !erIdag || (rutineDel(r) ? rutineDel(r).fra > nuMin : !r.tid || tilMin(r.tid) - 15 > nuMin));
   const antalTrin = r => (r.trin || []).length;
+  // "Bagefter" kun hvis den næste rutine starter inden for 2 timer – ellers står antal trin (sengetid kl. 20 skal ikke stå om morgenen)
   const efterTekst = r => 'Bagefter: ' + r.navn + (rutineDel(r) ? ' · ' + rutineDel(r).navn.toLowerCase() : ' ' + visTid(r.tid));
   if (nuR) Object.assign(t, { stor: 'Nu: ' + nuR.navn, lille: (r => r ? efterTekst(r)
-    : antalTrin(nuR) ? antalTrin(nuR) + ' trin – tryk for at se dem' : rutineDel(nuR) ? rutineDel(nuR).navn : 'Kl. ' + visTid(nuR.tid))(rutiner.find(r => r !== nuR && rutineStart(r) > rutineStart(nuR) && !faerdigR(r))) });
+    : antalTrin(nuR) ? antalTrin(nuR) + ' trin – tryk for at se dem' : rutineDel(nuR) ? rutineDel(nuR).navn : 'Kl. ' + visTid(nuR.tid))(rutiner.find(r => r !== nuR && rutineStart(r) > rutineStart(nuR) && !faerdigR(r) && rutineStart(r) - nuMin <= 120)) });
   else if (naesteR) Object.assign(t, { stor: naesteR.navn, lille: [rutineTidTekst(naesteR), erIdag && naesteR.tid && !rutineDel(naesteR) ? omTekst(tilMin(naesteR.tid) - nuMin) : ''].filter(Boolean).join(' · ') });
   else Object.assign(t, { stor: 'Ikke flere i dag', klar: true, lille: 'Puha – fri for rutiner 😴' });
   k.tavle = t;
