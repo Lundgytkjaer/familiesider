@@ -177,7 +177,10 @@ async function rutineKort(barn, dato) {
   const antalTrin = r => (r.trin || []).length;
   // "Bagefter" kun hvis den næste rutine starter inden for 2 timer – ellers står antal trin (sengetid kl. 20 skal ikke stå om morgenen)
   const efterTekst = r => 'Bagefter: ' + r.navn + (rutineDel(r) ? ' · ' + rutineDel(r).navn.toLowerCase() : ' ' + visTid(r.tid));
-  if (nuR) Object.assign(t, { stor: 'Nu: ' + nuR.navn, lille: (r => r ? efterTekst(r)
+  // En dagsdel siger ikke "Nu:" – det skal bare gøres i løbet af morgenen, ikke i det øjeblik man vågner
+  if (nuR && rutineDel(nuR)) Object.assign(t, { stor: nuR.navn,
+    lille: 'I løbet af ' + rutineDel(nuR).navn.toLowerCase() + 'en' + (antalTrin(nuR) ? ' · ' + antalTrin(nuR) + ' trin' : '') });
+  else if (nuR) Object.assign(t, { stor: 'Nu: ' + nuR.navn, lille: (r => r ? efterTekst(r)
     : antalTrin(nuR) ? antalTrin(nuR) + ' trin – tryk for at se dem' : rutineDel(nuR) ? rutineDel(nuR).navn : 'Kl. ' + visTid(nuR.tid))(rutiner.find(r => r !== nuR && rutineStart(r) > rutineStart(nuR) && !faerdigR(r) && rutineStart(r) - nuMin <= 120)) });
   else if (naesteR) Object.assign(t, { stor: naesteR.navn, lille: [rutineTidTekst(naesteR), erIdag && naesteR.tid && !rutineDel(naesteR) ? omTekst(tilMin(naesteR.tid) - nuMin) : ''].filter(Boolean).join(' · ') });
   else Object.assign(t, { stor: 'Ikke flere i dag', klar: true, lille: 'Puha – fri for rutiner 😴' });
@@ -302,7 +305,7 @@ function redigerRutine(r) {
       const d = DAGSDELE[s.hvornaar];
       tidFelt.hidden = !!d;
       delHint.hidden = !d;
-      if (d) delHint.textContent = 'Står som "Nu: ' + (s.navn.trim() || d.navn) + '" på tavlen hele ' + d.navn.toLowerCase() + 'en (' + d.tekst + '), indtil alle trin er klaret.';
+      if (d) delHint.textContent = 'Står på tavlen som "' + (s.navn.trim() || d.navn) + ' – i løbet af ' + d.navn.toLowerCase() + 'en" (' + d.tekst + '), indtil alle trin er klaret.';
     };
     const hvornaar = chipValg(['klokken', ...Object.keys(DAGSDELE)], s.hvornaar, v => { s.hvornaar = v; visHvornaar(); },
       v => (v === 'klokken' ? '🕖 Klokkeslæt' : DAGSDELE[v].ikon + ' ' + DAGSDELE[v].navn));
