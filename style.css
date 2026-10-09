@@ -638,6 +638,7 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .rutine-raekke.naeste { box-shadow: inset 0 0 0 2px var(--accent); background: var(--accent-blod); }
 .rutine-raekke.faerdig { opacity: .6; }
 .rutine-tid { font-family: var(--font-titel); font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; }
+.rutine-tid.dagsdel { font-size: 26px; line-height: 1; text-align: center; }   /* 🌅 ☀️ 🌙 i stedet for et klokkeslæt */
 .rutine-info { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .rutine-navn { font-weight: 700; font-size: 17px; }
 .rutine-strip { display: flex; gap: 4px; flex-wrap: wrap; }

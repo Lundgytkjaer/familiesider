@@ -68,6 +68,24 @@ function trinUrl(t, igen) {
 const harPiktogram = r => !!r.piktogram || (r.trin || []).some(t => t.piktogram || (t.soeg && piktoOpslag[t.soeg]));
 
 const rutineAktiv = (r, dag) => !r.dage || !r.dage.length || r.dage.includes(dag);
+// En rutine har enten et klokkeslæt (tid) eller en dagsdel (dagsdel) – fx børste tænder en weekendmorgen.
+// En dagsdel-rutine er "Nu" hele vinduet, indtil alle trin er klaret.
+const DAGSDELE = {
+  morgen: { navn: 'Morgen', ikon: '🌅', fra: 5 * 60, til: 11 * 60, tekst: 'kl. 5–11' },
+  eftermiddag: { navn: 'Eftermiddag', ikon: '☀️', fra: 12 * 60, til: 17 * 60, tekst: 'kl. 12–17' },
+  aften: { navn: 'Aften', ikon: '🌙', fra: 17 * 60, til: 22 * 60, tekst: 'kl. 17–22' }
+};
+const rutineDel = r => DAGSDELE[r.dagsdel] || null;
+const tilMinutter = t => { const [h, mm] = (t || '').split(':').map(Number); return isNaN(h) ? 24 * 60 : h * 60 + (mm || 0); };
+const rutineStart = r => (rutineDel(r) ? rutineDel(r).fra : tilMinutter(r.tid));
+const rutineSort = (a, b) => rutineStart(a) - rutineStart(b) || (a.navn || '').localeCompare(b.navn || '', 'da');
+const rutineTidTekst = r => (rutineDel(r) ? rutineDel(r).navn : visTid(r.tid) || '');
+function rutineTidEl(r) {
+  const d = rutineDel(r);
+  const s = el('span', 'rutine-tid' + (d ? ' dagsdel' : ''), d ? d.ikon : visTid(r.tid) || '');
+  if (d) { s.title = d.navn; s.setAttribute('aria-label', d.navn); }
+  return s;
+}
 const tjekNoegle = (r, iso) => 'rutine-' + r.id + '-' + iso;
 function hentTjek(r, iso) { try { return new Set(JSON.parse(lokal.get(tjekNoegle(r, iso)) || '[]')); } catch { return new Set(); } }
 function gemTjek(r, iso, s) { lokal.set(tjekNoegle(r, iso), JSON.stringify([...s])); }
@@ -105,14 +123,16 @@ async function rutineKort(barn, dato) {
   const dag = (dato.getDay() + 6) % 7;
   const iso = isoDato(dato);
   const rutiner = (await Data.list('rutiner')).filter(r => r.barn === barn && rutineAktiv(r, dag))
-    .sort((a, b) => (a.tid || '').localeCompare(b.tid || ''));
+    .sort(rutineSort);
   if (!rutiner.length) return null;
   const nu = new Date();
   const nuMin = nu.getHours() * 60 + nu.getMinutes();
-  const tilMin = t => { const [h, mm] = (t || '').split(':').map(Number); return isNaN(h) ? 24 * 60 : h * 60 + (mm || 0); };
+  const tilMin = tilMinutter;
   const erIdag = iso === isoDato(nu);
-  // Den næste rutine i dag: den første der ikke er færdig og ikke er mere end en time over tiden
-  const naeste = erIdag ? rutiner.find(r => hentTjek(r, iso).size < (r.trin || []).length && tilMin(r.tid) >= nuMin - 60) : null;
+  const faerdigR = r => (r.trin || []).length > 0 && hentTjek(r, iso).size >= r.trin.length;
+  // Den næste rutine i dag: den første der ikke er færdig og ikke er mere end en time over tiden (dagsdel: vinduet er ikke slut)
+  const naeste = erIdag ? rutiner.find(r => hentTjek(r, iso).size < (r.trin || []).length
+    && (rutineDel(r) ? rutineDel(r).til > nuMin : tilMin(r.tid) >= nuMin - 60)) : null;
 
   const k = el('div', 'kort');
   const top = el('div', 'kort-top');
@@ -133,7 +153,7 @@ async function rutineKort(barn, dato) {
     const rNavn = el('span', 'rutine-navn');
     rNavn.append(ikonBillede(r), r.navn);
     info.append(rNavn, strip);
-    b.append(el('span', 'rutine-tid', visTid(r.tid) || ''), info,
+    b.append(rutineTidEl(r), info,
       el('span', 'rutine-status', faerdig ? '✓' : antal ? tjek.size + '/' + antal : ''));
     li.append(b);
     ul.append(li);
@@ -146,12 +166,19 @@ async function rutineKort(barn, dato) {
   // Rutiner er en guide (der skal ikke registreres noget): flisen viser den rutine, der er nu, eller den næste
   const t = { noegle: 'rutiner', ikon: '🪥', titel: 'Rutiner' };
   const omTekst = m => (m < 60 ? 'om ' + m + ' min' : m < 90 ? 'om ca. 1 time' : 'om ca. ' + Math.round(m / 60) + ' timer');
-  const nuR = erIdag ? rutiner.filter(r => r.tid && tilMin(r.tid) - 15 <= nuMin && nuMin - tilMin(r.tid) <= 45).pop() : null;
-  const naesteR = rutiner.find(r => !erIdag || !r.tid || tilMin(r.tid) - 15 > nuMin);
+  // Klokkeslæt: fra 15 min før til 45 min efter. Dagsdel: hele vinduet, indtil alle trin er klaret. Et klokkeslæt går forud.
+  const iVindue = r => {
+    const d = rutineDel(r);
+    if (d) return d.fra <= nuMin && nuMin < d.til && !faerdigR(r);
+    return r.tid && tilMin(r.tid) - 15 <= nuMin && nuMin - tilMin(r.tid) <= 45;
+  };
+  const nuR = erIdag ? (rutiner.filter(r => !rutineDel(r) && iVindue(r)).pop() || rutiner.find(r => rutineDel(r) && iVindue(r))) : null;
+  const naesteR = rutiner.find(r => !erIdag || (rutineDel(r) ? rutineDel(r).fra > nuMin : !r.tid || tilMin(r.tid) - 15 > nuMin));
   const antalTrin = r => (r.trin || []).length;
-  if (nuR) Object.assign(t, { stor: 'Nu: ' + nuR.navn, lille: (r => r ? 'Bagefter: ' + r.navn + ' ' + visTid(r.tid)
-    : antalTrin(nuR) ? antalTrin(nuR) + ' trin – tryk for at se dem' : 'Kl. ' + visTid(nuR.tid))(rutiner.find(r => r !== nuR && tilMin(r.tid) > tilMin(nuR.tid))) });
-  else if (naesteR) Object.assign(t, { stor: naesteR.navn, lille: [visTid(naesteR.tid), erIdag && naesteR.tid ? omTekst(tilMin(naesteR.tid) - nuMin) : ''].filter(Boolean).join(' · ') });
+  const efterTekst = r => 'Bagefter: ' + r.navn + (rutineDel(r) ? ' · ' + rutineDel(r).navn.toLowerCase() : ' ' + visTid(r.tid));
+  if (nuR) Object.assign(t, { stor: 'Nu: ' + nuR.navn, lille: (r => r ? efterTekst(r)
+    : antalTrin(nuR) ? antalTrin(nuR) + ' trin – tryk for at se dem' : rutineDel(nuR) ? rutineDel(nuR).navn : 'Kl. ' + visTid(nuR.tid))(rutiner.find(r => r !== nuR && rutineStart(r) > rutineStart(nuR) && !faerdigR(r))) });
+  else if (naesteR) Object.assign(t, { stor: naesteR.navn, lille: [rutineTidTekst(naesteR), erIdag && naesteR.tid && !rutineDel(naesteR) ? omTekst(tilMin(naesteR.tid) - nuMin) : ''].filter(Boolean).join(' · ') });
   else Object.assign(t, { stor: 'Ikke flere i dag', klar: true, lille: 'Puha – fri for rutiner 😴' });
   k.tavle = t;
   return k;
@@ -185,7 +212,7 @@ function visRutine(r, iso) {
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Start forfra', 'knap sekundaer-knap', () => { tjek.clear(); gemTjek(r, iso, tjek); tegn(); }),
     knap('Færdig', 'knap', () => { lukArk(); tegnAlt(); }));
-  aabnArk(r.navn + (r.tid ? ' · ' + visTid(r.tid) : ''), status, grid,
+  aabnArk(r.navn + (rutineTidTekst(r) ? ' · ' + rutineTidTekst(r) : ''), status, grid,
     trin.some(t => t.piktogram || t.soeg) ? el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA') : '', knapper);
 }
 
@@ -195,7 +222,7 @@ async function tegnRutiner() {
   const laast = loggetIndBarn();
   if (laast) rutineBarn = laast;
   const barn = rutineBarn;
-  const rutiner = (await Data.list('rutiner')).filter(r => r.barn === barn).sort((a, b) => (a.tid || '').localeCompare(b.tid || ''));
+  const rutiner = (await Data.list('rutiner')).filter(r => r.barn === barn).sort(rutineSort);
   const dele = [];
   if (!laast) dele.push(valgSeg(BOERN, barn, b => { rutineBarn = b; lokal.set('rutine-barn', b); tegnRutiner(); }));
   const ul = el('ul', 'rutine-liste kort-liste');
@@ -210,8 +237,8 @@ async function tegnRutiner() {
     const info = el('span', 'rutine-info');
     const rNavn = el('span', 'rutine-navn');
     rNavn.append(ikonBillede(r), r.navn);
-    info.append(rNavn, el('span', 'ret-under', dage + ' · ' + (r.trin || []).length + ' trin'), strip);
-    b.append(el('span', 'rutine-tid', visTid(r.tid) || ''), info, el('span', 'm-pil', '›'));
+    info.append(rNavn, el('span', 'ret-under', [dage, rutineDel(r) && rutineDel(r).navn, (r.trin || []).length + ' trin'].filter(Boolean).join(' · ')), strip);
+    b.append(rutineTidEl(r), info, el('span', 'm-pil', '›'));
     li.append(b);
     ul.append(li);
   }
@@ -227,6 +254,7 @@ function redigerRutine(r) {
   const ny = !r.id;
   const s = {
     navn: r.navn || '', tid: r.tid || '', til: r.barn || rutineBarn,
+    hvornaar: DAGSDELE[r.dagsdel] ? r.dagsdel : 'klokken',
     dage: new Set(r.dage && r.dage.length ? r.dage : [0, 1, 2, 3, 4, 5, 6]),
     trin: (r.trin || []).map(t => ({ ...t }))
   };
@@ -266,12 +294,24 @@ function redigerRutine(r) {
     });
     const nytTrin = knap('+ Tilføj trin', 'lille-knap', () => { s.trin.push({ tekst: '' }); vis(); setTimeout(() => document.getElementById('trin-' + (s.trin.length - 1))?.focus(), 50); });
 
-    const to = el('div', 'to-felter');
-    to.append(felt('Navn', navn), felt('Tidspunkt', tid));
+    // Hvornår: et klokkeslæt eller en dagsdel (morgen/eftermiddag/aften)
+    const tidFelt = felt('Klokkeslæt', tid);
+    const delHint = el('p', 'hint');
+    const visHvornaar = () => {
+      const d = DAGSDELE[s.hvornaar];
+      tidFelt.hidden = !!d;
+      delHint.hidden = !d;
+      if (d) delHint.textContent = 'Står som "Nu: ' + (s.navn.trim() || d.navn) + '" på tavlen hele ' + d.navn.toLowerCase() + 'en (' + d.tekst + '), indtil alle trin er klaret.';
+    };
+    const hvornaar = chipValg(['klokken', ...Object.keys(DAGSDELE)], s.hvornaar, v => { s.hvornaar = v; visHvornaar(); },
+      v => (v === 'klokken' ? '🕖 Klokkeslæt' : DAGSDELE[v].ikon + ' ' + DAGSDELE[v].navn));
+    visHvornaar();
+    const to = el('div');
+    to.append(felt('Navn', navn), felt('Hvornår', hvornaar), tidFelt, delHint);
     const gem = knap('Gem', 'knap', async () => {
       if (!s.navn.trim()) { navn.focus(); return; }
       const felter = {
-        navn: s.navn.trim(), tid: s.tid, dage: [...s.dage].sort((a, b) => a - b), ...ikon.vaerdi(),
+        navn: s.navn.trim(), tid: DAGSDELE[s.hvornaar] ? '' : s.tid, dagsdel: DAGSDELE[s.hvornaar] ? s.hvornaar : null, dage: [...s.dage].sort((a, b) => a - b), ...ikon.vaerdi(),
         trin: s.trin.filter(t => (t.tekst || '').trim() || t.piktogram || t.billede || t.soeg)
           .map(t => ({ tekst: (t.tekst || '').trim(), piktogram: t.piktogram || null, billede: t.billede || '', soeg: t.piktogram || t.billede ? '' : (t.soeg || '') }))
       };
