@@ -1371,15 +1371,17 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 /* Lange valg i Indstillinger må bryde over flere linjer (ikke løbe ud over kanten) */
 .tilpas-valg button { white-space: normal; text-align: left; max-width: 100%; }
 
-/* Tilbehør til retterne */
-.tb-liste { display: grid; gap: 8px; margin-top: 10px; }
-.tb-ret { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--linje); background: var(--flade); color: var(--fg); font: inherit; cursor: pointer; }
-.tb-ret-navn { font-weight: 700; font-size: 17px; }
-.tb-ret-under { font-size: 14px; color: var(--daempet); }
+/* Retter: kategorier, varianter (retter.js) */
+.forslag .ret-gruppe { flex-basis: 100%; font-size: 13px; font-weight: 700; color: var(--daempet); margin: 10px 0 0; }
+.forslag .ret-tag { cursor: pointer; color: var(--fg); }
+.forslag .tag-var { font-weight: 500; font-size: 12px; color: var(--daempet); }
+.dag .var-chips { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px 58px; }
+.var-chip { min-height: 32px; padding: 0 11px; border-radius: 999px; border: 1.5px solid var(--linje); background: var(--bg); color: var(--daempet); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+.var-chip[aria-pressed="true"] { border-color: var(--accent); color: var(--fg); background: var(--accent-blod); }
 .tb-raekker { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
-.tb-raekke { display: grid; grid-template-columns: 44px 1fr auto auto; gap: 8px; align-items: center; padding: 6px 4px; border-bottom: 1px solid var(--linje); }
-.tb-raekke.slukket .tb-navn { color: var(--daempet); text-decoration: line-through; }
-.tb-std { font-size: 22px; min-height: 44px; border: 0; background: none; cursor: pointer; color: var(--fg); }
-.tb-navn { font-size: 17px; overflow-wrap: anywhere; }
+.var-raekke { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 6px 4px; border-bottom: 1px solid var(--linje); }
+.var-raekke.slukket .tb-navn > span:first-child { color: var(--daempet); text-decoration: line-through; }
+.tb-navn { display: flex; flex-direction: column; gap: 4px; font-size: 16px; overflow-wrap: anywhere; }
+.var-ing { font: inherit; font-size: 13px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--linje); background: var(--bg); color: var(--fg); max-width: 220px; }
 .mad-andet { margin-top: 16px; }
 .mad-andet > summary { cursor: pointer; color: var(--daempet); font-size: 15px; padding: 6px 0; }

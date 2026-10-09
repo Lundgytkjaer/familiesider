@@ -635,7 +635,9 @@ function tegnLideValg() {
 async function gemFavorit(type, tekst) {
   if (erBarn()) return;   // børn tæller ikke hurtigvalg op
   const favs = await Data.list('favoritter');
-  const f = favs.find(x => x.type === type && x.tekst.toLowerCase() === tekst.toLowerCase());
+  // En variant ("Burger med flæskesteg") tæller på selve retten; morgenmad som aftensmad bliver ikke en ny aftensret
+  const fund = type in MAALTIDER ? findRet(favs, type, tekst) : null;
+  const f = fund ? fund.fav : favs.find(x => x.type === type && x.tekst.toLowerCase() === tekst.toLowerCase());
   if (f) await Data.update('favoritter', f.id, { brugt: (f.brugt || 0) + 1 });
   else await Data.add('favoritter', { type, tekst, brugt: 1 });
 }
@@ -648,7 +650,8 @@ async function tegnForslag(type) {
   let filter = '';
 
   if (erMaaltid) {
-    document.getElementById(DATALISTE[type]).replaceChildren(...favs.map(f => { const o = el('option'); o.value = f.tekst; return o; }));
+    const alleFavs = await Data.list('favoritter');
+    document.getElementById(DATALISTE[type]).replaceChildren(...forslagTekster(alleFavs, type).map(t => { const o = el('option'); o.value = t; return o; }));   // retter.js
     if (type !== listeType) return;
     document.getElementById('antal-retter').textContent = '(' + favs.length + ')';
     favs.sort((a, b) => a.tekst.localeCompare(b.tekst, 'da'));
@@ -698,9 +701,22 @@ async function tegnForslag(type) {
   boks.classList.toggle('ret-tilstand', st.ret);
   boks.replaceChildren();
 
+  let sidsteGruppe = null;
+  if (erMaaltid && type === 'ret' && !st.ret) {
+    const orden = Object.fromEntries(RET_GRUPPER.map((g, i) => [g[0], i]));
+    favs.sort((a, b) => (orden[a.gruppe] ?? 99) - (orden[b.gruppe] ?? 99) || a.tekst.localeCompare(b.tekst, 'da'));
+  }
   for (const f of favs.slice(0, max)) {
     if (erMaaltid && !st.ret) {
-      const tag = el('span', 'tag', f.tekst);
+      if (type === 'ret' && (f.gruppe || '') !== sidsteGruppe) {
+        sidsteGruppe = f.gruppe || '';
+        boks.append(el('div', 'ret-gruppe', GRUPPE_NAVN[sidsteGruppe] || '📋 Andre retter'));
+      }
+      const voksenRet = !erBarn();
+      const tag = voksenRet ? knap('', 'tag ret-tag', () => redigerRet(f)) : el('span', 'tag');   // retter.js
+      tag.append(f.tekst);
+      const vs = aktiveVarianter(f);
+      if (vs.length) tag.append(el('span', 'tag-var', vs.map(v => v.navn).join(' · ')));
       const hvem = PERSONER.filter(p => kanLide(f).includes(p));
       if (hvem.length) {
         const prikker = el('span', 'prikker');
@@ -802,7 +818,7 @@ async function madFor(dato, barn = null) {
   const faelles = { ...((await madplanForUge(ugeIso)).find(r => r.dag === dag) || {}) };
   if (!faelles.ret) { const fa = (await fastAftensmad())[dag]; if (fa) faelles.ret = fa; }   // fast aftensmad
   const fast = barn ? await fastFor(barn, dag) : {};
-  const res = { eget: {}, kilde: {}, faelles, fast, tilbehoer: {}, visning: {} };
+  const res = { eget: {}, kilde: {}, faelles, fast, visning: {} };
   for (const f of ['morgen', 'frokost', 'ret']) {
     if (fast[f]) { res[f] = fast[f]; res.kilde[f] = 'fast'; }
     else if (faelles[f]) { res[f] = faelles[f]; res.kilde[f] = 'faelles'; }
@@ -812,23 +828,14 @@ async function madFor(dato, barn = null) {
     for (const f of ['morgen', 'frokost', 'ret']) if (eget[f]) { res[f] = eget[f]; res.eget[f] = true; res.kilde[f] = 'eget'; }
     // Barnets egne valg/godkendte ønsker gælder (en voksens senere valg "erstatter" dem)
     const o = await madOensker(barn, isoDato(dato));
-    res.oenske = {}; res.venter = {}; res.venterTilbehoer = {};
-    const samme = (a, b) => (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+    res.oenske = {}; res.venter = {};
     for (const f of ['morgen', 'frokost', 'ret']) {
       const g = o.gaelder[f], v = o.venter[f];
-      // Et tilbehørsønske gælder kun, så længe hovedretten er den samme (skifter I retten, falder det bort)
-      if (g && g.tilbehoer) { if (samme(g.ret, res[f])) { res.tilbehoer[f] = g.tilbehoer; res.oenske[f] = true; } }
-      else if (g) { res[f] = g.ret; res.oenske[f] = true; res.kilde[f] = 'oenske'; }
-      if (v && v.tilbehoer) { if (samme(v.ret, res[f])) { res.venter[f] = v.tilbehoer; res.venterTilbehoer[f] = true; } }
-      else if (v) res.venter[f] = v.ret;
+      if (g) { res[f] = g.ret; res.oenske[f] = true; res.kilde[f] = 'oenske'; }
+      if (v) res.venter[f] = v.ret;
     }
   }
-  // Standardtilbehør fra retten (hvis intet ønske gælder) + teksten der vises ("Flæskesteg med kartofler og sovs")
-  for (const f of ['morgen', 'frokost', 'ret']) {
-    if (!res[f]) continue;
-    if (!res.tilbehoer[f]) res.tilbehoer[f] = (await tilbehoerFor(f, res[f])).standard;
-    res.visning[f] = medTilbehoer(res[f], res.tilbehoer[f]);
-  }
+  for (const f of ['morgen', 'frokost', 'ret']) if (res[f]) res.visning[f] = res[f];
   return res;
 }
 
@@ -838,6 +845,7 @@ async function tegnMadplan() {
   const retter = await madplanForUge(isoDato(mandag));
   const faste = await fastAftensmad();
   const egne = (await Data.list('madplan')).filter(r => r.uge === isoDato(mandag) && r.barn);
+  const alleFavs = await Data.list('favoritter');
   const idag = madUge === 0 ? idagNr() : madUge > 0 ? -1 : 7;   // markér dage der er gået
   const son = new Date(mandag); son.setDate(mandag.getDate() + 6);
   const navn = madUge === 0 ? 'Denne uge' : madUge === 1 ? 'Næste uge' : madUge === -1 ? 'Sidste uge' : null;
@@ -899,6 +907,15 @@ async function tegnMadplan() {
     gentag.setAttribute('aria-label', fast ? 'Fast hver ' + DAGE_LANG[i].toLowerCase() + ' – tryk for at stoppe' : 'Gentag hver uge');
 
     li.append(label, felt, gentag, terning);
+    // Varianter af dagens ret (fx burger: flæskesteg · kyllingebøf …) – tryk for at vælge
+    if (!erBarn() && felt.value) {
+      const vc = variantChips(alleFavs, 'ret', felt.value, async t => {   // retter.js
+        if (fast && !egen && t === fast) return;
+        await gemRet(i, t === fast ? '' : t);
+        tegnMadplan();
+      });
+      if (vc) li.append(vc);
+    }
 
     // Drengenes egne valg denne dag
     const dagensEgne = egne.filter(r => r.dag === i);
@@ -966,7 +983,7 @@ async function tegnFastPlan() {
       });
       inp.addEventListener('keydown', e => { if (e.key === 'Enter') inp.blur(); });
       const t = knap('', 'terning lille', async () => {
-        const favs = (await Data.list('favoritter')).filter(f => f.type === felt).map(f => f.tekst).filter(v => v !== inp.value);
+        const favs = autoRetter(await Data.list('favoritter'), felt).map(k => k.tekst).filter(v => v !== inp.value);   // retter.js
         if (!favs.length) return;
         await gemFast(fastBarn, i, felt, favs[Math.floor(Math.random() * favs.length)]);
         tegnFastPlan(); tegnOverblik();
@@ -985,8 +1002,7 @@ async function tegnFastPlan() {
     el('h3', 'lille-titel', selv ? 'Min morgenmad og frokost' : 'Børnenes morgenmad og frokost – hver uge'),
     selv ? '' : el('p', 'hint', 'Går igen hver uge af sig selv – også når du skifter uge ovenfor. En enkelt dag ændres ved at trykke på maden på barnets tavle.'),
     selv ? '' : seg, hoved, ol,
-    selv ? '' : knap('🧒 Hvad må børnene selv vælge?', 'lille-knap boernevalg-knap', () => redigerBoernevalg()),
-    selv ? '' : knap('🍽️ Tilbehør til retterne', 'lille-knap boernevalg-knap', () => redigerTilbehoerListe()));
+    selv ? '' : knap('🧒 Hvad må børnene selv vælge?', 'lille-knap boernevalg-knap', () => redigerBoernevalg()));
 }
 
 // Terning: vælg tilfældigt fra listerne – undgå gentagelser i samme uge
@@ -995,22 +1011,23 @@ async function rulDage(dage, felter = ['ret']) {
   const favs = await Data.list('favoritter');
   if (felter.includes('ret') && !favs.some(f => f.type === 'ret')) { document.querySelector('.retter-boks').open = true; return; }
   for (const felt of felter) {
-    const liste = favs.filter(f => f.type === felt);
-    const alle = liste.map(f => f.tekst);
-    if (!alle.length) continue;
+    // retter.js: én tekst pr. ret (med tilfældig variant); takeaway og "ikke i terningen" er aldrig med
+    const kandidater = autoRetter(favs, felt);
+    if (!kandidater.length) continue;
     // Det flest kan lide vælges først: først det alle kan lide, så det næstflest kan lide osv.
-    const aktive = lideAktive(liste);
-    const point = new Map(liste.map(f => [f.tekst, kanLide(f).filter(n => aktive.includes(n)).length]));
+    const aktive = lideAktive(kandidater.map(k => k.fav));
+    const point = k => kanLide(k.fav).filter(n => aktive.includes(n)).length;
     const plan = await madplanForUge(madUgeIso());
-    const brugt = new Set(plan.map(r => (r[felt] || '').toLowerCase()).filter(Boolean));
+    // Samme ret (også en anden variant af den) kommer ikke to gange i samme uge
+    const brugt = new Set(plan.map(r => findRet(favs, felt, r[felt])?.fav.id || lavt(r[felt])).filter(Boolean));
     for (const dag of dage) {
-      const ubrugte = alle.filter(r => !brugt.has(r.toLowerCase()));
-      const kilde = ubrugte.length ? ubrugte : alle;
-      const bedst = Math.max(...kilde.map(r => point.get(r)));
-      const mulige = kilde.filter(r => point.get(r) === bedst);
+      const ubrugte = kandidater.filter(k => !brugt.has(k.fav.id));
+      const kilde = ubrugte.length ? ubrugte : kandidater;
+      const bedst = Math.max(...kilde.map(point));
+      const mulige = kilde.filter(k => point(k) === bedst);
       const valgt = mulige[Math.floor(Math.random() * mulige.length)];
-      brugt.add(valgt.toLowerCase());
-      await gemMad(dag, felt, valgt);
+      brugt.add(valgt.fav.id);
+      await gemMad(dag, felt, valgt.tekst);
       nyeDage.add(dag);
     }
   }
@@ -2259,84 +2276,6 @@ async function redigerMaaltid(barn, dato, felt) {
     el('p', 'hint', forklaring), form, chips, kanGoereFast ? fastLabel : '', knapper);
 }
 
-// ---------- Tilbehør til retterne ----------
-// Data: favoritter {type, tekst, tilbehoer?: [{navn, standard?: true, slukket?: true}]}
-// Hovedretten vælges som altid; børnene kan ØNSKE et andet af de tilbehør, I har skrevet på retten (et ønske – ikke en garanti).
-// "Slukket" = gemt, men vises ikke for børnene lige nu. Standardtilbehøret står på tavlen: "Flæskesteg med kartofler og sovs".
-async function retFavorit(felt, ret) {
-  const t = (ret || '').trim().toLowerCase();
-  if (!t) return null;
-  return (await Data.list('favoritter')).find(f => f.type === felt && (f.tekst || '').trim().toLowerCase() === t) || null;
-}
-async function tilbehoerFor(felt, ret) {
-  const f = await retFavorit(felt, ret);
-  const alle = Array.isArray(f?.tilbehoer) ? f.tilbehoer : [];
-  const aktive = alle.filter(x => !x.slukket);
-  return { fav: f, alle, aktive, standard: (aktive.find(x => x.standard) || {}).navn || '' };
-}
-const lilleStart = t => (t && !/^.[A-ZÆØÅ]/.test(t) ? t[0].toLowerCase() + t.slice(1) : t);   // "Pommes frites" → "pommes frites" (men ikke "BBQ")
-const medTilbehoer = (ret, tb) => (ret || '') + (tb ? ' med ' + lilleStart(tb) : '');
-
-// Voksne: skriv tilbehør på retterne
-async function redigerTilbehoerListe(felt = 'ret') {
-  const favs = (await Data.list('favoritter')).filter(f => f.type === felt).sort((a, b) => a.tekst.localeCompare(b.tekst, 'da'));
-  const feltValg = chipValg(['ret', 'morgen', 'frokost'], felt, v => redigerTilbehoerListe(v), v => MAD_NAVN[v]);
-  const liste = el('div', 'tb-liste');
-  for (const f of favs) {
-    const tb = Array.isArray(f.tilbehoer) ? f.tilbehoer : [];
-    const b = knap('', 'tb-ret', () => redigerTilbehoer(f));
-    b.append(el('span', 'tb-ret-navn', f.tekst),
-      el('span', 'tb-ret-under', tb.length ? tb.map(x => (x.standard ? '⭐ ' : '') + x.navn + (x.slukket ? ' (slukket)' : '')).join(' · ') : '+ tilføj tilbehør'));
-    liste.append(b);
-  }
-  if (!favs.length) liste.append(el('p', 'hint', 'Listen er tom – tilføj retter under "Vores lister".'));
-  const knapper = el('div', 'ark-knapper');
-  knapper.append(knap('Færdig', 'knap', () => { lukArk(); tegnAlt(); }));
-  aabnArk('🍽️ Tilbehør til retterne', el('p', 'hint', 'Skriv hvad der kan følge med en ret. ⭐ = det der normalt kommer på bordet. Børnene kan ønske et af de andre – I bestemmer stadig.'),
-    feltValg, liste, knapper);
-}
-function redigerTilbehoer(f) {
-  const tb = (Array.isArray(f.tilbehoer) ? f.tilbehoer : []).map(x => ({ ...x }));
-  const tegn = () => {
-    const ul = el('ul', 'tb-raekker');
-    tb.forEach((x, i) => {
-      const li = el('li', 'tb-raekke' + (x.slukket ? ' slukket' : ''));
-      const std = knap(x.standard ? '⭐' : '☆', 'tb-std', () => { tb.forEach((y, j) => { y.standard = j === i ? !y.standard : false; }); tegn(); });
-      std.setAttribute('aria-label', x.standard ? 'Standard – tryk for at fjerne' : 'Gør til standard');
-      const navn = el('span', 'tb-navn', x.navn);
-      const til = knap(x.slukket ? 'Slukket' : 'Til', 'lille-knap tb-til', () => { x.slukket = !x.slukket; tegn(); });
-      til.setAttribute('aria-pressed', !x.slukket);
-      const slet = knap('', 'slet', () => { tb.splice(i, 1); tegn(); });
-      slet.innerHTML = IKON_SLET;
-      slet.setAttribute('aria-label', 'Slet ' + x.navn);
-      li.append(std, navn, til, slet);
-      ul.append(li);
-    });
-    if (!tb.length) ul.append(el('li', 'tom', 'Intet tilbehør endnu'));
-    tbBoks.replaceChildren(ul);
-  };
-  const tbBoks = el('div');
-  const inp = input('text', 'tb-nyt', '', f.type === 'ret' ? 'Fx kartofler og sovs' : 'Fx leverpostej');
-  const form = el('form', 'oenske-form');
-  form.append(inp, el('button', 'knap', 'Tilføj'));
-  form.addEventListener('submit', e => {
-    e.preventDefault();
-    const t = inp.value.trim();
-    if (!t || tb.some(x => x.navn.toLowerCase() === t.toLowerCase())) return;
-    tb.push({ navn: t, ...(tb.length ? {} : { standard: true }) });   // det første bliver standard
-    inp.value = ''; tegn(); inp.focus();
-  });
-  tegn();
-  const knapper = el('div', 'ark-knapper');
-  knapper.append(knap('Tilbage', 'knap sekundaer-knap', () => redigerTilbehoerListe(f.type)),
-    knap('Gem', 'knap', async () => {
-      const ren = tb.map(x => ({ navn: x.navn, ...(x.standard ? { standard: true } : {}), ...(x.slukket ? { slukket: true } : {}) }));
-      await Data.update('favoritter', f.id, { tilbehoer: ren });
-      redigerTilbehoerListe(f.type);
-    }));
-  aabnArk('Tilbehør til ' + f.tekst, el('p', 'hint', '⭐ = standard. "Slukket" gemmer muligheden, men børnene kan ikke vælge den lige nu.'), tbBoks, form, knapper);
-}
-
 // ---------- Madønsker fra børnene ----------
 // Data: 'madoensker' {barn, dato 'ÅÅÅÅ-MM-DD', felt 'morgen'|'frokost'|'ret', ret, status 'afventer'|'godkendt'|'afvist'|'erstattet', besvaret?}
 // De voksne markerer på listerne (favoritter.boernevalg), hvad børnene selv må vælge → så gælder valget med det samme.
@@ -2354,7 +2293,8 @@ async function madOensker(barn, iso) {
   for (const felt of ['morgen', 'frokost', 'ret']) {
     const frit = await maaVaelges(felt);
     for (const x of alle.filter(x => x.felt === felt)) {
-      if (x.status === 'godkendt' || (x.status === 'afventer' && !x.tilbehoer && frit.has((x.ret || '').toLowerCase()))) { gaelder[felt] = x; delete venter[felt]; }
+      const fri = x.status === 'afventer' && !x.tilbehoer && (frit.has((x.ret || '').toLowerCase()) || (x.variant && felt !== 'ret'));
+      if (x.status === 'godkendt' || fri) { gaelder[felt] = x; delete venter[felt]; }
       else if (x.status === 'afventer') venter[felt] = x;
     }
   }
@@ -2388,23 +2328,26 @@ async function oenskMad(barn, dato, felt) {
     v.append(el('span', null, '⏳ Du har ønsket: ' + (vx.tilbehoer ? vx.tilbehoer : vx.ret)), knap('Fortryd', 'lille-knap', async () => { await Data.remove('madoensker', vx.id); lukArk(); tegnAlt(); }));
     dele.push(v);
   }
-  // Tilbehør: vælg blandt det, mor og far har skrevet på retten (det er et ønske – de bestemmer)
-  const tb = plan[felt] ? await tilbehoerFor(felt, plan[felt]) : { aktive: [] };
-  const harTilbehoer = tb.aktive.length >= 2 || (tb.aktive.length === 1 && !tb.aktive[0].standard);
-  if (harTilbehoer) {
-    const nu = plan.tilbehoer[felt];
+  // Ud fra kataloget (retter.js): morgen/frokost = vælg hvad der skal på (gælder med det samme);
+  // aftensmad = "Vil du hellere have …" med samme hovedingrediens (et ønske – mor eller far bestemmer)
+  const bv = plan[felt] ? boerneValg(await Data.list('favoritter'), felt, plan[felt], barn) : { valg: [] };
+  const harValg = bv.valg.length > 0;
+  if (harValg) {
     const grid = el('div', 'mad-valg');
-    for (const x of tb.aktive) {
-      grid.append(knap(x.navn, 'mad-valg-knap' + (x.navn === nu ? ' valgt' : ''), async () => {
+    const nu = lavt(plan[felt]);
+    for (const x of bv.valg) {
+      grid.append(knap(bv.slags === 'variant' ? x.kort : x.tekst, 'mad-valg-knap' + (lavt(x.tekst) === nu ? ' valgt' : ''), async () => {
         for (const o of await mine()) await Data.remove('madoensker', o.id);
-        if (x.navn === tb.standard) { lukArk(); tegnAlt(); besked('👍 ' + x.navn); return; }   // tilbage til det normale
-        const r = await Data.add('madoensker', { barn, dato: iso, felt, ret: plan[felt], tilbehoer: x.navn, status: 'afventer' });
+        const planlagt = lavt(plan.faelles?.[felt] || plan.fast?.[felt] || '');
+        if (lavt(x.tekst) === planlagt) { lukArk(); tegnAlt(); besked('👍 ' + x.tekst); return; }   // tilbage til det planlagte
+        const r = await Data.add('madoensker', { barn, dato: iso, felt, ret: x.tekst, status: 'afventer', ...(bv.slags === 'variant' ? { variant: true } : {}) });
         lukArk(); tegnAlt();
-        if (r) besked('🍽️ Ønsket er sendt – mor eller far bestemmer');
+        if (r) bv.slags === 'variant' ? fejr('Godt valg! 😋') : besked('🍽️ Ønsket er sendt – mor eller far bestemmer');
       }));
     }
-    dele.push(el('h3', 'lille-titel', 'Vælg tilbehør til ' + plan[felt]), grid,
-      el('p', 'hint', 'Det er et ønske – mor eller far bestemmer.'));
+    const titel = bv.slags === 'variant' ? bv.fav.tekst + ' med …' : 'Vil du hellere have …';
+    dele.push(el('h3', 'lille-titel', titel), grid,
+      el('p', 'hint', bv.slags === 'variant' ? 'Det du vælger, gælder med det samme.' : 'Det er et ønske – mor eller far bestemmer.'));
   }
   const andet = [];
   if (favs.length) {
@@ -2421,8 +2364,8 @@ async function oenskMad(barn, dato, felt) {
   form.addEventListener('submit', e => { e.preventDefault(); const t = inp.value.trim(); if (t) send(t, frit.includes(t.toLowerCase())); });
   andet.push(el('h3', 'lille-titel', favs.length ? 'Eller ønsk noget andet' : 'Ønsk noget'), form,
     el('p', 'hint', favs.length ? 'Det du vælger ovenfor, gælder med det samme. Andre ønsker skal mor eller far sige ja til.' : 'Mor eller far siger ja eller nej.'));
-  if (harTilbehoer) {
-    // Tilbehøret er det oplagte valg – en helt anden ret ligger lidt gemt
+  if (harValg) {
+    // Valgene ovenfor er det oplagte – en helt anden ret ligger lidt gemt
     const d = el('details', 'mad-andet');
     d.append(el('summary', null, 'Ønsk en helt anden ret'), ...andet);
     dele.push(d);
@@ -2468,7 +2411,7 @@ async function madOenskeLinjer() {
     const li = el('li', 'beloen oenske');
     const info = el('div', 'beloen-info');
     const d = new Date(x.dato + 'T00:00');
-    info.append(el('span', 'beloen-navn', '🍽️ ' + x.barn + ' ønsker: ' + (x.tilbehoer ? medTilbehoer(x.ret, x.tilbehoer) : x.ret)), el('span', 'beloen-pris', MAD_NAVN[x.felt] + ' · ' + DAGE_LANG[(d.getDay() + 6) % 7].toLowerCase() + ' ' + d.getDate() + '/' + (d.getMonth() + 1)));
+    info.append(el('span', 'beloen-navn', '🍽️ ' + x.barn + ' ønsker: ' + (x.tilbehoer ? x.ret + ' med ' + x.tilbehoer : x.ret)), el('span', 'beloen-pris', MAD_NAVN[x.felt] + ' · ' + DAGE_LANG[(d.getDay() + 6) % 7].toLowerCase() + ' ' + d.getDate() + '/' + (d.getMonth() + 1)));
     const kn = el('div', 'oenske-knapper');
     kn.append(knap('Nej', 'lille-knap', async () => { await Data.update('madoensker', x.id, { status: 'afvist', besvaret: isoDato(new Date()) }); tegnAlt(); }),
       knap('Ja', 'lille-knap godkend', async () => { await Data.update('madoensker', x.id, { status: 'godkendt', besvaret: isoDato(new Date()) }); tegnAlt(); }));
@@ -2688,9 +2631,8 @@ async function tegnOverblik() {
   const imorgen = imorgenMad.visning.ret || imorgenMad.ret;
   // Drengenes egne valg til aftensmad (afvigelser fra familiens)
   const afvigelser = async dato => (await Promise.all(BOERN.map(async b => [b, await madFor(dato, b)])))
-    .filter(([, m]) => m.eget.ret || m.oenske?.ret || m.venterTilbehoer?.ret)
-    .map(([b, m]) => b + ': ' + (m.eget.ret || (m.oenske?.ret && !m.tilbehoer.ret) ? m.visning.ret
-      : m.oenske?.ret ? 'med ' + m.tilbehoer.ret : '⏳ ønsker ' + m.venter.ret));
+    .filter(([, m]) => m.eget.ret || m.oenske?.ret || m.venter?.ret)
+    .map(([b, m]) => b + ': ' + (m.eget.ret || m.oenske?.ret ? m.ret : '⏳ ønsker ' + m.venter.ret));
   const idagAfv = await afvigelser(new Date());
   const afvEl = document.getElementById('ov-ret-boern');
   afvEl.replaceChildren(...idagAfv.map(t => el('span', 'afvigelse', t)));
