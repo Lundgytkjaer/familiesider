@@ -1930,6 +1930,7 @@ async function tegnBoernetavle(barn) {
   gitter.append(...raekke.filter(k => !k.kunTavle));
   // Vejr (og evt. sol) for den viste dag – efter barnets egne valg; hentes i baggrunden
   const barnValg = await valgFor(barn);
+  const sedler = typeof seddelDel === 'function' ? await seddelDel(barn) : null;   // køleskabssedler (seddel.js)
   const vejrPlads = el('div', 'vejr-plads');
   if (barnValg.vejr || barnValg.sol) {
     vejrStribe(iso, barnValg.sol, barnValg.vejr).then(k => { if (k) vejrPlads.replaceChildren(k); });
@@ -1948,13 +1949,13 @@ async function tegnBoernetavle(barn) {
     flade.append(fliser);
     ramme.append(flade);
     boks.classList.add('som-tavle');
-    boks.replaceChildren(strip, hoved, vejrPlads, ramme);
+    boks.replaceChildren(strip, hoved, vejrPlads, ...(sedler ? [sedler] : []), ramme);
     opdaterZoom();
   } else {
     tavleKort = {};
     lukZoom();
     boks.classList.remove('som-tavle');
-    boks.replaceChildren(strip, hoved, vejrPlads, gitter);
+    boks.replaceChildren(strip, hoved, vejrPlads, ...(sedler ? [sedler] : []), gitter);
   }
 }
 
@@ -2690,6 +2691,7 @@ function barnMaa(handling, liste, felter, gammel) {
   if (!gammel) return false;
   if (handling === 'ret') {
     if (liste === 'personvalg') return gammel.navn === navn && (!('navn' in felter) || felter.navn === navn);
+    if (liste === 'sedler') return gammel.til === navn && Object.keys(felter).every(k => ['aabnet', 'reaktion', 'svaret'].includes(k));   // åbne og svare på egne sedler
     if (liste !== 'favoritter' || Object.keys(felter).some(k => k !== 'kanLide')) return false;
     const foer = new Set(gammel.kanLide || []), efter = new Set(felter.kanLide || []);
     return [...foer, ...efter].every(n => n === navn || (foer.has(n) && efter.has(n)));
