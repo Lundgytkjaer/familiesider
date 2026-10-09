@@ -1344,3 +1344,19 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .seg.seddel-farver button:nth-child(3) { background: #cfe6ff !important; } .seg.seddel-farver button:nth-child(4) { background: #d2f2d8 !important; }
 .seg.seddel-farver button[aria-checked="true"] { outline: 3px solid var(--fg); outline-offset: 2px; font-weight: 800; }
 @media (prefers-reduced-motion: reduce) { .seddel, .seddel.folder-ud, .seddel-hemmelig-ikon { animation: none; transition: none; } }
+
+/* Sedler – svar, sendte sedler og Familien */
+.ov-sedler { grid-column: 1 / -1; }
+.ov-sedler .sedler { margin: 0; }
+.seddel.lille { padding: 18px 14px 10px; opacity: .92; }
+.seddel.lille .seddel-tekst { font-size: 16px; }
+.seddel.lille .seddel-sticker { font-size: 28px; }
+.seddel-til { font-size: 13px; font-weight: 700; color: #5b5848; text-transform: uppercase; letter-spacing: .04em; }
+.seddel-skriv { font-size: 16px; font-weight: 700; padding: 0 12px; color: #2b2a22; }
+.seddel-svar-tekst { display: flex; flex-direction: column; gap: 2px; color: var(--fg); }
+.seddel-svar-citat { font-family: var(--font-titel); font-weight: 700; font-size: 16px; }
+.seddel-svar-citat::before { content: '“'; } .seddel-svar-citat::after { content: '”'; }
+.svar-citat { margin: 0 0 6px; font-style: italic; color: var(--daempet); }
+.svar-emoji { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; }
+.svar-emoji-knap { font-size: 28px; min-height: 52px; border-radius: 14px; border: 1.5px solid var(--linje); background: var(--flade); cursor: pointer; }
+.svar-emoji-knap[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-blod); transform: scale(1.08); }

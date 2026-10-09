@@ -1,15 +1,24 @@
-// seddel.js – køleskabssedler: en voksen skriver en lille seddel til et barn, som hænger på barnets tavle.
-// Barnet svarer med en emoji – så flyver sedlen væk, og den voksne kan se svaret.
-// Sjove ting: klistermærke, farve, hemmelig seddel (skal "foldes ud"), en gave med stjerner,
-// og en seddel kan vente til næste morgen ("godmorgen-seddel").
+// seddel.js – køleskabssedler mellem familien: voksne → børn, børn → voksne og voksne → hinanden.
+// En seddel hænger hos modtageren (barnets tavle / "Familien" for en voksen). Modtageren svarer med en emoji
+// og/eller en kort tekst – så flyver sedlen væk, og afsenderen ser svaret.
+// Sjove ting: klistermærke, farve, hemmelig seddel (skal "foldes ud"), gave med stjerner (kun fra voksne),
+// og en voksen kan lade sedlen vente til næste morgen ("godmorgen-seddel").
 //
-// Data: 'sedler' {til, fra, tekst, sticker, farve, hemmelig, stjerner, visFra (ISO-tid), aabnet?, reaktion?, svaret?}
-// Børnelåsen (opdatering-sedler.sql) lader kun barnet sætte aabnet/reaktion/svaret på sine egne sedler.
+// Data: 'sedler' {til, fra, tekst, sticker, farve, hemmelig, stjerner, visFra (ISO-tid), aabnet?, reaktion?, svarTekst?, svaret?}
+// Børnelåsen (opdatering-sedler-2.sql): et barn må sende sedler til en voksen (uden gave), svare på sine egne
+// og slette dem, det selv har sendt. Alt andet kan kun voksne.
 
-const SEDDEL_REAKTIONER = ['👍', '❤️', '😂', '😮', '🙏'];
-const SEDDEL_STICKERE = ['', '⭐', '❤️', '🦖', '🚀', '🐰', '🍕', '⚽', '🎮', '🌈', '🦄', '😎', '🎉', '💪'];
+const SEDDEL_HURTIG = ['👍', '❤️', '😂', '😮', '🙄', '🤪'];
+const SEDDEL_EMOJI = ['👍', '👎', '❤️', '🥰', '😘', '🤗', '😂', '🤣', '😜', '🤪', '😎', '😮', '😱', '🙄', '🤔', '😴', '😢', '😡',
+  '🙏', '💪', '🔥', '👑', '🏆', '🎉', '🍕', '🎮', '⚽', '🐰', '🦖', '💩'];
+const SEDDEL_SVAR_FORSLAG = ['Tak! ❤️', 'Haha 😂', 'Okay 👍', 'Nej, DU er den bedste!', 'Det er ikke sandt 🙄', 'Ses senere', 'Glæder mig!', 'Hvad mener du? 🤔'];
+const SEDDEL_STICKERE = ['', '⭐', '❤️', '🦖', '🚀', '🐰', '🍕', '⚽', '🎮', '🌈', '🦄', '😎', '🎉', '💪', '💩'];
 const SEDDEL_FARVER = { gul: 'Gul', pink: 'Pink', blaa: 'Blå', groen: 'Grøn' };
-const SEDDEL_FORSLAG = ['Godmorgen ☀️ Hav en god dag!', 'Jeg er så stolt af dig', 'Godt klaret i dag!', 'Husk ', 'Glæder mig til at se dig 🤗'];
+const SEDDEL_FORSLAG_VOKSEN = ['Godmorgen ☀️ Hav en god dag!', 'Jeg er så stolt af dig', 'Godt klaret i dag!', 'Husk ', 'Glæder mig til at se dig 🤗'];
+const SEDDEL_FORSLAG_BARN = ['Jeg elsker dig ❤️', 'Hvad skal vi have at spise? 🍕', 'Må jeg spille? 🎮', 'Kan du hente mig?',
+  'Jeg har klaret mine pligter ✅', 'Hvornår kommer du hjem?', 'Du er den bedste!', 'Jeg keder mig 😴'];
+const VOKSNE = Object.keys(PK).filter(n => n !== 'Fælles' && !BOERN.includes(n));   // PK fra app.js
+const ALLE_BOERN = 'alle-boern', ALLE_VOKSNE = 'alle-voksne';
 
 // Lidt skæv, som en rigtig seddel – altid den samme skævhed for den samme seddel
 function seddelDrej(id) {
@@ -18,6 +27,9 @@ function seddelDrej(id) {
   return ((Math.abs(h) % 5) - 2) * 0.8;
 }
 const seddelVist = s => new Date(s.visFra || s.oprettet || 0).getTime() <= Date.now();
+const seddelBesvaret = s => !!(s.reaktion || s.svarTekst);
+const nylig = (iso, dage) => iso && Date.now() - new Date(iso) < dage * 864e5;
+const kortTekst = (t, n = 40) => (t || '').length > n ? t.slice(0, n) + '…' : (t || '');
 function naesteMorgen() {
   const d = new Date();
   if (d.getHours() >= 6) d.setDate(d.getDate() + 1);
@@ -25,15 +37,52 @@ function naesteMorgen() {
   return d;
 }
 
-// Én seddel. opts: {barn: true} = barnets egen visning (kan åbnes og besvares), {forhaand: true} = forhåndsvisning
-function seddelEl(s, opts = {}) {
-  const k = el('div', 'seddel seddel-' + (SEDDEL_FARVER[s.farve] ? s.farve : 'gul') + (opts.animer ? ' folder-ud' : ''));
-  k.style.setProperty('--drej', seddelDrej(s.id) + 'deg');
-  const magnet = el('span', 'seddel-magnet ' + (PK[s.fra] || 'c-faelles'));
-  k.append(magnet);
+// Svar: emoji og/eller tekst. Sedlen flyver væk; er der en gave, kommer der konfetti.
+async function sendSvar(s, reaktion, svarTekst, k) {
+  const nu = new Date().toISOString();
+  await Data.update('sedler', s.id, { reaktion: reaktion || '', svarTekst: (svarTekst || '').trim(), svaret: nu, aabnet: s.aabnet || nu });
+  k?.classList.add('flyv');
+  if (s.stjerner > 0) fejr('🎁 ' + s.stjerner + ' ★ fra ' + s.fra + '!');   // fra sjov.js
+  else besked((reaktion || '✉️') + ' Svar sendt til ' + s.fra);
+  setTimeout(() => tegnAlt(), 700);
+}
 
-  // Hemmelig og ikke åbnet: barnet ser kun en foldet seddel
-  if (opts.barn && s.hemmelig && !s.aabnet) {
+// Et helt svar: stor emoji-plade, hurtige svar og egen tekst
+function svarArk(s, k) {
+  let valgt = '';
+  const forhaand = el('p', 'svar-citat', '"' + kortTekst(s.tekst, 80) + '" – ' + s.fra);
+  const plade = el('div', 'svar-emoji');
+  const tegnPlade = () => plade.replaceChildren(...SEDDEL_EMOJI.map(e => {
+    const b = knap(e, 'svar-emoji-knap', () => { valgt = valgt === e ? '' : e; tegnPlade(); });
+    b.setAttribute('aria-pressed', e === valgt);
+    return b;
+  }));
+  tegnPlade();
+  const tekst = el('textarea', 'seddel-input');
+  tekst.id = 'svar-tekst'; tekst.rows = 2; tekst.maxLength = 100; tekst.placeholder = 'Skriv et svar …';
+  const forslag = el('div', 'seg wrap seddel-forslag');
+  forslag.append(...SEDDEL_SVAR_FORSLAG.map(f => knap(f, 'lille-knap', () => { tekst.value = f; tekst.focus(); })));
+  const send = knap('Send svar', 'knap', async () => {
+    if (!valgt && !tekst.value.trim()) { tekst.focus(); return; }
+    send.disabled = true;
+    lukArk();
+    await sendSvar(s, valgt, tekst.value, k);
+  });
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(send);
+  aabnArk('Svar ' + s.fra, forhaand, el('label', 'felt-label', 'Vælg en emoji'), plade,
+    felt('Og/eller skriv noget', tekst), forslag, knapper);
+}
+
+// Én seddel. opts.rolle: 'modtager' (kan åbne og svare), 'afsender' (status, svar, ret/slet) eller 'forhaand'
+function seddelEl(s, opts = {}) {
+  const rolle = opts.rolle || 'afsender';
+  const k = el('div', 'seddel seddel-' + (SEDDEL_FARVER[s.farve] ? s.farve : 'gul') + (opts.animer ? ' folder-ud' : '') + (opts.lille ? ' lille' : ''));
+  k.style.setProperty('--drej', seddelDrej(s.id) + 'deg');
+  k.append(el('span', 'seddel-magnet ' + (PK[s.fra] || 'c-faelles')));
+
+  // Hemmelig og ikke åbnet: modtageren ser kun en foldet seddel
+  if (rolle === 'modtager' && s.hemmelig && !s.aabnet) {
     k.classList.add('lukket');
     const b = knap('', 'seddel-luk-knap', async () => {
       b.disabled = true;
@@ -41,97 +90,153 @@ function seddelEl(s, opts = {}) {
       await Data.update('sedler', s.id, { aabnet });
       k.replaceWith(seddelEl({ ...s, aabnet }, { ...opts, animer: true }));
     });
-    b.append(el('span', 'seddel-hemmelig-ikon', '🤫'), el('span', 'seddel-tekst', 'Hemmelig seddel fra ' + (s.fra || 'en voksen')),
+    b.append(el('span', 'seddel-hemmelig-ikon', '🤫'), el('span', 'seddel-tekst', 'Hemmelig seddel fra ' + (s.fra || '')),
       el('span', 'seddel-hint', 'Tryk for at åbne'));
     k.append(b);
     return k;
   }
 
   if (s.sticker) k.append(el('span', 'seddel-sticker', s.sticker));
-  k.append(el('p', 'seddel-tekst', s.tekst || (opts.forhaand ? 'Skriv noget sødt …' : '')));
+  if (rolle === 'afsender' && !opts.udenTil) k.append(el('span', 'seddel-til', 'Til ' + s.til));
+  k.append(el('p', 'seddel-tekst', s.tekst || (rolle === 'forhaand' ? 'Skriv noget …' : '')));
   k.append(el('span', 'seddel-fra', '– ' + (s.fra || '')));
-  if (s.stjerner > 0) k.append(el('span', 'seddel-gave', '🎁 ' + s.stjerner + ' ★ ' + (opts.barn || opts.forhaand ? 'til dig' : 'med')));
-  if (opts.forhaand) return k;
+  if (s.stjerner > 0) k.append(el('span', 'seddel-gave', '🎁 ' + s.stjerner + ' ★ ' + (rolle === 'afsender' ? 'med' : 'til dig')));
+  if (rolle === 'forhaand') return k;
 
-  if (opts.barn) {
-    // Svar med en emoji – sedlen flyver væk
+  if (rolle === 'modtager') {
     const svar = el('div', 'seddel-svar-knapper');
-    svar.append(...SEDDEL_REAKTIONER.map(r => {
-      const b = knap(r, 'seddel-reaktion', async () => {
-        svar.querySelectorAll('button').forEach(x => (x.disabled = true));
-        const nu = new Date().toISOString();
-        await Data.update('sedler', s.id, { reaktion: r, svaret: nu, aabnet: s.aabnet || nu });
-        k.classList.add('flyv');
-        if (s.stjerner > 0) fejr('🎁 ' + s.stjerner + ' ★ fra ' + s.fra + '!');   // fra sjov.js
-        else besked(r + ' sendt til ' + s.fra);
-        setTimeout(() => tegnOverblik(), 700);
-      });
+    svar.append(...SEDDEL_HURTIG.map(r => {
+      const b = knap(r, 'seddel-reaktion', () => { svar.querySelectorAll('button').forEach(x => (x.disabled = true)); sendSvar(s, r, '', k); });
       b.setAttribute('aria-label', 'Svar ' + r);
       return b;
     }));
+    const mere = knap('✏️ Skriv', 'seddel-reaktion seddel-skriv', () => svarArk(s, k));
+    mere.setAttribute('aria-label', 'Skriv et svar eller vælg flere emojis');
+    svar.append(mere);
     k.append(el('span', 'seddel-hint', 'Svar ' + (s.fra || '') + ':'), svar);
-  } else {
-    // Voksen: status + ret/slet (også ved at holde fingeren på sedlen)
-    const status = !seddelVist(s) ? '⏰ Vises ' + new Date(s.visFra).toLocaleString('da-DK', { weekday: 'long', hour: '2-digit', minute: '2-digit' }).replace(':', '.')
-      : s.hemmelig && !s.aabnet ? '🤫 Ikke åbnet endnu' : '⏳ Venter på svar';
-    const bund = el('div', 'seddel-bund');
-    bund.append(el('span', 'seddel-status', status), knap('Ret', 'lille-knap', () => skrivSeddel(s.til, s)));
-    k.append(bund);
-    langtTryk(k, () => holdValg('Seddel til ' + s.til, { slet: () => Data.remove('sedler', s.id), ret: () => skrivSeddel(s.til, s) }));
+    return k;
   }
+
+  // Afsender (eller en voksen, der kigger på et barns tavle): status, ret og slet
+  const status = !seddelVist(s) ? '⏰ Vises ' + new Date(s.visFra).toLocaleString('da-DK', { weekday: 'long', hour: '2-digit', minute: '2-digit' }).replace(':', '.')
+    : s.hemmelig && !s.aabnet ? '🤫 Ikke åbnet endnu' : '⏳ Venter på svar';
+  const bund = el('div', 'seddel-bund');
+  bund.append(el('span', 'seddel-status', status));
+  const maaRette = erVoksen();
+  if (maaRette) bund.append(knap('Ret', 'lille-knap', () => skrivSeddel(s.til, s)));
+  else bund.append(knap('Fortryd', 'lille-knap', () => Data.remove('sedler', s.id)));   // barnet kan tage sin egen seddel ned igen
+  k.append(bund);
+  if (maaRette) langtTryk(k, () => holdValg('Seddel til ' + s.til, { slet: () => Data.remove('sedler', s.id), ret: () => skrivSeddel(s.til, s) }));
   return k;
 }
 
-// Sedlerne på et barns tavle (øverst). Voksne ser også ventende sedler, svar fra de sidste 3 dage og "Skriv en seddel".
-async function seddelDel(barn) {
-  const voksen = erVoksen();
-  const alle = (await Data.list('sedler')).filter(s => s.til === barn);
-  if (voksen) {
-    // Gamle sedler ryddes væk: besvarede efter 7 dage, ubesvarede efter 30 dage
-    const gammel = alle.filter(s => (s.svaret && Date.now() - new Date(s.svaret) > 7 * 864e5) || Date.now() - new Date(s.oprettet) > 30 * 864e5);
-    if (gammel.length) Data.stille(async () => { for (const s of gammel) await Data.remove('sedler', s.id); });
-  }
-  const sortering = (a, b) => new Date(a.visFra || a.oprettet) - new Date(b.visFra || b.oprettet);
-  const aktive = alle.filter(s => !s.reaktion && seddelVist(s)).sort(sortering);
-  const venter = voksen ? alle.filter(s => !s.reaktion && !seddelVist(s)).sort(sortering) : [];
-  const svarede = voksen ? alle.filter(s => s.reaktion && Date.now() - new Date(s.svaret) < 3 * 864e5) : [];
-  if (!voksen && !aktive.length) return null;
+// "Villads svarede 😂 Nej, DU er den bedste!" – vises hos afsenderen i 3 dage (kan fjernes med ✕)
+function svarLinje(s) {
+  const l = el('div', 'seddel-svar-linje');
+  l.append(el('span', 'seddel-svar-emoji', s.reaktion || '✉️'));
+  const t = el('span', 'seddel-svar-tekst');
+  const hvem = el('span');
+  hvem.append(el('b', null, s.til), ' svarede på "' + kortTekst(s.tekst) + '"');
+  t.append(hvem);
+  if (s.svarTekst) t.append(el('span', 'seddel-svar-citat', s.svarTekst));
+  l.append(t);
+  const x = knap('✕', 'slet', () => Data.remove('sedler', s.id));
+  x.setAttribute('aria-label', 'Fjern');
+  l.append(x);
+  return l;
+}
 
+// Ryd gamle sedler (kun voksne): besvarede efter 7 dage, alle efter 30 dage
+let seddelRyddet = 0;
+async function ryddSedler() {
+  if (!erVoksen() || Date.now() - seddelRyddet < 600000) return;
+  seddelRyddet = Date.now();
+  const gammel = (await Data.list('sedler')).filter(s => (s.svaret && !nylig(s.svaret, 7)) || !nylig(s.oprettet, 30));
+  if (gammel.length) Data.stille(async () => { for (const s of gammel) await Data.remove('sedler', s.id); });
+}
+
+function seddelSamling(dele) {
   const boks = el('div', 'sedler');
   const raekke = el('div', 'seddel-raekke');
-  raekke.append(...aktive.map(s => seddelEl(s, { barn: !voksen })), ...venter.map(s => seddelEl(s)));
+  raekke.append(...dele.sedler);
   if (raekke.children.length) boks.append(raekke);
-  for (const s of svarede) {
-    const l = el('div', 'seddel-svar-linje');
-    l.append(el('span', 'seddel-svar-emoji', s.reaktion), el('span', null, barn + ' svarede på "' + (s.tekst || '').slice(0, 40) + ((s.tekst || '').length > 40 ? '…' : '') + '"'));
-    const x = knap('✕', 'slet', () => Data.remove('sedler', s.id));
-    x.setAttribute('aria-label', 'Fjern');
-    l.append(x);
-    boks.append(l);
-  }
-  if (voksen) boks.append(knap('📝 Skriv en seddel til ' + barn, 'lille-knap seddel-ny', () => skrivSeddel(barn)));
+  boks.append(...dele.linjer);
+  if (dele.knap) boks.append(dele.knap);
   return boks;
 }
 
-// Skriv eller ret en seddel (kun voksne). Forhåndsvisningen øverst viser, hvordan den ser ud på tavlen.
-function skrivSeddel(barn, gl) {
+// Sedlerne på et barns tavle (øverst)
+async function seddelDel(barn) {
+  ryddSedler();
+  const alle = await Data.list('sedler');
+  const sortering = (a, b) => new Date(a.visFra || a.oprettet) - new Date(b.visFra || b.oprettet);
+  const tilBarn = alle.filter(s => s.til === barn).sort(sortering);
+  const migSelv = Data.bruger()?.navn === barn;   // barnet selv er logget ind
+  if (migSelv) {
+    // Barnet: sedler til mig (svar), mine sendte sedler (status/svar) og "Skriv en seddel"
+    const fraBarn = alle.filter(s => s.fra === barn).sort(sortering);
+    return seddelSamling({
+      sedler: [...tilBarn.filter(s => !seddelBesvaret(s) && seddelVist(s)).map(s => seddelEl(s, { rolle: 'modtager' })),
+        ...fraBarn.filter(s => !seddelBesvaret(s)).map(s => seddelEl(s, { rolle: 'afsender', lille: true }))],
+      linjer: fraBarn.filter(s => seddelBesvaret(s) && nylig(s.svaret, 3)).map(s => svarLinje(s)),
+      knap: knap('📝 Skriv en seddel til ' + VOKSNE.join(' eller '), 'lille-knap seddel-ny', () => skrivSeddel(VOKSNE[0]))
+    });
+  }
+  // En voksen kigger på barnets tavle: sedlerne til barnet med status, svar fra de sidste 3 dage og "Skriv en seddel"
+  if (!erVoksen()) return null;
+  return seddelSamling({
+    sedler: tilBarn.filter(s => !seddelBesvaret(s)).map(s => seddelEl(s, { rolle: 'afsender', udenTil: true })),
+    linjer: tilBarn.filter(s => seddelBesvaret(s) && nylig(s.svaret, 3)).map(s => svarLinje(s)),
+    knap: knap('📝 Skriv en seddel til ' + barn, 'lille-knap seddel-ny', () => skrivSeddel(barn))
+  });
+}
+
+// Sedler til mig som voksen + svar på det, jeg har sendt (vises øverst på "Familien")
+async function voksenSedler() {
+  ryddSedler();
+  const mig = Data.bruger()?.navn;
+  const alle = await Data.list('sedler');
+  const tilMig = alle.filter(s => s.til === mig && !seddelBesvaret(s) && seddelVist(s))
+    .sort((a, b) => new Date(a.visFra || a.oprettet) - new Date(b.visFra || b.oprettet));
+  const fraMig = alle.filter(s => s.fra === mig);
+  const tilVoksne = fraMig.filter(s => VOKSNE.includes(s.til) && !seddelBesvaret(s));   // til børn ses på deres tavle
+  return seddelSamling({
+    sedler: [...tilMig.map(s => seddelEl(s, { rolle: 'modtager' })), ...tilVoksne.map(s => seddelEl(s, { rolle: 'afsender', lille: true }))],
+    linjer: fraMig.filter(s => seddelBesvaret(s) && nylig(s.svaret, 3)).map(s => svarLinje(s)),
+    knap: knap('📝 Skriv en seddel', 'lille-knap seddel-ny', () => skrivSeddel(BOERN[0]))
+  });
+}
+// Antal ubesvarede sedler til mig (rødt tal på I dag)
+async function sedlerTilMig() {
+  const mig = Data.bruger()?.navn;
+  return (await Data.list('sedler')).filter(s => s.til === mig && !seddelBesvaret(s) && seddelVist(s)).length;
+}
+
+// Skriv eller ret en seddel. Børn kan skrive til de voksne (uden gave og "næste morgen").
+function skrivSeddel(tilStandard, gl) {
   const ny = !gl;
+  const mig = Data.bruger()?.navn || '';
+  const barn = !erVoksen();
+  const modtagere = barn ? [...VOKSNE, ALLE_VOKSNE] : [...BOERN, ALLE_BOERN, ...VOKSNE.filter(v => v !== mig)];
+  const tilNavn = v => (v === ALLE_BOERN ? 'Begge børn' : v === ALLE_VOKSNE ? VOKSNE.join(' og ') : v);
   const s = {
-    til: gl?.til || barn, fra: gl?.fra || Data.bruger()?.navn || '', tekst: gl?.tekst || '', sticker: gl?.sticker ?? '⭐',
-    farve: gl?.farve || 'gul', hemmelig: !!gl?.hemmelig, stjerner: gl?.stjerner || 0, vis: 'nu', id: gl?.id
+    til: gl?.til || (modtagere.includes(tilStandard) ? tilStandard : modtagere[0]), fra: gl?.fra || mig, tekst: gl?.tekst || '',
+    sticker: gl?.sticker ?? (barn ? '❤️' : '⭐'), farve: gl?.farve || (barn ? 'blaa' : 'gul'), hemmelig: !!gl?.hemmelig,
+    stjerner: gl?.stjerner || 0, vis: 'nu', id: gl?.id
   };
   const forhaand = el('div', 'seddel-forhaand');
-  const tegnForhaand = () => forhaand.replaceChildren(seddelEl(s, { forhaand: true }));
+  const tegnForhaand = () => forhaand.replaceChildren(seddelEl({ ...s, til: tilNavn(s.til) }, { rolle: 'forhaand' }));
   tegnForhaand();
 
   const tekst = el('textarea', 'seddel-input');
   tekst.id = 'seddel-tekst'; tekst.maxLength = 160; tekst.rows = 3; tekst.value = s.tekst;
-  tekst.placeholder = 'Fx: Husk nøglen – jeg kommer kl. 17 ❤️';
+  tekst.placeholder = barn ? 'Skriv din besked …' : 'Fx: Husk nøglen – jeg kommer kl. 17 ❤️';
   tekst.addEventListener('input', () => { s.tekst = tekst.value; tegnForhaand(); });
   const forslag = el('div', 'seg wrap seddel-forslag');
-  forslag.append(...SEDDEL_FORSLAG.map(f => knap(f.trim(), 'lille-knap', () => { s.tekst = tekst.value = f; tegnForhaand(); tekst.focus(); })));
+  forslag.append(...(barn ? SEDDEL_FORSLAG_BARN : SEDDEL_FORSLAG_VOKSEN).map(f =>
+    knap(f.trim(), 'lille-knap', () => { s.tekst = tekst.value = f; tegnForhaand(); tekst.focus(); })));
 
-  const tilValg = chipValg(ny ? [...BOERN, 'Begge'] : [s.til], s.til, v => { s.til = v; });
+  const tilValg = chipValg(ny ? modtagere : [s.til], s.til, v => { s.til = v; tegnForhaand(); }, tilNavn);
   const stickerValg = chipValg(SEDDEL_STICKERE, s.sticker, v => { s.sticker = v; tegnForhaand(); }, v => v || 'Ingen');
   stickerValg.classList.add('seddel-stickere');
   const farveValg = chipValg(   // farverne sættes i style.css (rækkefølgen gul, pink, blå, grøn)
@@ -145,19 +250,23 @@ function skrivSeddel(barn, gl) {
   hemmeligBoks.append(hemmelig);
   const visValg = chipValg(['nu', 'morgen'], s.vis, v => { s.vis = v; }, v => (v === 'nu' ? 'Med det samme' : '☀️ Næste morgen kl. 6'));
 
-  const gem = knap(ny ? 'Hæng den op' : 'Gem', 'knap', async () => {
+  const gem = knap(ny ? (barn ? 'Send sedlen' : 'Hæng den op') : 'Gem', 'knap', async () => {
     if (!s.tekst.trim()) { tekst.focus(); return; }
     gem.disabled = true;
-    const felter = { fra: s.fra, tekst: s.tekst.trim(), sticker: s.sticker, farve: s.farve, hemmelig: s.hemmelig, stjerner: s.stjerner };
+    const felter = { fra: s.fra, tekst: s.tekst.trim(), sticker: s.sticker, farve: s.farve, hemmelig: s.hemmelig };
     if (ny) {
-      const visFra = (s.vis === 'morgen' ? naesteMorgen() : new Date()).toISOString();
-      for (const b of (s.til === 'Begge' ? BOERN : [s.til])) {
-        await Data.add('sedler', { ...felter, til: b, visFra });
+      const stjerner = barn ? 0 : s.stjerner;
+      const visFra = (!barn && s.vis === 'morgen' ? naesteMorgen() : new Date()).toISOString();
+      const til = s.til === ALLE_BOERN ? BOERN : s.til === ALLE_VOKSNE ? VOKSNE : [s.til];
+      for (const t of til) {
+        const gave = BOERN.includes(t) ? stjerner : 0;   // gaver kun til børn
+        await Data.add('sedler', { ...felter, til: t, stjerner: gave, visFra });
         // Gaven: stjernerne lægges til barnets saldo (som en justering) den dag, sedlen vises
-        if (s.stjerner > 0) await Data.add('justeringer', { barn: b, dato: isoDato(new Date(visFra)), stjerner: s.stjerner, kr: 0, tekst: 'Gave på seddel fra ' + s.fra });
+        if (gave > 0) await Data.add('justeringer', { barn: t, dato: isoDato(new Date(visFra)), stjerner: gave, kr: 0, tekst: 'Gave på seddel fra ' + s.fra });
       }
+      if (barn) besked('✉️ Sedlen er sendt til ' + tilNavn(s.til));
     } else {
-      await Data.update('sedler', gl.id, { ...felter, stjerner: gl.stjerner });   // gaven kan ikke ændres bagefter
+      await Data.update('sedler', gl.id, felter);   // gaven og modtageren kan ikke ændres bagefter
     }
     lukArk(); tegnAlt();
   });
@@ -166,7 +275,7 @@ function skrivSeddel(barn, gl) {
   knapper.append(gem);
   const dele = [forhaand, felt('Til', tilValg), felt('Besked', tekst), forslag,
     el('label', 'felt-label', 'Klistermærke'), stickerValg, el('label', 'felt-label', 'Farve'), farveValg, hemmeligBoks];
-  if (ny) dele.push(el('label', 'felt-label', '🎁 Gave'), gaveValg, el('label', 'felt-label', 'Hvornår'), visValg);
+  if (ny && !barn) dele.push(el('label', 'felt-label', '🎁 Gave (kun til børn)'), gaveValg, el('label', 'felt-label', 'Hvornår'), visValg);
   dele.push(knapper);
   aabnArk(ny ? 'Ny seddel' : 'Ret seddel', ...dele);
 }

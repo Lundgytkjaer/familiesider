@@ -2485,6 +2485,10 @@ async function tegnOverblik() {
   }
   const idag = idagNr();
 
+  // Køleskabssedler til mig og svar på dem, jeg har sendt (seddel.js)
+  const ovSedler = document.getElementById('ov-sedler');
+  if (ovSedler && typeof voksenSedler === 'function') ovSedler.replaceChildren(await voksenSedler());
+
   // Mine egne pligter (kun for voksne – fra mere.js)
   // Børnenes ønsker om at indløse belønninger – venter på en voksen
   const oensker = document.getElementById('ov-oensker');
@@ -2686,12 +2690,13 @@ function barnMaa(handling, liste, felter, gammel) {
     if (liste === 'indloesninger') return felter.barn === navn && felter.status === 'afventer';
     if (liste === 'motion') return felter.hvem === navn;
     if (liste === 'personvalg') return felter.navn === navn;
+    if (liste === 'sedler') return felter.fra === navn && VOKSNE.includes(felter.til) && !felter.stjerner;   // seddel til en voksen (seddel.js)
     return liste === 'indkob';
   }
   if (!gammel) return false;
   if (handling === 'ret') {
     if (liste === 'personvalg') return gammel.navn === navn && (!('navn' in felter) || felter.navn === navn);
-    if (liste === 'sedler') return gammel.til === navn && Object.keys(felter).every(k => ['aabnet', 'reaktion', 'svaret'].includes(k));   // åbne og svare på egne sedler
+    if (liste === 'sedler') return gammel.til === navn && Object.keys(felter).every(k => ['aabnet', 'reaktion', 'svarTekst', 'svaret'].includes(k));   // åbne og svare på egne sedler
     if (liste !== 'favoritter' || Object.keys(felter).some(k => k !== 'kanLide')) return false;
     const foer = new Set(gammel.kanLide || []), efter = new Set(felter.kanLide || []);
     return [...foer, ...efter].every(n => n === navn || (foer.has(n) && efter.has(n)));
@@ -2700,6 +2705,7 @@ function barnMaa(handling, liste, felter, gammel) {
   if (liste === 'motion') return gammel.hvem === navn;
   if (liste === 'indloesninger' || liste === 'ekstra' || liste === 'madoensker') return gammel.barn === navn && gammel.status === 'afventer';
   if (liste === 'indkob') return gammel._af === Data.bruger()?.id;
+  if (liste === 'sedler') return gammel.fra === navn;   // tage sin egen seddel ned igen
   return false;
 }
 function laasForBoern() {
@@ -2922,7 +2928,8 @@ async function opdaterVenter() {
   if (Data.bruger()?.rolle !== 'voksen') return;
   const n = (await Data.list('indloesninger')).filter(x => x.status === 'afventer').length
     + (await Data.list('ekstra')).filter(x => x.status === 'afventer').length
-    + (typeof madOenskeLinjer === 'function' ? (await madOenskeLinjer()).length : 0);
+    + (typeof madOenskeLinjer === 'function' ? (await madOenskeLinjer()).length : 0)
+    + (typeof sedlerTilMig === 'function' ? await sedlerTilMig() : 0);   // sedler til mig (seddel.js)
   const badge = document.querySelector('[data-badge="idag"]');
   badge.textContent = n; badge.hidden = !n;
   const fam = document.querySelector('#idag-valg button');   // "Familien"
