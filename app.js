@@ -2816,6 +2816,8 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
   }
   // Notifikationer – kun denne telefon (push.js)
   if (typeof pushIndstilling === 'function' && hvem === Data.bruger()?.navn) dele.push(el('h3', 'lille-titel indst-titel', '🔔 Notifikationer på denne telefon'), pushIndstilling());
+  if (typeof pushValg === 'function') dele.push(el('label', 'felt-label', 'Hvad giver besked til ' + (hvem === Data.bruger()?.navn ? 'dig' : hvem)), pushValg(hvem),
+    el('p', 'hint', 'Gælder alle ' + (hvem === Data.bruger()?.navn ? 'dine' : hvem + 's') + ' telefoner, hvor notifikationer er slået til.'));
   // Udseende – kun denne enhed
   const temaValg = chipValg(Object.keys(TEMA_NAVN), lokal.get('tema') || 'auto', v => { lokal.set('tema', v); saetTema(v); }, v => TEMA_NAVN[v]);
   dele.push(el('h3', 'lille-titel indst-titel', 'Udseende på denne enhed'), temaValg,

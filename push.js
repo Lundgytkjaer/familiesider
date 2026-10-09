@@ -91,3 +91,23 @@ function pushIndstilling() {
   tegn();
   return boks;
 }
+
+// Hvad skal give besked til en person (gemmes i personvalg, så det gælder alle personens telefoner).
+// Voksne kan også rette det for børnene. Standard: alt relevant er slået til.
+const PUSH_VALG_VOKSEN = [['pushVenter', '🎁 Når et barn venter på jer'], ['pushSedler', '✉️ Når der kommer en seddel']];
+const PUSH_VALG_BARN = [['pushSedler', '✉️ Når der kommer en seddel'], ['pushSvar', '👍 Svar på mine ønsker']];
+function pushValg(hvem) {
+  const boks = el('div', 'seg wrap tilpas-valg');
+  const liste = BOERN.includes(hvem) ? PUSH_VALG_BARN : PUSH_VALG_VOKSEN;
+  valgFor(hvem).then(valg => boks.replaceChildren(...liste.map(([felt, tekst]) => {   // fra dage.js
+    const k = knap(tekst, null, async () => {
+      const ny = k.getAttribute('aria-checked') !== 'true';
+      k.setAttribute('aria-checked', ny);
+      await saetValg(hvem, felt, ny);
+    });
+    k.setAttribute('role', 'checkbox');
+    k.setAttribute('aria-checked', valg[felt] !== false);
+    return k;
+  })));
+  return boks;
+}

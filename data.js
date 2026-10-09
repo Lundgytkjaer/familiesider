@@ -29,6 +29,14 @@ const Data = (() => {
     if (fortrydLytter) fortrydLytter(gruppe);
   }
 
+  // Push trin 2: efter et nyt/rettet ønske eller en seddel bedes Edge Function'en "push" om at give besked.
+  // Den henter selv rækken og afgør, om nogen skal have besked (og sender højst én gang). Fejl ignoreres stille.
+  const PUSH_LISTER = new Set(['indloesninger', 'ekstra', 'madoensker', 'sedler']);
+  function pushOm(liste, id) {
+    if (!PUSH_LISTER.has(liste) || !id) return;
+    db.functions.invoke('push', { body: { type: 'punkt', id } }).catch(() => {});
+  }
+
   // _af = hvem der oprettede rækken (bruges fx til at børn kun kan slette deres egne indkøbsønsker)
   const tilPunkt = r => ({ ...r.data, id: r.id, oprettet: r.oprettet, _af: r.oprettet_af });
 
@@ -106,6 +114,7 @@ const Data = (() => {
       const { data, error } = await db.from('punkter').insert({ liste, data: felter }).select().single();
       if (error) throw error;
       gemLokalt(data);
+      pushOm(liste, data.id);
       return tilPunkt(data);
     },
 
@@ -122,6 +131,7 @@ const Data = (() => {
       const { data, error } = await db.from('punkter').update({ data: { ...r.data, ...aendringer } }).eq('id', id).select().single();
       if (error) throw error;
       gemLokalt(data);
+      pushOm(liste, id);
     },
 
     async remove(liste, id) {

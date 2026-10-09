@@ -1367,3 +1367,6 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .push-boks { display: grid; gap: 8px; }
 .push-status { margin: 0; font-weight: 600; }
 .push-knapper { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* Lange valg i Indstillinger må bryde over flere linjer (ikke løbe ud over kanten) */
+.tilpas-valg button { white-space: normal; text-align: left; max-width: 100%; }
