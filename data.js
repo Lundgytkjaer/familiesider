@@ -148,6 +148,15 @@ const Data = (() => {
 
     onFortryd(fn) { fortrydLytter = fn; },
 
+    // Aktivitet (kun voksne kan læse den – databasens regler): nyeste først, evt. kun ældre end "foer"
+    async aktivitet(foer, antal = 150) {
+      let q = db.from('aktivitet').select('*').order('tid', { ascending: false }).limit(antal);
+      if (foer) q = q.lt('tid', foer);
+      const { data, error } = await q;
+      if (error) throw error;
+      return data || [];
+    },
+
     onChange(fn) { lyttere.push(fn); }
   };
 })();

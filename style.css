@@ -1286,3 +1286,15 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
   -webkit-box-decoration-break: clone; box-decoration-break: clone;
 }
 .marker-knap { background: rgb(255 226 0 / .85); color: #1a1a14; border: 0; }
+
+/* Aktivitet (kun voksne) */
+.akt-liste { display: grid; gap: 2px; margin-top: 12px; }
+.akt-dag { font-size: 14px; text-transform: uppercase; letter-spacing: .04em; color: var(--daempet); margin: 14px 0 4px; }
+.akt-raekke { display: grid; grid-template-columns: 44px 26px 1fr auto; gap: 8px; align-items: center; padding: 9px 4px; border-bottom: 1px solid var(--linje); }
+.akt-tid { font-variant-numeric: tabular-nums; font-size: 14px; color: var(--daempet); }
+.akt-ikon { font-size: 18px; text-align: center; }
+.akt-tekst { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.akt-linje { font-size: 15px; line-height: 1.35; overflow-wrap: anywhere; }
+.akt-navn { color: var(--p, inherit); }
+.akt-under { font-size: 13px; color: var(--daempet); overflow-wrap: anywhere; }
+.akt-knap { white-space: nowrap; }

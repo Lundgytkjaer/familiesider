@@ -88,8 +88,8 @@ function ugeSpan(man) {
 const kortDag = iso => { const d = new Date(iso + 'T00:00'); return d.getDate() + '. ' + MDR[d.getMonth()]; };
 
 // ---------- Faner ----------
-const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter'];
-const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter'];   // sider man når via "Mere"
+const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet'];
+const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet'];   // sider man når via "Mere"
 const FANE_NAVN = { idag: 'I dag', kalender: 'Kalender', madplan: 'Madplan', indkob: 'Indkøb', todo: 'To do', mere: 'Mere' };
 // Børn ser kun de faner, de voksne har slået til for dem (personvalg.faner). Tavlen ("I dag") er der altid.
 const BOERNE_FANER = ['kalender', 'madplan', 'mere'];   // standard for børn
@@ -113,7 +113,7 @@ let aktivFane = null, tilbageTil = null;
 function visFane(navn) {
   if (typeof lukZoom === 'function') lukZoom();
   if (!FANER.includes(navn)) navn = 'idag';
-  if (navn === 'kontakter' && erBarn()) navn = 'idag';   // kontakter er kun for voksne
+  if ((navn === 'kontakter' || navn === 'aktivitet') && erBarn()) navn = 'idag';   // kontakter og aktivitet er kun for voksne
   if (navn !== 'hjaelp' && tilladteFaner && !tilladteFaner.includes(UNDER_MERE.includes(navn) ? 'mere' : navn)) navn = 'idag';
   const fra = aktivFane;
   if (!UNDER_MERE.includes(navn)) tilbageTil = null;
@@ -126,7 +126,8 @@ function visFane(navn) {
   opdaterTilbage();
   if (navn === 'vejr' && typeof tegnVejr === 'function') tegnVejr();   // fra vejr.js
   if (typeof holdSkaermTaendt === 'function') holdSkaermTaendt(navn === 'indkob' && handler);   // handletilstand holder skærmen tændt (handel.js)
-  if (navn === 'familie' && typeof tegnFamilie === 'function') tegnFamilie();   // fra familie.js (træet skal måles, når siden er synlig)
+  if (navn === 'familie' && typeof tegnFamilie === 'function') tegnFamilie();
+  if (navn === 'aktivitet' && fra !== 'aktivitet' && typeof aktHent === 'function') aktHent(true);   // fra aktivitet.js – hentes frisk hver gang   // fra familie.js (træet skal måles, når siden er synlig)
 }
 function opdaterTilbage() {
   const pakAaben = aktivFane === 'pakkelister' && typeof pakValgt !== 'undefined' && pakValgt;
