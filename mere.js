@@ -70,7 +70,13 @@ const harPiktogram = r => !!r.piktogram || (r.trin || []).some(t => t.piktogram 
 const rutineAktiv = (r, dag) => !r.dage || !r.dage.length || r.dage.includes(dag);
 // Hvilke dage: bestemte ugedage (dage) – eller dagtype 'skole'/'fri', som følger skolen:
 // fridage = weekend, helligdage, ferie/fri/fravær i kalenderen og fast fridag i skemaet.
-const DAGTYPER = { skole: { navn: 'Skoledage', ikon: '🎒' }, fri: { navn: 'Fridage', ikon: '😎' } };
+// 'foerSkole'/'foerFri' ser på dagen efter – fx sengetid søndag før skole (men ikke søndag i en ferie).
+const DAGTYPER = {
+  skole: { navn: 'Skoledage', ikon: '🎒', hint: 'Hverdage med skole – ikke i ferier, på helligdage eller fridage fra kalenderen.' },
+  fri: { navn: 'Fridage', ikon: '😎', hint: 'Weekender, helligdage, ferie og fridage fra kalenderen (også syg/fri fra skolen) og fast fridag i skemaet.' },
+  foerSkole: { navn: 'Før skoledag', ikon: '⏰', hint: 'Dagen før en skoledag – fx søndag aften og hverdage, men ikke sidste skoledag før en ferie. God til sengetid.' },
+  foerFri: { navn: 'Før fridag', ikon: '🎉', hint: 'Dagen før en fridag – fx fredag, lørdag og aftenen før en ferie eller helligdag.' }
+};
 async function erSkoleFri(barn, dato) {
   const dag = (dato.getDay() + 6) % 7;
   const iso = isoDato(dato);
@@ -80,6 +86,10 @@ async function erSkoleFri(barn, dato) {
 }
 async function rutineIDag(r, dato) {
   if (!DAGTYPER[r.dagtype]) return rutineAktiv(r, (dato.getDay() + 6) % 7);
+  if (r.dagtype === 'foerSkole' || r.dagtype === 'foerFri') {
+    const imorgen = new Date(dato.getFullYear(), dato.getMonth(), dato.getDate() + 1);
+    return (await erSkoleFri(r.barn, imorgen)) === (r.dagtype === 'foerFri');
+  }
   return (await erSkoleFri(r.barn, dato)) === (r.dagtype === 'fri');
 }
 const dageTekst = r => (DAGTYPER[r.dagtype] ? DAGTYPER[r.dagtype].ikon + ' ' + DAGTYPER[r.dagtype].navn
@@ -301,11 +311,9 @@ function redigerRutine(r) {
     const visDagtype = () => {
       dageBoks.hidden = s.dagtype !== 'dage';
       typeHint.hidden = s.dagtype === 'dage';
-      typeHint.textContent = s.dagtype === 'fri'
-        ? 'Weekender, helligdage, ferie og fridage fra kalenderen (også syg/fri fra skolen) og fast fridag i skemaet.'
-        : 'Hverdage med skole – ikke i ferier, på helligdage eller fridage fra kalenderen.';
+      typeHint.textContent = DAGTYPER[s.dagtype]?.hint || '';
     };
-    const dagtypeValg = chipValg(['dage', 'skole', 'fri'], s.dagtype, v => { s.dagtype = v; visDagtype(); },
+    const dagtypeValg = chipValg(['dage', ...Object.keys(DAGTYPER)], s.dagtype, v => { s.dagtype = v; visDagtype(); },
       v => (v === 'dage' ? '📅 Vælg dage' : DAGTYPER[v].ikon + ' ' + DAGTYPER[v].navn));
     visDagtype();
 
