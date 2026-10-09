@@ -24,7 +24,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-09h">
+  <link rel="stylesheet" href="style.css?v=2026-10-09i">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -41,7 +41,7 @@
       <div class="seg" id="idag-valg" role="radiogroup" aria-label="Vis tavle for" hidden></div>
       <div class="boernetavle" id="boernetavle" hidden></div>
       <div class="overblik" id="familie-overblik">
-        <div class="ov-sedler" id="ov-sedler"></div>
+        <div class="ov-sedler" id="ov-sedler" hidden></div>
         <div class="kort oensker-kort" id="ov-oensker" hidden></div>
         <button type="button" class="kort" data-gaa="kalender">
           <div class="kort-top"><span class="kort-label">Kalender i dag</span><span class="kort-pil">Kalender ›</span></div>
@@ -74,6 +74,7 @@
           <div class="kort-top"><span class="kort-label">Indkøb</span><span class="kort-pil" id="ov-indkob-antal">›</span></div>
           <div class="chips" id="ov-indkob"></div>
         </button>
+        <div class="ov-sedler" id="ov-seddel-link"></div>
       </div>
     </section>
 
@@ -360,7 +361,7 @@
           <ul>
             <li><b>Rutiner</b> er en guide med billeder (fx tandbørstning og sengetid) – der skal ikke krydses noget af. En rutine kan have et klokkeslæt eller bare en dagsdel (🌅 morgen, ☀️ eftermiddag, 🌙 aften) – fx tandbørstning en weekendmorgen. Så står den på tavlen som "i løbet af morgenen", indtil alle trin er klaret. Under Dage kan man vælge 🎒 Skoledage, 😎 Fridage, ⏰ Før skoledag eller 🎉 Før fridag (fx sengetid) – så følger rutinen selv weekender, ferier og helligdage fra kalenderen.</li>
             <li class="kun-voksen"><b>Kontakter</b> samler telefon, mail og adresser – familiens står også på personens kort under Familie. Tryk 📞 for at ringe direkte. Kun voksne kan se kontakter.</li>
-            <li><b>Køleskabssedler:</b> en voksen kan hænge en lille seddel op på et barns tavle (📝 Skriv en seddel – vælg barnets tavle under I dag). Den kan have klistermærke, farve, være 🤫 hemmelig (skal foldes ud), have en 🎁 gave med stjerner og vente til næste morgen. Modtageren svarer med en emoji og/eller en kort tekst (✏️ Skriv) – så flyver sedlen væk, og afsenderen kan se svaret. Børnene kan også sende sedler til de voksne (📝 på deres tavle); de voksnes sedler hænger øverst på Familien, og der kommer et rødt tal på I dag.</li>
+            <li><b>Sedler:</b> en lille seddel, der hænger øverst på tavlen hos modtageren (✉️ Skriv en seddel – nederst på tavlen). Modtageren svarer med en emoji eller kort tekst, og så forsvinder sedlen. Voksne kan slå det fra for et barn under Indstillinger → barnet.</li>
             <li class="kun-voksen"><b>Aktivitet</b> (under Mere) viser hvem der har tilføjet, rettet, krydset af eller slettet hvad de sidste 60 dage. Slettede ting kan gendannes, og en ændring kan fortrydes, hvis ingen har rettet den siden. Kun voksne kan se den.</li>
             <li><b>Familie</b> viser hele familien – hvem der er mormor, faster, fætter osv. Tryk på en person for at se forældre, søskende og børn<span class="kun-voksen">, rette eller tilføje familie (+ Barn, + Forælder …). Afdøde kan få en 🕯️ mindedag i kalenderen</span>.</li>
             <li><b>Skoleskema</b>, <b>Pakkelister</b>, <b>Ugens konkurrence</b> (hvem cykler eller går længst) og <b>Vejret</b>.</li>
@@ -443,15 +444,15 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="data.js?v=2026-10-09h"></script>
-<script src="dage.js?v=2026-10-09h"></script>
-<script src="vejr.js?v=2026-10-09h"></script>
-<script src="app.js?v=2026-10-09h"></script>
-<script src="mere.js?v=2026-10-09h"></script>
-<script src="sjov.js?v=2026-10-09h"></script>
-<script src="seddel.js?v=2026-10-09h"></script>
-<script src="familie.js?v=2026-10-09h"></script>
-<script src="handel.js?v=2026-10-09h"></script>
-<script src="aktivitet.js?v=2026-10-09h"></script>
+<script src="data.js?v=2026-10-09i"></script>
+<script src="dage.js?v=2026-10-09i"></script>
+<script src="vejr.js?v=2026-10-09i"></script>
+<script src="app.js?v=2026-10-09i"></script>
+<script src="mere.js?v=2026-10-09i"></script>
+<script src="sjov.js?v=2026-10-09i"></script>
+<script src="seddel.js?v=2026-10-09i"></script>
+<script src="familie.js?v=2026-10-09i"></script>
+<script src="handel.js?v=2026-10-09i"></script>
+<script src="aktivitet.js?v=2026-10-09i"></script>
 </body>
 </html>

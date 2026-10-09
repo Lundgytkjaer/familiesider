@@ -1332,11 +1332,9 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .seddel-svar-linje { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--daempet); padding: 2px 4px; }
 .seddel-svar-emoji { font-size: 22px; }
 .seddel-svar-linje .slet { margin-left: auto; }
-.seddel-ny { justify-self: start; }
 .seddel-forhaand { padding: 14px 6px 6px; }
 .seddel-forhaand .seddel { max-width: 320px; margin: 0 auto; }
 .seddel-input { width: 100%; font: inherit; font-size: 17px; padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--linje); background: var(--bg); color: var(--fg); resize: vertical; }
-.seddel-forslag { margin-top: 6px; }
 .seddel-stickere button { font-size: 22px; min-width: 48px; }
 .seg.seddel-stickere button:first-child { font-size: 15px; }
 .seg.seddel-farver button { color: #2b2a22 !important; border-color: rgba(0,0,0,.12); }
@@ -1352,7 +1350,7 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .seddel.lille .seddel-tekst { font-size: 16px; }
 .seddel.lille .seddel-sticker { font-size: 28px; }
 .seddel-til { font-size: 13px; font-weight: 700; color: #5b5848; text-transform: uppercase; letter-spacing: .04em; }
-.seddel-skriv { font-size: 16px; font-weight: 700; padding: 0 12px; color: #2b2a22; }
+.seddel-skriv { font-size: 15px; font-weight: 700; padding: 0 12px; color: #2b2a22; }
 .seddel-svar-tekst { display: flex; flex-direction: column; gap: 2px; color: var(--fg); }
 .seddel-svar-citat { font-family: var(--font-titel); font-weight: 700; font-size: 16px; }
 .seddel-svar-citat::before { content: '“'; } .seddel-svar-citat::after { content: '”'; }
@@ -1360,3 +1358,7 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .svar-emoji { display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr)); gap: 6px; }
 .svar-emoji-knap { font-size: 28px; min-height: 52px; border-radius: 14px; border: 1.5px solid var(--linje); background: var(--flade); cursor: pointer; }
 .svar-emoji-knap[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-blod); transform: scale(1.08); }
+
+/* Diskret "skriv en seddel" nederst på tavlen / Familien */
+.seddel-skriv-link { display: block; margin: 18px auto 4px; background: none; border: 0; padding: 8px 12px; font: inherit; font-size: 14px; color: var(--daempet); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+#ov-seddel-link:empty { display: none; }

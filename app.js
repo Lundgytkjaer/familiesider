@@ -1931,6 +1931,7 @@ async function tegnBoernetavle(barn) {
   // Vejr (og evt. sol) for den viste dag – efter barnets egne valg; hentes i baggrunden
   const barnValg = await valgFor(barn);
   const sedler = typeof seddelDel === 'function' ? await seddelDel(barn) : null;   // køleskabssedler (seddel.js)
+  const skrivLink = typeof seddelSkrivLink === 'function' ? await seddelSkrivLink(barn) : null;   // diskret, nederst
   const vejrPlads = el('div', 'vejr-plads');
   if (barnValg.vejr || barnValg.sol) {
     vejrStribe(iso, barnValg.sol, barnValg.vejr).then(k => { if (k) vejrPlads.replaceChildren(k); });
@@ -1949,13 +1950,13 @@ async function tegnBoernetavle(barn) {
     flade.append(fliser);
     ramme.append(flade);
     boks.classList.add('som-tavle');
-    boks.replaceChildren(strip, hoved, vejrPlads, ...(sedler ? [sedler] : []), ramme);
+    boks.replaceChildren(strip, hoved, vejrPlads, ...(sedler ? [sedler] : []), ramme, ...(skrivLink ? [skrivLink] : []));
     opdaterZoom();
   } else {
     tavleKort = {};
     lukZoom();
     boks.classList.remove('som-tavle');
-    boks.replaceChildren(strip, hoved, vejrPlads, ...(sedler ? [sedler] : []), gitter);
+    boks.replaceChildren(strip, hoved, vejrPlads, ...(sedler ? [sedler] : []), gitter, ...(skrivLink ? [skrivLink] : []));
   }
 }
 
@@ -2487,7 +2488,9 @@ async function tegnOverblik() {
 
   // Køleskabssedler til mig og svar på dem, jeg har sendt (seddel.js)
   const ovSedler = document.getElementById('ov-sedler');
-  if (ovSedler && typeof voksenSedler === 'function') ovSedler.replaceChildren(await voksenSedler());
+  if (ovSedler && typeof voksenSedler === 'function') { const v = await voksenSedler(); ovSedler.replaceChildren(...(v ? [v] : [])); ovSedler.hidden = !v; }
+  const ovLink = document.getElementById('ov-seddel-link');
+  if (ovLink && typeof seddelSkrivLink === 'function') { const l = await seddelSkrivLink(null); ovLink.replaceChildren(...(l ? [l] : [])); }
 
   // Mine egne pligter (kun for voksne – fra mere.js)
   // Børnenes ønsker om at indløse belønninger – venter på en voksen
@@ -2796,6 +2799,20 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     }
     dele.push(el('label', 'felt-label', 'Faner ' + hvem + ' kan se (tavlen er der altid)'), fseg,
       el('p', 'hint', 'Gælder, når ' + hvem + ' selv er logget ind. Pligter, belønninger og rutiner ligger på tavlen.'));
+    // Sedler: må barnet selv sende sedler og skrive svar? (gemmes i personregler, som kun voksne kan rette)
+    const sseg = el('div', 'seg wrap tilpas-valg');
+    const sk = knap('✉️ Må sende sedler og skrive svar', null, async () => {
+      const ny = sk.getAttribute('aria-checked') !== 'true';
+      sk.setAttribute('aria-checked', ny);
+      await saetRegel(hvem, 'sedler', ny);   // fra mere.js
+      tegnAlt();
+    });
+    sk.setAttribute('role', 'checkbox');
+    sk.setAttribute('aria-checked', 'true');
+    regelFor(hvem).then(r => sk.setAttribute('aria-checked', r.sedler));
+    sseg.append(sk);
+    dele.push(el('label', 'felt-label', 'Sedler'), sseg,
+      el('p', 'hint', 'Slået fra: ' + hvem + ' kan stadig se jeres sedler og svare med en emoji, men ikke selv skrive.'));
   }
   // Udseende – kun denne enhed
   const temaValg = chipValg(Object.keys(TEMA_NAVN), lokal.get('tema') || 'auto', v => { lokal.set('tema', v); saetTema(v); }, v => TEMA_NAVN[v]);

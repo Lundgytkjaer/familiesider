@@ -414,7 +414,9 @@ async function regelFor(navn) {
   const r = (await Data.list('personregler')).find(x => x.navn === navn);
   const barn = BOERN.includes(navn);
   // streakBonus = stjerner for at holde rækken (sjov.js); 0 = fra, standard 1
-  return r ? { kr: !!r.kr, stjerner: !!r.stjerner, streakBonus: r.streakBonus ?? 1, joker: r.joker !== false } : { kr: barn, stjerner: barn, streakBonus: 1, joker: true };
+  // sedler = må sende køleskabssedler og skrive svar (seddel.js); standard ja
+  return r ? { kr: !!r.kr, stjerner: !!r.stjerner, streakBonus: r.streakBonus ?? 1, joker: r.joker !== false, sedler: r.sedler !== false }
+    : { kr: barn, stjerner: barn, streakBonus: 1, joker: true, sedler: true };
 }
 async function saetRegel(navn, felt, vaerdi) {
   const r = (await Data.list('personregler')).find(x => x.navn === navn);
