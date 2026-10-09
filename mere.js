@@ -68,6 +68,22 @@ function trinUrl(t, igen) {
 const harPiktogram = r => !!r.piktogram || (r.trin || []).some(t => t.piktogram || (t.soeg && piktoOpslag[t.soeg]));
 
 const rutineAktiv = (r, dag) => !r.dage || !r.dage.length || r.dage.includes(dag);
+// Hvilke dage: bestemte ugedage (dage) – eller dagtype 'skole'/'fri', som følger skolen:
+// fridage = weekend, helligdage, ferie/fri/fravær i kalenderen og fast fridag i skemaet.
+const DAGTYPER = { skole: { navn: 'Skoledage', ikon: '🎒' }, fri: { navn: 'Fridage', ikon: '😎' } };
+async function erSkoleFri(barn, dato) {
+  const dag = (dato.getDay() + 6) % 7;
+  const iso = isoDato(dato);
+  if (dag >= 5 || helligdagDen(iso)) return true;   // helligdagDen fra dage.js
+  if (friDen(await Data.list('kalender'), iso, barn)) return true;   // ferie, fri, syg (app.js)
+  return fastFri(barn, dag);   // fast fridag hver uge (app.js)
+}
+async function rutineIDag(r, dato) {
+  if (!DAGTYPER[r.dagtype]) return rutineAktiv(r, (dato.getDay() + 6) % 7);
+  return (await erSkoleFri(r.barn, dato)) === (r.dagtype === 'fri');
+}
+const dageTekst = r => (DAGTYPER[r.dagtype] ? DAGTYPER[r.dagtype].ikon + ' ' + DAGTYPER[r.dagtype].navn
+  : !r.dage || !r.dage.length || r.dage.length === 7 ? 'Hver dag' : r.dage.map(i => DAGE[i]).join(', '));
 // En rutine har enten et klokkeslæt (tid) eller en dagsdel (dagsdel) – fx børste tænder en weekendmorgen.
 // En dagsdel-rutine er "Nu" hele vinduet, indtil alle trin er klaret.
 const DAGSDELE = {
@@ -122,8 +138,9 @@ function ikonFelt(start) {
 async function rutineKort(barn, dato) {
   const dag = (dato.getDay() + 6) % 7;
   const iso = isoDato(dato);
-  const rutiner = (await Data.list('rutiner')).filter(r => r.barn === barn && rutineAktiv(r, dag))
-    .sort(rutineSort);
+  const alle = (await Data.list('rutiner')).filter(r => r.barn === barn);
+  const iDag = await Promise.all(alle.map(r => rutineIDag(r, dato)));
+  const rutiner = alle.filter((r, i) => iDag[i]).sort(rutineSort);
   if (!rutiner.length) return null;
   const nu = new Date();
   const nuMin = nu.getHours() * 60 + nu.getMinutes();
@@ -237,7 +254,7 @@ async function tegnRutiner() {
       : el('div', 'rutine-raekke uden-trin');   // børn: en rutine uden trin kan ikke åbnes
     const strip = el('span', 'rutine-strip');
     (r.trin || []).slice(0, 6).forEach(t => strip.append(trinBillede(t, 'mini-billede', () => tegnRutiner())));
-    const dage = !r.dage || !r.dage.length || r.dage.length === 7 ? 'Hver dag' : r.dage.map(i => DAGE[i]).join(', ');
+    const dage = dageTekst(r);
     const info = el('span', 'rutine-info');
     const rNavn = el('span', 'rutine-navn');
     rNavn.append(ikonBillede(r), r.navn);
@@ -259,6 +276,7 @@ function redigerRutine(r) {
   const s = {
     navn: r.navn || '', tid: r.tid || '', til: r.barn || rutineBarn,
     hvornaar: DAGSDELE[r.dagsdel] ? r.dagsdel : 'klokken',
+    dagtype: DAGTYPER[r.dagtype] ? r.dagtype : 'dage',
     dage: new Set(r.dage && r.dage.length ? r.dage : [0, 1, 2, 3, 4, 5, 6]),
     trin: (r.trin || []).map(t => ({ ...t }))
   };
@@ -278,6 +296,18 @@ function redigerRutine(r) {
       return k;
     }));
     tegnDage();
+    // Bestemte ugedage – eller skoledage/fridage, der følger kalenderen (ferie, helligdage …)
+    const typeHint = el('p', 'hint');
+    const visDagtype = () => {
+      dageBoks.hidden = s.dagtype !== 'dage';
+      typeHint.hidden = s.dagtype === 'dage';
+      typeHint.textContent = s.dagtype === 'fri'
+        ? 'Weekender, helligdage, ferie og fridage fra kalenderen (også syg/fri fra skolen) og fast fridag i skemaet.'
+        : 'Hverdage med skole – ikke i ferier, på helligdage eller fridage fra kalenderen.';
+    };
+    const dagtypeValg = chipValg(['dage', 'skole', 'fri'], s.dagtype, v => { s.dagtype = v; visDagtype(); },
+      v => (v === 'dage' ? '📅 Vælg dage' : DAGTYPER[v].ikon + ' ' + DAGTYPER[v].navn));
+    visDagtype();
 
     const trinListe = el('ol', 'trin-ret-liste');
     s.trin.forEach((t, i) => {
@@ -315,7 +345,8 @@ function redigerRutine(r) {
     const gem = knap('Gem', 'knap', async () => {
       if (!s.navn.trim()) { navn.focus(); return; }
       const felter = {
-        navn: s.navn.trim(), tid: DAGSDELE[s.hvornaar] ? '' : s.tid, dagsdel: DAGSDELE[s.hvornaar] ? s.hvornaar : null, dage: [...s.dage].sort((a, b) => a - b), ...ikon.vaerdi(),
+        navn: s.navn.trim(), tid: DAGSDELE[s.hvornaar] ? '' : s.tid, dagsdel: DAGSDELE[s.hvornaar] ? s.hvornaar : null,
+        dagtype: DAGTYPER[s.dagtype] ? s.dagtype : null, dage: [...s.dage].sort((a, b) => a - b), ...ikon.vaerdi(),
         trin: s.trin.filter(t => (t.tekst || '').trim() || t.piktogram || t.billede || t.soeg)
           .map(t => ({ tekst: (t.tekst || '').trim(), piktogram: t.piktogram || null, billede: t.billede || '', soeg: t.piktogram || t.billede ? '' : (t.soeg || '') }))
       };
@@ -326,7 +357,7 @@ function redigerRutine(r) {
     const knapper = el('div', 'ark-knapper');
     if (!ny) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('rutiner', r.id); lukArk(); tegnAlt(); }));
     knapper.append(gem);
-    aabnArk(ny ? 'Ny rutine' : 'Ret rutine', to, felt('Til', tilValg), el('label', 'felt-label', 'Dage'), dageBoks,
+    aabnArk(ny ? 'Ny rutine' : 'Ret rutine', to, felt('Til', tilValg), el('label', 'felt-label', 'Dage'), dagtypeValg, dageBoks, typeHint,
       el('label', 'felt-label', 'Trin'), trinListe, nytTrin, ikon.element, knapper);
   }
 
