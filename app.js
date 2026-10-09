@@ -2814,6 +2814,8 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     dele.push(el('label', 'felt-label', 'Sedler'), sseg,
       el('p', 'hint', 'Slået fra: ' + hvem + ' kan stadig se jeres sedler og svare med en emoji, men ikke selv skrive.'));
   }
+  // Notifikationer – kun denne telefon (push.js)
+  if (typeof pushIndstilling === 'function' && hvem === Data.bruger()?.navn) dele.push(el('h3', 'lille-titel indst-titel', '🔔 Notifikationer på denne telefon'), pushIndstilling());
   // Udseende – kun denne enhed
   const temaValg = chipValg(Object.keys(TEMA_NAVN), lokal.get('tema') || 'auto', v => { lokal.set('tema', v); saetTema(v); }, v => TEMA_NAVN[v]);
   dele.push(el('h3', 'lille-titel indst-titel', 'Udseende på denne enhed'), temaValg,
@@ -3027,6 +3029,7 @@ async function startTavle() {
   tegnAlt();
   Data.onChange(tegnAlt);
   document.body.dataset.tilstand = 'klar';
+  if (typeof pushOpfrisk === 'function') pushOpfrisk();   // push.js
 }
 
 document.documentElement.lang = 'da'; // giver dansk orddeling i kalenderen

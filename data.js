@@ -91,6 +91,7 @@ const Data = (() => {
     },
 
     async logud() {
+      if (typeof pushFoerLogud === 'function') await pushFoerLogud();   // push.js: telefonen skal ikke have den udloggedes beskeder
       await db.auth.signOut();
       location.reload();
     },
@@ -147,6 +148,22 @@ const Data = (() => {
     async stille(fn) { stille++; try { return await fn(); } finally { stille--; } },
 
     onFortryd(fn) { fortrydLytter = fn; },
+
+    // Push-notifikationer (push.js): denne telefons abonnement gemmes/fjernes via databasefunktioner
+    async gemPush(sub, enhed) {
+      const { error } = await db.rpc('gem_push', { p_endpoint: sub.endpoint, p_p256dh: sub.keys.p256dh, p_auth: sub.keys.auth, p_enhed: enhed });
+      if (error) throw error;
+    },
+    async fjernPush(endpoint) {
+      const { error } = await db.rpc('fjern_push', { p_endpoint: endpoint });
+      if (error) throw error;
+    },
+    // Bed Edge Function'en "push" sende (den afgør selv hvem der må få hvad)
+    async push(krop) {
+      const { data, error } = await db.functions.invoke('push', { body: krop });
+      if (error) throw error;
+      return data;
+    },
 
     // Aktivitet (kun voksne kan læse den – databasens regler): nyeste først, evt. kun ældre end "foer"
     async aktivitet(foer, antal = 150) {

@@ -1362,3 +1362,8 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 /* Diskret "skriv en seddel" nederst på tavlen / Familien */
 .seddel-skriv-link { display: block; margin: 18px auto 4px; background: none; border: 0; padding: 8px 12px; font: inherit; font-size: 14px; color: var(--daempet); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
 #ov-seddel-link:empty { display: none; }
+
+/* Notifikationer (push.js) */
+.push-boks { display: grid; gap: 8px; }
+.push-status { margin: 0; font-weight: 600; }
+.push-knapper { display: flex; gap: 8px; flex-wrap: wrap; }
