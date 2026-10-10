@@ -1385,3 +1385,7 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .var-ing { font: inherit; font-size: 13px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--linje); background: var(--bg); color: var(--fg); max-width: 220px; }
 .mad-andet { margin-top: 16px; }
 .mad-andet > summary { cursor: pointer; color: var(--daempet); font-size: 15px; padding: 6px 0; }
+
+/* Tilbehør: små knapper, 3 pr. række */
+.mad-valg.side-valg { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.side-valg .mad-valg-knap { min-height: 44px; padding: 6px 4px; font-size: 15px; }

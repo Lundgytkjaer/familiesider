@@ -2,8 +2,11 @@
 // Data: favoritter (type 'ret' | 'morgen' | 'frokost') {tekst, gruppe?, ingrediens?, varianter?: [{navn, ingrediens?, tekst?, slukket?}],
 //        ikkeAuto? (aldrig i terningen, fx takeaway), ikkeAlternativ? (vises ikke som alternativ for børnene)}
 // En variant hedder "<ret> med <navn>" (fx "Burger med flæskesteg"), medmindre den har sin egen tekst ("Franske hotdogs").
-// Børnene: morgen/frokost → vælg variant (gælder med det samme); aftensmad → "Vil du hellere have …" = retter med
-// samme hovedingrediens (et ønske, de voksne siger ja/nej). Opsætningen af kataloget: opdatering-retter.sql.
+// Tilbehør (side): ris, nudler, pasta, pommes … er IKKE en del af retten. En ret har evt. et standardtilbehør
+// (favoritter.side, fx 'ris'), og børnene vælger selv et andet (gælder med det samme – det er lige meget for de voksne).
+// "Kylling i karry" + ris vises som "Kylling i karry med ris"; "Hakkebøf med spejlæg" + kartofler → "… og kartofler".
+// Børnene: morgen/frokost → vælg variant (gælder med det samme); aftensmad → vælg tilbehør + "Vil du hellere have …" =
+// retter med samme hovedingrediens (et ønske, de voksne siger ja/nej). Opsætningen: opdatering-retter.sql + -2.sql.
 
 const RET_GRUPPER = [
   ['kylling', '🐔', 'Kylling'], ['gris', '🐷', 'Gris'], ['okse', '🐮', 'Okse'], ['poelser', '🌭', 'Pølser'], ['fisk', '🐟', 'Fisk'],
@@ -14,13 +17,17 @@ const GRUPPE_NAVN = Object.fromEntries(RET_GRUPPER.map(([k, i, n]) => [k, i + ' 
 const MAAL_TYPER = ['ret', 'morgen', 'frokost'];
 
 const lavt = t => (t || '').trim().toLowerCase();
+const SIDER = ['ris', 'nudler', 'pasta', 'pommes', 'rösti', 'kartofler', 'kartoffelmos', 'kartoffelsalat', 'brød'];
+// Hele teksten: ret (evt. variant) + tilbehør
+function komponer(f, v, side) {
+  const base = v ? variantTekst(f, v) : f.tekst;
+  return side ? base + (/ med /i.test(base) ? ' og ' : ' med ') + side : base;
+}
 const variantTekst = (f, v) => v.tekst || (f.tekst + ' med ' + v.navn);
 const aktiveVarianter = f => (Array.isArray(f.varianter) ? f.varianter : []).filter(v => !v.slukket);
 
 // Find retten (og evt. varianten) bag en tekst. Først i måltidets egen liste, så i de andre (morgenmad som aftensmad).
-function findRet(favs, felt, tekst) {
-  const t = lavt(tekst);
-  if (!t) return null;
+function findPraecis(favs, felt, t) {
   const typer = [felt, ...MAAL_TYPER.filter(x => x !== felt)];
   for (const type of typer) {
     for (const f of favs.filter(x => x.type === type)) {
@@ -30,6 +37,26 @@ function findRet(favs, felt, tekst) {
     }
   }
   return null;
+}
+// Finder også "Kyllingespyd med nudler" = Kyllingespyd + tilbehøret nudler. Svarer {fav, variant, side} (side = valgt tilbehør)
+function findRet(favs, felt, tekst) {
+  const t = lavt(tekst);
+  if (!t) return null;
+  const fund = findPraecis(favs, felt, t);
+  if (fund) return { ...fund, side: null };
+  for (const side of SIDER) {
+    for (const led of [' med ', ' og ']) {
+      if (!t.endsWith(led + side)) continue;
+      const f2 = findPraecis(favs, felt, t.slice(0, -(led + side).length));
+      if (f2) return { ...f2, side };
+    }
+  }
+  return null;
+}
+// Teksten der vises: med det valgte tilbehør, ellers rettens standardtilbehør
+function retVisning(favs, felt, tekst) {
+  const fund = findRet(favs, felt, tekst);
+  return fund ? komponer(fund.fav, fund.variant, fund.side || fund.fav.side) : tekst;
 }
 // Alle tekster en ret kan stå som (selve retten + aktive varianter)
 const retTekster = f => [f.tekst, ...aktiveVarianter(f).map(v => variantTekst(f, v))];
@@ -60,8 +87,9 @@ function boerneValg(favs, felt, planTekst, barn) {
     const valg = aktiveVarianter(fav).map(v => ({ tekst: variantTekst(fav, v), kort: v.navn }));
     return { slags: 'variant', fav, valg };
   }
+  const sider = fav.side ? { nu: fund.side || fav.side, standard: fav.side, base: komponer(fav, variant, null) } : null;
   const ing = variant?.ingrediens || fav.ingrediens;
-  if (!ing) return { slags: 'alternativ', fav, valg: [] };
+  if (!ing) return { slags: 'alternativ', fav, valg: [], sider };
   const nu = lavt(planTekst);
   const res = [];
   for (const f of favs.filter(x => x.type === 'ret' && !x.ikkeAlternativ && x.gruppe !== 'takeaway')) {
@@ -70,19 +98,22 @@ function boerneValg(favs, felt, planTekst, barn) {
     for (const v of vs.filter(v => !v.slukket && (v.ingrediens || f.ingrediens) === ing)) res.push({ tekst: variantTekst(f, v), f });
   }
   const point = x => (kanLide(x.f).includes(barn) ? 1000 : 0) + (x.f.brugt || 0);
-  const valg = res.filter(x => lavt(x.tekst) !== nu).sort((a, b) => point(b) - point(a)).slice(0, 6).map(x => ({ tekst: x.tekst, kort: x.tekst }));
-  return { slags: 'alternativ', fav, valg };
+  const egen = lavt(komponer(fav, variant, null));
+  const valg = res.filter(x => lavt(x.tekst) !== nu && lavt(x.tekst) !== egen).sort((a, b) => point(b) - point(a)).slice(0, 6)
+    .map(x => ({ tekst: x.tekst, kort: komponer(x.f, null, null) === x.tekst ? komponer(x.f, null, x.f.side) : x.tekst }));
+  return { slags: 'alternativ', fav, valg, sider };
 }
 
 // ---------- Voksne: ret en ret i kataloget ----------
 function redigerRet(f) {
   const s = {
-    tekst: f.tekst, gruppe: f.gruppe || '', ingrediens: f.ingrediens || '', ikkeAuto: !!f.ikkeAuto, ikkeAlternativ: !!f.ikkeAlternativ,
+    tekst: f.tekst, gruppe: f.gruppe || '', ingrediens: f.ingrediens || '', side: f.side || '', ikkeAuto: !!f.ikkeAuto, ikkeAlternativ: !!f.ikkeAlternativ,
     varianter: (Array.isArray(f.varianter) ? f.varianter : []).map(v => ({ ...v }))
   };
   const erAften = f.type === 'ret';
   const navn = input('text', 'ret-navn', s.tekst);
   navn.addEventListener('input', () => { s.tekst = navn.value; });
+  const sideValg = chipValg(['', ...SIDER], s.side, v => { s.side = v; }, v => v || 'Intet');
   const gruppeValg = chipValg(['', ...RET_GRUPPER.map(g => g[0])], s.gruppe, v => { s.gruppe = v; }, v => (v ? GRUPPE_NAVN[v] : 'Ingen'));
   // Hovedingredienser der allerede bruges – vælg en eller skriv en ny
   const alleIng = async () => [...new Set((await Data.list('favoritter')).flatMap(x => [x.ingrediens, ...(x.varianter || []).map(v => v.ingrediens)]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'da'));
@@ -145,14 +176,16 @@ function redigerRet(f) {
       tekst: s.tekst.trim(), ikkeAuto: s.ikkeAuto, ikkeAlternativ: s.ikkeAlternativ,
       varianter: s.varianter.map(v => Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined && x !== false && x !== '')))
     };
-    if (erAften) Object.assign(felter, { gruppe: s.gruppe || null, ingrediens: s.ingrediens || null });
+    if (erAften) Object.assign(felter, { gruppe: s.gruppe || null, ingrediens: s.ingrediens || null, side: s.side || null });
     await Data.update('favoritter', f.id, felter);
     lukArk(); tegnAlt();
   });
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('favoritter', f.id); lukArk(); tegnAlt(); }), gem);
   const dele = [felt('Navn', navn)];
-  if (erAften) dele.push(el('label', 'felt-label', 'Kategori'), gruppeValg, felt('Hovedingrediens', ing),
+  if (erAften) dele.push(el('label', 'felt-label', 'Tilbehør (det der normalt kommer med)'), sideValg,
+    el('p', 'hint', 'Børnene kan selv vælge et andet tilbehør (ris, nudler, pommes …) – det gælder med det samme.'),
+    el('label', 'felt-label', 'Kategori'), gruppeValg, felt('Hovedingrediens', ing),
     el('p', 'hint', 'Retter med samme hovedingrediens bliver foreslået til børnene som alternativ (fx burger med flæskesteg → flæskesteg med kartofler).'), ingListe);
   dele.push(el('label', 'felt-label', erAften ? 'Varianter (fx hvad der er i burgeren)' : 'Varianter (fx pålæg)'), varBoks, form, flag1, knapper);
   aabnArk(MAALTIDER[f.type] + ': ' + f.tekst, ...dele);

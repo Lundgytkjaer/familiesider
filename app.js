@@ -716,7 +716,8 @@ async function tegnForslag(type) {
       const tag = voksenRet ? knap('', 'tag ret-tag', () => redigerRet(f)) : el('span', 'tag');   // retter.js
       tag.append(f.tekst);
       const vs = aktiveVarianter(f);
-      if (vs.length) tag.append(el('span', 'tag-var', vs.map(v => v.navn).join(' · ')));
+      const ekstra = [vs.map(v => v.navn).join(' · '), f.side ? 'med ' + f.side : ''].filter(Boolean).join(' – ');
+      if (ekstra) tag.append(el('span', 'tag-var', ekstra));
       const hvem = PERSONER.filter(p => kanLide(f).includes(p));
       if (hvem.length) {
         const prikker = el('span', 'prikker');
@@ -835,7 +836,9 @@ async function madFor(dato, barn = null) {
       if (v) res.venter[f] = v.ret;
     }
   }
-  for (const f of ['morgen', 'frokost', 'ret']) if (res[f]) res.visning[f] = res[f];
+  // Det der vises: med tilbehør ("Kylling i karry med ris") – barnets eget valg eller rettens standard (retter.js)
+  const favs = await Data.list('favoritter');
+  for (const f of ['morgen', 'frokost', 'ret']) if (res[f]) res.visning[f] = retVisning(favs, f, res[f]);
   return res;
 }
 
@@ -2293,7 +2296,8 @@ async function madOensker(barn, iso) {
   for (const felt of ['morgen', 'frokost', 'ret']) {
     const frit = await maaVaelges(felt);
     for (const x of alle.filter(x => x.felt === felt)) {
-      const fri = x.status === 'afventer' && !x.tilbehoer && (frit.has((x.ret || '').toLowerCase()) || (x.variant && felt !== 'ret'));
+      // Frit valg (gælder med det samme): børnevalg-retter, pålæg/varianter til morgen/frokost og tilbehør (ris, nudler …)
+      const fri = x.status === 'afventer' && !x.tilbehoer && (frit.has((x.ret || '').toLowerCase()) || (x.variant && felt !== 'ret') || x.side);
       if (x.status === 'godkendt' || fri) { gaelder[felt] = x; delete venter[felt]; }
       else if (x.status === 'afventer') venter[felt] = x;
     }
@@ -2331,8 +2335,22 @@ async function oenskMad(barn, dato, felt) {
   // Ud fra kataloget (retter.js): morgen/frokost = vælg hvad der skal på (gælder med det samme);
   // aftensmad = "Vil du hellere have …" med samme hovedingrediens (et ønske – mor eller far bestemmer)
   const bv = plan[felt] ? boerneValg(await Data.list('favoritter'), felt, plan[felt], barn) : { valg: [] };
-  const harValg = bv.valg.length > 0;
-  if (harValg) {
+  // Tilbehør: vælg selv (ris, nudler, pommes …) – gælder med det samme
+  if (bv.sider) {
+    const grid = el('div', 'mad-valg side-valg');
+    for (const side of SIDER) {
+      grid.append(knap(side, 'mad-valg-knap' + (side === bv.sider.nu ? ' valgt' : ''), async () => {
+        for (const o of await mine()) await Data.remove('madoensker', o.id);
+        const planlagt = lavt(plan.faelles?.[felt] || plan.fast?.[felt] || '');
+        const ny = side === bv.sider.standard ? bv.sider.base : komponer({ tekst: bv.sider.base }, null, side);
+        if (lavt(ny) !== planlagt) await Data.add('madoensker', { barn, dato: iso, felt, ret: ny, status: 'afventer', side: true });
+        lukArk(); tegnAlt(); fejr('Godt valg! 😋');
+      }));
+    }
+    dele.push(el('h3', 'lille-titel', 'Hvad vil du have til?'), grid);
+  }
+  const harValg = bv.valg.length > 0 || !!bv.sider;
+  if (bv.valg.length) {
     const grid = el('div', 'mad-valg');
     const nu = lavt(plan[felt]);
     for (const x of bv.valg) {
