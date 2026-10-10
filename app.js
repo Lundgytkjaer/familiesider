@@ -3050,8 +3050,17 @@ Data.onFortryd(visFortryd);
 // ---------- Start ----------
 // Hvad venter på en voksen? (børnenes ønsker, ekstra stjerner og madønsker uden for listen)
 // Vises meget tydeligt: rødt tal på "I dag" og på "Familien", en rød ramme om 🎁 Ønsker – og tal på app-ikonet, hvor telefonen kan.
+// Rødt tal på app-ikonet (hjemmeskærmen): det man skal reagere på. Gemmes også til sw.js, som lægger 1 til ved hver push-besked.
+async function saetAppTal(n) {
+  try { if (n && navigator.setAppBadge) await navigator.setAppBadge(n); else if (navigator.clearAppBadge) await navigator.clearAppBadge(); } catch {}
+  try { const c = await caches.open('familietavlen-tal'); await c.put('tal', new Response(String(n))); } catch {}
+}
 async function opdaterVenter() {
-  if (Data.bruger()?.rolle !== 'voksen') return;
+  if (Data.bruger()?.rolle !== 'voksen') {
+    // Børn: sedler til mig, der ikke er svaret på
+    if (Data.bruger()) saetAppTal(typeof sedlerTilMig === 'function' ? await sedlerTilMig() : 0);
+    return;
+  }
   const n = (await Data.list('indloesninger')).filter(x => x.status === 'afventer').length
     + (await Data.list('ekstra')).filter(x => x.status === 'afventer').length
     + (typeof madOenskeLinjer === 'function' ? (await madOenskeLinjer()).length : 0)
@@ -3064,7 +3073,7 @@ async function opdaterVenter() {
     if (n) fam.append(el('span', 'valg-badge', String(n)));
   }
   document.getElementById('ov-oensker').classList.toggle('venter', n > 0);
-  try { if (n && navigator.setAppBadge) navigator.setAppBadge(n); else if (navigator.clearAppBadge) navigator.clearAppBadge(); } catch {}
+  saetAppTal(n);
 }
 
 function tegnAlt() {
