@@ -1407,3 +1407,12 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .var-chip.ekstra-chip { border-style: dashed; }
 .var-chip.ekstra-chip[aria-pressed="true"] { border-style: solid; }
 .lille-label { font-size: 13px; color: var(--daempet); margin-top: 6px; }
+.var-chip.tilpas-chip { color: var(--accent); border-color: var(--accent); background: transparent; }
+.tilpas-vis { font-size: 19px; font-weight: 700; margin: 0 0 6px; }
+.mad-indkob:empty { display: none; }
+.mad-indkob { margin: 4px 0 10px; }
+.mad-indkob-knap { width: 100%; white-space: normal; text-align: left; justify-content: flex-start; padding: 10px 14px; }
+.flere-valg button.paa-listen { opacity: .55; }
+.flere-valg .fjern-chip { white-space: nowrap; }
+.ryd-raekke { grid-template-columns: 1fr auto auto; }
+.ryd-raekke .tb-navn small { margin: 0; }

@@ -644,6 +644,7 @@ async function gemFavorit(type, tekst) {
 
 const AabneGrupper = new Set();   // hvilke kategorier i "Vores lister" der er foldet ud
 async function tegnForslag(type) {
+  if (type in MAALTIDER) await hentTilbehoer();   // retter.js
   const erMaaltid = type in MAALTIDER;
   const boks = erMaaltid ? document.getElementById('maaltid-forslag') : document.querySelector(`[data-forslag="${type}"]`);
   const st = FavTilstand[type];
@@ -766,6 +767,12 @@ async function tegnForslag(type) {
   if (!filter && favs.length && !erBarn()) {
     styr(st.ret ? 'Færdig' : erMaaltid ? 'Fjern fra listen' : 'Ret forslag', () => { st.ret = !st.ret; if (st.ret) Lide.person = null; tegnForslag(type); });
   }
+  if (erMaaltid && type === 'ret' && !st.ret && !erBarn()) {
+    const { ligner, udenKategori } = rydOpForslag(await Data.list('favoritter'));   // retter.js
+    const n = ligner.length + udenKategori.length;
+    if (n) styr('🧹 Ryd op (' + n + ')', rydOp);
+    styr('✎ Tilbehør og ekstra', redigerTilbehoerLister);
+  }
 }
 
 document.getElementById('ny-ret-form').addEventListener('submit', async e => {
@@ -826,6 +833,7 @@ async function gemFast(barn, dag, felt, vaerdi) {
 //   dagens eget valg (fra tavlen) → fast ugeplan (kun morgen/frokost) → familiens madplan
 // Returnerer {morgen, frokost, ret, eget: {felt: true}, kilde: {felt: 'eget'|'fast'|'faelles'}, faelles, fast}
 async function madFor(dato, barn = null) {
+  await hentTilbehoer();   // retter.js
   const ugeIso = isoDato(mandagFor(dato));
   const dag = (dato.getDay() + 6) % 7;
   const faelles = { ...((await madplanForUge(ugeIso)).find(r => r.dag === dag) || {}) };
@@ -874,6 +882,7 @@ function fuldTekst(inp, visning) {
 }
 
 async function tegnMadplan() {
+  await hentTilbehoer();   // retter.js
   const ol = document.getElementById('mad-uge');
   const mandag = madMandag();
   const retter = await madplanForUge(isoDato(mandag));
@@ -962,6 +971,15 @@ async function tegnMadplan() {
     ol.append(li);
   });
   nyeDage = new Set();
+  // 🛒 Ekstra/tilbehør fra ugens aftensmad → indkøbslisten (voksne)
+  const indk = document.getElementById('mad-indkob');
+  const ugensRetter = DAGE.map((_, i) => retter.find(r => r.dag === i)?.ret || faste[i] || '').filter(Boolean);
+  const ting = erBarn() ? [] : ugensTilbehoer(alleFavs, ugensRetter);   // retter.js
+  indk.replaceChildren();
+  if (ting.length) {
+    const ekstra = ting.filter(x => x.ekstra).map(x => x.tekst);
+    indk.append(knap('🛒 ' + (ekstra.length ? 'Ekstra til ugen: ' + ekstra.join(', ') : 'Tilbehør til ugen') + ' – læg på indkøbslisten', 'lille-knap mad-indkob-knap', () => tilIndkoeb(ugensRetter)));
+  }
 }
 
 // Gemmer ét måltid (ret = aftensmad, morgen, frokost) for en ugedag
