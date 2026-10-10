@@ -191,10 +191,18 @@ function input(type, id, vaerdi, placeholder) {
   if (placeholder) i.placeholder = placeholder;
   return i;
 }
+// Knap. Gemmer handlingen noget (returnerer et løfte), er knappen låst til det er færdigt – så et dobbelttryk ikke gemmer to gange.
 function knap(tekst, klasse, fn) {
   const k = el('button', klasse, tekst);
   k.type = 'button';
-  k.addEventListener('click', fn);
+  let travl = false;
+  k.addEventListener('click', async e => {
+    if (travl) return;
+    const r = fn(e);
+    if (!r || typeof r.then !== 'function') return;
+    travl = true; k.setAttribute('aria-busy', 'true');
+    try { await r; } finally { travl = false; k.removeAttribute('aria-busy'); }
+  });
   return k;
 }
 // Valg mellem chips (fx hvem eller butik)
@@ -1080,14 +1088,15 @@ async function rulDage(dage, felter = ['ret']) {
     const point = k => kanLide(k.fav).filter(n => aktive.includes(n)).length;
     const plan = await madplanForUge(madUgeIso());
     // Samme ret (også en anden variant af den) kommer ikke to gange i samme uge
-    const brugt = new Set(plan.map(r => findRet(favs, felt, r[felt])?.fav.id || lavt(r[felt])).filter(Boolean));
+    // (sammenlignes på navnet, så to ens retter på listen ikke giver den samme ret to gange)
+    const brugt = new Set(plan.map(r => lavt(findRet(favs, felt, r[felt])?.fav.tekst || r[felt])).filter(Boolean));
     for (const dag of dage) {
-      const ubrugte = kandidater.filter(k => !brugt.has(k.fav.id));
+      const ubrugte = kandidater.filter(k => !brugt.has(lavt(k.fav.tekst)));
       const kilde = ubrugte.length ? ubrugte : kandidater;
       const bedst = Math.max(...kilde.map(point));
       const mulige = kilde.filter(k => point(k) === bedst);
       const valgt = mulige[Math.floor(Math.random() * mulige.length)];
-      brugt.add(valgt.fav.id);
+      brugt.add(lavt(valgt.fav.tekst));
       await gemMad(dag, felt, valgt.tekst);
       nyeDage.add(dag);
     }
@@ -1636,7 +1645,13 @@ function redigerAftale(a, forekomst) {
   const hvemValg = el('div', 'seg wrap');
   const tegnHvem = () => hvemValg.replaceChildren(...PERSONER.map(p => {
     const k = knap(p, null, () => {
-      if (valgte.has(p)) valgte.delete(p); else valgte.add(p);
+      if (valgte.has(p)) valgte.delete(p);
+      else {
+        valgte.add(p);
+        // "Fælles" og bestemte personer udelukker hinanden (ellers står aftalen i flere kolonner)
+        if (p === 'Fælles') [...valgte].forEach(x => { if (x !== 'Fælles') valgte.delete(x); });
+        else valgte.delete('Fælles');
+      }
       tegnHvem();
     });
     k.setAttribute('role', 'checkbox');
@@ -2012,7 +2027,9 @@ async function tegnBoernetavle(barn) {
   if (alfie) gitter.append(alfie);
   // Rækkefølge: det der skifter fra dag til dag øverst (Det sker), så pligter + belønninger (hænger sammen),
   // rutiner og skole, mad og nedtælling. Samme rækkefølge i liste og tavle.
-  const rutiner = await rutineKort(barn, valgt);   // fra mere.js
+  // Efter 19.30 viser tavlen i morgen (skole, mad) – men aftenens rutiner (sengetid) hører til i aften og gemmes på i dag
+  const autoImorgen = !tavleValgt && iso !== idagIso;
+  const rutiner = await rutineKort(barn, autoImorgen ? new Date() : valgt);   // fra mere.js
   const pligter = await pligtKort(barn, iso === idagIso ? 'Pligter i dag' : 'Pligter i dag (' + DAGE_LANG[idagNr()].toLowerCase() + ')');   // fra mere.js
   const beloen = await beloenningKort(barn);   // fra mere.js
   const nedtael = await nedtaellingKort(barn);   // fra sjov.js
@@ -2361,8 +2378,8 @@ async function madOensker(barn, iso) {
   for (const felt of ['morgen', 'frokost', 'ret']) {
     const frit = await maaVaelges(felt);
     for (const x of alle.filter(x => x.felt === felt)) {
-      // Frit valg (gælder med det samme): børnevalg-retter, pålæg/varianter til morgen/frokost og tilbehør (ris, nudler …)
-      const fri = x.status === 'afventer' && !x.tilbehoer && (frit.has((x.ret || '').toLowerCase()) || (x.variant && felt !== 'ret') || x.side);
+      // Frit valg (gælder med det samme): kun retter de voksne har markeret under "Hvad må børnene selv vælge?"
+      const fri = x.status === 'afventer' && !x.tilbehoer && frit.has((x.ret || '').toLowerCase());   // kun retter de voksne har markeret som "vælg selv"
       if (x.status === 'godkendt' || fri) { gaelder[felt] = x; delete venter[felt]; }
       else if (x.status === 'afventer') venter[felt] = x;
     }
@@ -2456,8 +2473,8 @@ async function madOenskeLinjer() {
     const d = new Date(x.dato + 'T00:00');
     info.append(el('span', 'beloen-navn', '🍽️ ' + x.barn + ' ønsker: ' + (x.tilbehoer ? x.ret + ' med ' + x.tilbehoer : x.ret)), el('span', 'beloen-pris', MAD_NAVN[x.felt] + ' · ' + DAGE_LANG[(d.getDay() + 6) % 7].toLowerCase() + ' ' + d.getDate() + '/' + (d.getMonth() + 1)));
     const kn = el('div', 'oenske-knapper');
-    kn.append(knap('Nej', 'lille-knap', async () => { await Data.update('madoensker', x.id, { status: 'afvist', besvaret: isoDato(new Date()) }); tegnAlt(); }),
-      knap('Ja', 'lille-knap godkend', async () => { await Data.update('madoensker', x.id, { status: 'godkendt', besvaret: isoDato(new Date()) }); tegnAlt(); }));
+    kn.append(knap('Nej', 'lille-knap', async () => { Data.huskFoer(x.id, 'Nej til ' + x.ret); await Data.update('madoensker', x.id, { status: 'afvist', besvaret: isoDato(new Date()) }); tegnAlt(); }),
+      knap('Ja', 'lille-knap godkend', async () => { Data.huskFoer(x.id, 'Ja til ' + x.ret); await Data.update('madoensker', x.id, { status: 'godkendt', besvaret: isoDato(new Date()) }); tegnAlt(); }));
     li.append(info, kn);
     return li;
   });
@@ -2872,7 +2889,7 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     dele.push(el('p', 'hint', 'Vælg hvem du retter for:'), chipValg(folk, hvem, v => aabnIndstillinger(v), v => v));
   }
   const MULIGHEDER = [['helligdage', '🎄 Helligdage'], ['maerkedage', '🎃 Mærkedage (halloween, mors dag …)'],
-    ['sol', '🌅 Solopgang og solnedgang'], ['vejr', '🌦️ Vejret'], ['relationer', '👪 Familierelation ved fødselsdage – fx "Jonna (mormor)"'],
+    ['sol', '🌅 Solopgang og solnedgang'], ['vejr', '🌦️ Vejret'], ['relationer', '👪 Familierelation ved fødselsdage – fx "Bente (mormor)"'],
     ...(BOERN.includes(hvem) ? [['nedtaelling', '⏳ Nedtælling på tavlen'], ['makker', '🐰 Makker på tavlen']] : [])];
   const seg = el('div', 'seg wrap tilpas-valg');
   for (const [felt, tekst] of MULIGHEDER) {
@@ -2937,7 +2954,7 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
   dele.push(el('h3', 'lille-titel indst-titel', 'Hjælp'),
     knap('❓ Sådan virker Familietavlen ›', 'lille-knap', () => { lukArk(); visFane('hjaelp'); window.scrollTo(0, 0); }));
   const knapper = el('div', 'ark-knapper');
-  knapper.append(knap('Log ud', 'knap fare', () => Data.logud()), knap('Færdig', 'knap', () => lukArk()));
+  knapper.append(bekraeftKnap('Log ud', 'logge ud', 'knap fare', () => Data.logud()), knap('Færdig', 'knap', () => lukArk()));   // to tryk: ingen logger ud ved et uheld
   aabnArk('Indstillinger', ...dele,
     el('p', 'hint indst-bund', 'Logget ind som ' + mig + '. Du forbliver logget ind på denne enhed, indtil du logger ud.'), knapper);
 }
@@ -3032,7 +3049,7 @@ function visFortryd(g) {
   }
   const d = g.raekker[0].data || {};
   const navn = d.tekst || d.navn || d.titel || d.ret || '';
-  const tekst = g.raekker.length > 1 ? g.raekker.length + ' ting slettet' : 'Slettet' + (navn ? ': ' + navn : '');
+  const tekst = g.tekst || (g.raekker.length > 1 ? g.raekker.length + ' ting slettet' : 'Slettet' + (navn ? ': ' + navn : ''));
   const k = knap('Fortryd', 'fortryd-knap', async () => {
     clearTimeout(fortrydTimer);
     fortrydEl.hidden = true;
@@ -3176,10 +3193,19 @@ async function gaaTil(tag) {
 navigator.serviceWorker?.addEventListener('message', e => { if (e.data?.gaa) gaaTil(e.data.gaa); });
 
 document.documentElement.lang = 'da'; // giver dansk orddeling i kalenderen
-document.getElementById('dato').textContent =
-  new Date().toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' });
+const visDato = () => { document.getElementById('dato').textContent = new Date().toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' }); };
+visDato();
+// Efter midnat (fx en iPad der står tændt): ny dato i toppen og alt tegnes for den nye dag
+let dagenNu = isoDato(new Date());
+setInterval(() => {
+  if (isoDato(new Date()) === dagenNu) return;
+  dagenNu = isoDato(new Date());
+  visDato();
+  if (Data.bruger()) tegnAlt();
+}, 60 * 1000);
 
-(async () => {
+// Start først, når ALLE scripts er indlæst (ellers kan fx retter.js mangle, hvis login går hurtigt)
+async function opstart() {
   try {
     const profil = await Data.start();
     if (profil) await startTavle();
@@ -3193,4 +3219,5 @@ document.getElementById('dato').textContent =
       : 'Kunne ikke forbinde. Tjek internettet og prøv igen.';
     fejl.hidden = false;
   }
-})();
+}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', opstart); else opstart();

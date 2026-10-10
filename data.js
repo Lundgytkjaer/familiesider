@@ -20,12 +20,14 @@ const Data = (() => {
   // Flere sletninger lige efter hinanden (fx "Ryd klarede") bliver til én fortrydelse.
   const IKKE_FORTRYD = new Set(['flueben', 'indloesninger']);   // har deres egen fortryd/af-knap
   let stille = 0, gruppe = null, fortrydLytter = null;
-  function husk(r) {
-    if (!r || stille || IKKE_FORTRYD.has(r.liste)) return;
+  // tekst = hvad bjælken skal sige (fx "Godkendt: LEGO") – så kan også et svar på et ønske fortrydes
+  function husk(r, tekst) {
+    if (!r || stille || (!tekst && IKKE_FORTRYD.has(r.liste))) return;
     const nu = Date.now();
     if (!gruppe || nu - gruppe.tid > 1500) gruppe = { tid: nu, raekker: [] };
     gruppe.tid = nu;
     if (!gruppe.raekker.some(x => x.id === r.id)) gruppe.raekker.push(JSON.parse(JSON.stringify(r)));
+    gruppe.tekst = tekst || null;
     if (fortrydLytter) fortrydLytter(gruppe);
   }
 
@@ -51,11 +53,18 @@ const Data = (() => {
     timer = setTimeout(() => lyttere.forEach(fn => fn()), 150);
   }
 
+  // Supabase giver højst 1000 rækker pr. svar – derfor hentes i bidder (ellers mangler der stille og roligt data)
   async function hentAlt() {
-    const { data, error } = await db.from('punkter').select('*');
-    if (error) throw error;
-    raekker = data;
+    const BID = 1000, alle = [];
+    for (let fra = 0; ; fra += BID) {
+      const { data, error } = await db.from('punkter').select('*').order('oprettet').order('id').range(fra, fra + BID - 1);
+      if (error) throw error;
+      alle.push(...data);
+      if (data.length < BID) break;
+    }
+    raekker = alle;
   }
+  async function genhent() { try { await hentAlt(); fortaelLyttere(); } catch (e) { console.warn(e); } }
 
   async function efterLogin() {
     const { data: { user } } = await db.auth.getUser();
@@ -75,11 +84,10 @@ const Data = (() => {
       })
       .subscribe();
 
-    // Når telefonen vågner, hentes alt igen for en sikkerheds skyld
-    document.addEventListener('visibilitychange', async () => {
-      if (document.visibilityState !== 'visible') return;
-      try { await hentAlt(); fortaelLyttere(); } catch (e) { console.warn(e); }
-    });
+    // Når telefonen vågner, nettet kommer igen, eller hvert 10. minut (fx en iPad der altid er tændt), hentes alt igen
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') genhent(); });
+    window.addEventListener('online', genhent);
+    setInterval(() => { if (document.visibilityState === 'visible') genhent(); }, 10 * 60 * 1000);
     return profil;
   }
 
@@ -143,7 +151,7 @@ const Data = (() => {
     },
 
     // Kald før en ændring, der i praksis sletter noget (fx "slet kun denne dag" i en gentagen aftale)
-    huskFoer(id) { husk(raekker.find(x => x.id === id)); },
+    huskFoer(id, tekst) { husk(raekker.find(x => x.id === id), tekst); },
 
     // Sæt en fortrudt gruppe ind igen: slettede rækker kommer tilbage, ændrede får deres gamle indhold
     async gendan(g) {

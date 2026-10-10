@@ -7,8 +7,14 @@ const loggetIndBarn = () => {
   const p = Data.bruger();
   return p && p.rolle === 'barn' && BOERN.includes(p.navn) ? p.navn : null;
 };
-const tal = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isNaN(n) ? 0 : n; };
-const sum = (liste, felt) => liste.reduce((s, x) => s + (Number(x[felt]) || 0), 0);
+// Kun rigtige tal (eller tekst der er et tal) tæller – samme regel som databasens som_tal, så ingen kan snyde med fx [100]
+const tal = v => {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  if (typeof v !== 'string' || !v.trim()) return 0;
+  const n = Number(v.trim().replace(',', '.'));
+  return Number.isFinite(n) ? n : 0;
+};
+const sum = (liste, felt) => liste.reduce((s, x) => s + tal(x[felt]), 0);
 const kr = n => (Math.round(n * 100) / 100).toLocaleString('da-DK', { maximumFractionDigits: 2 }) + ' kr';
 const kortDato = iso => { const d = new Date(iso + 'T00:00'); return DAGE[(d.getDay() + 6) % 7] + ' ' + d.getDate() + '/' + (d.getMonth() + 1); };
 
@@ -197,7 +203,7 @@ async function rutineKort(barn, dato) {
   const iVindue = r => {
     const d = rutineDel(r);
     if (d) return d.fra <= nuMin && nuMin < d.til && !faerdigR(r);
-    return r.tid && tilMin(r.tid) - 15 <= nuMin && nuMin - tilMin(r.tid) <= 45;
+    return r.tid && tilMin(r.tid) - 15 <= nuMin && nuMin - tilMin(r.tid) <= 45 && !faerdigR(r);   // klaret = ikke længere "Nu"
   };
   const nuR = erIdag ? (rutiner.filter(r => !rutineDel(r) && iVindue(r)).pop() || rutiner.find(r => rutineDel(r) && iVindue(r))) : null;
   const naesteR = rutiner.find(r => !erIdag || (rutineDel(r) ? rutineDel(r).fra > nuMin : !r.tid || tilMin(r.tid) - 15 > nuMin));
@@ -447,6 +453,9 @@ async function pligtData(barn) {
 
 function saldo(d) {
   const man = isoDato(mandagDenneUge());
+  // En gave på en "næste morgen"-seddel tæller først fra den dag, sedlen vises
+  const idagIso = isoDato(new Date());
+  d = { ...d, just: (d.just || []).filter(x => !x.dato || x.dato <= idagIso) };
   return {
     stjerner: sum(d.flueben, 'stjerner') + sum(d.bonus || [], 'stjerner') + sum((d.ekstra || []).filter(x => x.status === 'godkendt'), 'stjerner') + sum(d.just || [], 'stjerner') - sum(d.indl.filter(x => x.status !== 'afvist'), 'stjerner'),
     tilGode: sum(d.flueben, 'kr') + sum(d.just || [], 'kr') - sum(d.udb, 'kr'),
@@ -529,7 +538,22 @@ async function springOver(barn, r) {
   tegnAlt();
 }
 
+const travleFlueben = new Set();   // dobbelttryk på en pligt må ikke give to flueben
 async function skiftFlueben(barn, r, regel) {
+  const noegle = r.o.id + '|' + r.periode;
+  if (travleFlueben.has(noegle)) return;
+  travleFlueben.add(noegle);
+  try { await skiftFluebenNu(barn, r, regel); } finally { setTimeout(() => travleFlueben.delete(noegle), 400); }
+}
+async function skiftFluebenNu(barn, r, regel) {
+  // Et barn kan ikke fjerne et flueben, hvis stjernerne/pengene allerede er brugt (ellers: sæt flueben, ønsk, fjern flueben)
+  if (r.f && !erVoksen() && (tal(r.f.stjerner) > 0 || tal(r.f.kr) > 0)) {
+    const s = saldo(await pligtData(barn));
+    if (s.stjerner - tal(r.f.stjerner) < 0 || s.tilGode - tal(r.f.kr) < 0) {
+      besked('Stjernerne er allerede brugt – spørg mor eller far, hvis fluebenet var forkert');   // sjov.js
+      return;
+    }
+  }
   if (r.f) await Data.remove('flueben', r.f.id);
   else await Data.add('flueben', {
     opgave: r.o.id, barn, periode: r.periode, dato: isoDato(new Date()), navn: r.o.navn,
@@ -998,8 +1022,9 @@ function oenskeLi(x, egen) {
   const knapper = el('div', 'oenske-knapper');
   if (egen) knapper.append(knap('Fortryd', 'lille-knap', async () => { await Data.remove('indloesninger', x.id); tegnAlt(); }));
   else knapper.append(
-    bekraeftKnap('Afvis', 'afvise', 'lille-knap', async () => { await Data.update('indloesninger', x.id, { status: 'afvist', besvaret: isoDato(new Date()) }); tegnAlt(); }),
+    bekraeftKnap('Afvis', 'afvise', 'lille-knap', async () => { Data.huskFoer(x.id, 'Afvist: ' + x.navn); await Data.update('indloesninger', x.id, { status: 'afvist', besvaret: isoDato(new Date()) }); tegnAlt(); }),
     knap('Godkend', 'lille-knap godkend', async () => {
+      Data.huskFoer(x.id, 'Godkendt: ' + x.navn);   // bjælken "Fortryd" i 8 sek.
       await Data.update('indloesninger', x.id, { status: 'godkendt', besvaret: isoDato(new Date()) });
       tegnAlt();
     }));
@@ -1112,7 +1137,8 @@ async function svarTilBarn(barn) {
       .map(x => ({ id: x.id, ja: x.status === 'godkendt', tekst: x.status === 'godkendt' ? 'Ja! Du får ' + x.ret + ' 😋' : 'Nej til ' + x.ret + ' denne gang' }))
   ];
   // Stjerner en voksen har givet med "Justér" (plus, ikke streak) – egen "set"-liste, så gamle ikke vises igen
-  const gaveJust = just.filter(x => x.barn === barn && !x.type && Math.round(tal(x.stjerner)) > 0)
+  // (gaver på sedler vises på selve sedlen – ikke her)
+  const gaveJust = just.filter(x => x.barn === barn && !x.type && !x.seddel && !/^Gave på seddel/.test(x.tekst || '') && Math.round(tal(x.stjerner)) > 0)
     .map(x => ({ id: x.id, ja: true, stjerner: Math.round(tal(x.stjerner)), tekst: gaveTekst(x) }));
   const nyeJust = nyeSiden('gave-set-' + barn, gaveJust);
   const noegle = 'svar-set-' + barn;
@@ -1120,7 +1146,8 @@ async function svarTilBarn(barn) {
   try { set = JSON.parse(lokal.get(noegle) || lokal.get('ekstra-set-' + barn) || 'null'); } catch { set = null; }
   if (!Array.isArray(set)) { lokal.set(noegle, JSON.stringify(svar.map(x => x.id))); set = svar.map(x => x.id); }   // første gang: gamle svar er set
   const nyeSvar = svar.filter(x => !set.includes(x.id));
-  if (nyeSvar.length) lokal.set(noegle, JSON.stringify([...set, ...nyeSvar.map(x => x.id)].slice(-300)));
+  // Husk kun id'er der stadig findes (ellers glemmer listen gamle svar og viser dem igen og igen)
+  if (nyeSvar.length) { const findes = new Set(svar.map(x => x.id)); lokal.set(noegle, JSON.stringify([...set.filter(id => findes.has(id)), ...nyeSvar.map(x => x.id)])); }
   const nye = [...nyeSvar, ...nyeJust];
   if (!nye.length || svarVisesNu) return;
   svarVisesNu = true;
@@ -1143,7 +1170,7 @@ function nyeSiden(noegle, liste) {
   try { set = JSON.parse(lokal.get(noegle) || 'null'); } catch { set = null; }
   if (!Array.isArray(set)) { lokal.set(noegle, JSON.stringify(liste.map(x => x.id))); return []; }
   const nye = liste.filter(x => !set.includes(x.id));
-  if (nye.length) lokal.set(noegle, JSON.stringify([...set, ...nye.map(x => x.id)].slice(-300)));
+  if (nye.length) { const findes = new Set(liste.map(x => x.id)); lokal.set(noegle, JSON.stringify([...set.filter(id => findes.has(id)), ...nye.map(x => x.id)])); }
   return nye;
 }
 
@@ -1165,7 +1192,7 @@ async function oenskerIndhold() {
     const info = el('div', 'beloen-info');
     info.append(el('span', 'beloen-navn', x.barn + ' har gjort noget ekstra: ' + x.tekst), el('span', 'beloen-pris', '★ ' + x.stjerner + ' · ' + kortDato(x.dato)));
     const kn = el('div', 'oenske-knapper');
-    kn.append(bekraeftKnap('Afvis', 'afvise', 'lille-knap', async () => { await Data.update('ekstra', x.id, { status: 'afvist', besvaret: isoDato(new Date()) }); tegnAlt(); }),
+    kn.append(bekraeftKnap('Afvis', 'afvise', 'lille-knap', async () => { Data.huskFoer(x.id, 'Afvist: ' + x.tekst); await Data.update('ekstra', x.id, { status: 'afvist', besvaret: isoDato(new Date()) }); tegnAlt(); }),
       knap('Godkend', 'lille-knap godkend', () => givEkstra(x.barn, x)));
     li.append(info, kn);
     ul.append(li);

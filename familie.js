@@ -225,7 +225,7 @@ async function tegnFamilie() {
 
   const dele = [];
   if (!fd.alle.length) {
-    dele.push(el('p', 'tom-husk', erBarn() ? 'Der er ikke lagt nogen familie ind endnu.' : 'Ingen personer endnu. Tryk "Tilføj" – eller kør familie.sql i Supabase.'));
+    dele.push(el('p', 'tom-husk', erBarn() ? 'Der er ikke lagt nogen familie ind endnu.' : 'Ingen personer endnu. Tryk "Tilføj" for at lægge den første ind.'));
     boks.replaceChildren(...dele);
     return;
   }
@@ -357,7 +357,7 @@ async function redigerPerson(p) {
   if (erBarn()) return;
   const fd = await famData();
   const ny = !p.id;
-  const fornavn = input('text', 'p-fornavn', p.fornavn, 'Fx Jonna');
+  const fornavn = input('text', 'p-fornavn', p.fornavn, 'Fx Bente');
   const efternavn = input('text', 'p-efternavn', p.efternavn, 'Fx Hansen');
   const kaldenavn = input('text', 'p-kaldenavn', p.kaldenavn, 'Hvis hun/han kaldes noget andet');
   let koen = p.koen || '';

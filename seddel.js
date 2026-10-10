@@ -272,7 +272,7 @@ function skrivSeddel(tilStandard, gl) {
         const gave = BOERN.includes(t) ? stjerner : 0;   // gaver kun til børn
         await Data.add('sedler', { ...felter, til: t, stjerner: gave, visFra });
         // Gaven: stjernerne lægges til barnets saldo (som en justering) den dag, sedlen vises
-        if (gave > 0) await Data.add('justeringer', { barn: t, dato: isoDato(new Date(visFra)), stjerner: gave, kr: 0, tekst: 'Gave på seddel fra ' + s.fra });
+        if (gave > 0) await Data.add('justeringer', { barn: t, dato: isoDato(new Date(visFra)), stjerner: gave, kr: 0, tekst: 'Gave på seddel fra ' + s.fra, seddel: true });
       }
       if (barn) besked('✉️ Sedlen er sendt til ' + tilNavn(s.til));
     } else {

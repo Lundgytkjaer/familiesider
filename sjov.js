@@ -611,7 +611,7 @@ const MAKKERE = {
       'Jeg har ingen næse, men jeg kan lugte kage 🍰', 'Hvis det ikke virker: sluk og tænd igen', 'Jeg drømmer om elektriske får 🐑']
   }
 };
-const makkerFor = valg => MAKKERE[valg?.ven] || MAKKERE.alfie;
+const makkerFor = valg => (Object.hasOwn(MAKKERE, valg?.ven || '') ? MAKKERE[valg.ven] : MAKKERE.alfie);   // ukendte værdier (fx 'constructor') giver Alfie
 
 // Vælg makker (barnet selv eller en voksen)
 function vaelgMakker(barn, nu) {
@@ -653,7 +653,11 @@ async function alfieKort(barn) {
   const aften = nu.getHours() >= 20;
   // Ingen pligter i dag (fx weekend): makkeren hygger sig bare
   const hvordan = syg ? 'sover' : !ialt ? (aften ? 'sover' : 'glad') : !mangler ? (aften && Date.now() > alfieFestTil ? 'sover' : 'super') : klaret ? 'glad' : 'venter';
-  const tekst = syg ? m.syg : !ialt ? (aften ? 'Ingen pligter i dag. Godnat 💤' : 'Ingen pligter i dag – nyd det! 😎') : hvordan === 'venter' ? m.venter(mangler, aften) : hvordan === 'glad' ? m.glad(mangler) : m[hvordan];
+  // Efter kl. 21 skælder makkeren ikke ud – i morgen er en ny dag
+  const sent = nu.getHours() >= 21;
+  const tekst = syg ? m.syg : !ialt ? (aften ? 'Ingen pligter i dag. Godnat 💤' : 'Ingen pligter i dag – nyd det! 😎')
+    : sent && mangler ? 'Godnat! ' + m.navn + ' gemmer resten til i morgen 💤'
+    : hvordan === 'venter' ? m.venter(mangler, aften) : hvordan === 'glad' ? m.glad(mangler) : m[hvordan];
 
   const k = el('div', 'kort alfie-kort makker-' + (valg.ven || 'alfie'));
   const figur = el('button', 'alfie-figur');
