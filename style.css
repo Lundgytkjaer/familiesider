@@ -1454,3 +1454,17 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .maal-knap { padding: 2px 8px; min-height: 30px; font-size: 13px; align-self: flex-start; margin-bottom: 2px; }
 .maal-knap[aria-pressed="false"] { opacity: .55; }
 .beloen.mit-maal { border: 2px solid var(--accent); border-radius: 14px; background: var(--accent-blod); }
+
+/* "Lige nu"-kortet øverst på Familien (morgen / efter skole / i morgen) */
+.dagsdel-kort { border: 2px solid var(--accent); }
+.dagsdel-liste li { display: block; line-height: 1.4; padding: 3px 0; }
+.dagsdel-liste li .prik { display: inline-block; vertical-align: middle; margin-right: 6px; }
+
+/* 🏆 Pokalhylde (mere.js pokalHylde) */
+.pokalhylde { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--linje); }
+.pokal-tal { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pokal-stat { display: grid; justify-items: center; text-align: center; gap: 2px; padding: 10px 4px; border-radius: 14px; background: var(--accent-blod); }
+.pokal-stat b { font-size: 22px; }
+.pokal-stat span:last-child { font-size: 12px; color: var(--daempet); line-height: 1.2; }
+.pokal-ikon { font-size: 24px; }
+.pokal-liste { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font-size: 15px; }

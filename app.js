@@ -2602,6 +2602,64 @@ function redigerFoed(f) {
 }
 
 // ---------- I dag – overblik ----------
+// Dagsdel for familieoverblikket: morgen 5–9.30, efter skole 13–18, aften 19–23.30 (ellers intet ekstra kort)
+function dagsdelNu() {
+  const d = new Date(), m = d.getHours() * 60 + d.getMinutes();
+  return m >= 300 && m < 570 ? 'morgen' : m >= 780 && m < 1080 ? 'eftermiddag' : m >= 1140 && m < 1410 ? 'aften' : null;
+}
+async function dagsdelKort() {
+  const del = dagsdelNu();
+  if (!del) return null;
+  const nu = new Date(), nuMin = nu.getHours() * 60 + nu.getMinutes();
+  const dato = new Date(); if (del === 'aften') dato.setDate(dato.getDate() + 1);
+  const iso = isoDato(dato), dagNr = (dato.getDay() + 6) % 7;
+  const kal = await Data.list('kalender'), infoAlle = await Data.list('info');
+  const linjer = [];
+  for (const barn of BOERN) {
+    const dele = [];
+    if (dagNr < 5) {
+      const fri = friDen(kal, iso, barn), hellig = helligdagDen(iso);   // dage.js
+      if (fri) dele.push(fri.type === 'syg' ? 'hjemme 🤒' : 'fri ' + friIkon(fri));
+      else if (hellig) dele.push('fri – ' + hellig.navn);
+      else if (typeof fastFri === 'function' && await fastFri(barn, dagNr)) dele.push('fri 🎉');
+      else {
+        const { start, slut } = skoleTider(await dagensTimer(barn, dagNr));
+        if (del === 'eftermiddag' && slut) dele.push((tidSomMin(slut)[0] > nuMin ? 'fri ' : 'har fri fra ') + visTid(slut));
+        else if (del !== 'eftermiddag' && start) dele.push('møder ' + visTid(start));
+      }
+    } else if (del === 'aften') dele.push('weekend 😎');
+    for (const x of infoDen(infoAlle, barn, iso)) dele.push(/^husk\b/i.test(x.tekst || '') ? x.tekst : 'husk: ' + x.tekst);
+    if (del === 'morgen') {
+      const m = await madFor(dato, barn);
+      if (m.frokost) dele.push('madpakke: ' + (m.visning?.frokost || m.frokost));
+    }
+    if (del === 'aften' && typeof pligtData === 'function') {
+      const mangler = skalKlares(dagensOpgaver(await pligtData(barn))).filter(r => !r.f && !r.sprunget).length;   // mere.js
+      if (mangler) dele.push(mangler + (mangler === 1 ? ' pligt mangler i aften' : ' pligter mangler i aften'));
+    }
+    if (dele.length) {
+      const li = el('li', PK[barn] || '');
+      li.append(el('span', 'prik'), el('b', null, barn + ': '), dele.join(' · '));
+      linjer.push(li);
+    }
+  }
+  if (!linjer.length) return null;
+  const titel = del === 'morgen' ? '☀️ God morgen' : del === 'eftermiddag' ? '🏠 Efter skole' : '🌙 I morgen · ' + DAGE_LANG[dagNr].toLowerCase();
+  const top = el('div', 'kort-top');
+  top.append(el('span', 'kort-label', titel));
+  const ul = el('ul', 'mini dagsdel-liste');
+  ul.append(...linjer);
+  return [top, ul];
+}
+// Skift dagsdel → tegn overblikket igen (tjekkes hvert minut)
+let dagsdelSidst = dagsdelNu();
+setInterval(() => {
+  const n = dagsdelNu();
+  if (n === dagsdelSidst) return;
+  dagsdelSidst = n;
+  if (document.body.dataset.tilstand === 'klar' && Data.bruger()?.rolle === 'voksen') tegnOverblik();
+}, 60000);
+
 async function tegnOverblik() {
   tegnTavleValg();
   const erBoernetavle = tavleVisning !== 'familie';
@@ -2625,6 +2683,12 @@ async function tegnOverblik() {
   const oenskeIndhold = await oenskerIndhold();   // fra mere.js
   oensker.replaceChildren(...oenskeIndhold);
   oensker.hidden = !oenskeIndhold.length;
+
+  // Det vigtigste lige nu: morgen (møder, husk, madpakke), efter skole (fri), aften (i morgen)
+  const ovNu = document.getElementById('ov-nu');
+  const nuKort = await dagsdelKort();
+  ovNu.replaceChildren(...(nuKort || []));
+  ovNu.hidden = !nuKort;
 
   const minePladser = document.getElementById('ov-mine-pligter');
   const mine = await minePligterKort();

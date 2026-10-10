@@ -992,6 +992,30 @@ function beloenLi(barn, b, d, s) {
   return li;
 }
 
+// 🏆 Pokalhylde: det barnet har opnået – regnes ud fra det, der allerede er gemt (ingen ny data)
+function pokalHylde(d) {
+  const bonus = d.bonus || [];
+  const medaljer = bonus.filter(b => b.milepael).sort((a, c) => (c.dato || '').localeCompare(a.dato || ''));
+  const rekord = Math.max(typeof streak === 'function' ? streak(d) : 0, ...bonus.map(b => Math.round(tal(b.dage)) || 0), 0);   // sjov.js
+  const faaet = d.indl.filter(x => (x.status || 'godkendt') === 'godkendt').sort((a, c) => (c.dato || '').localeCompare(a.dato || ''));
+  const tjent = sum(d.flueben, 'stjerner') + sum(bonus, 'stjerner') + sum((d.ekstra || []).filter(x => x.status === 'godkendt'), 'stjerner')
+    + (d.just || []).filter(x => !x.type && tal(x.stjerner) > 0).reduce((n, x) => n + tal(x.stjerner), 0);
+  if (!medaljer.length && rekord < 2 && !faaet.length && !tjent) return null;
+  const boks = el('div', 'pokalhylde');
+  boks.append(el('h3', 'lille-titel', '🏆 Pokalhylde'));
+  const tal3 = el('div', 'pokal-tal');
+  const stat = (ikon, vaerdi, tekst) => { const t = el('div', 'pokal-stat'); t.append(el('span', 'pokal-ikon', ikon), el('b', null, vaerdi), el('span', null, tekst)); tal3.append(t); };
+  stat('⭐', String(Math.round(tjent)), 'stjerner tjent i alt');
+  if (rekord >= 2) stat('🔥', String(rekord), 'dage i træk – rekord');
+  stat('🏅', String(medaljer.length), medaljer.length === 1 ? 'medalje' : 'medaljer');
+  boks.append(tal3);
+  const ul = el('ul', 'pokal-liste');
+  for (const m of medaljer.slice(0, 6)) ul.append(el('li', null, '🏅 ' + m.milepael + ' dage i træk · ' + kortDato(m.dato)));
+  for (const x of faaet.slice(0, 6)) ul.append(el('li', null, '🎁 ' + x.navn + ' · ' + kortDato(x.dato)));
+  if (ul.children.length) boks.append(ul);
+  return boks;
+}
+
 // Jubel når barnet når 25, 50, 75 og 100 % af sit mål (huskes pr. enhed, så det kun sker én gang)
 function maalMilepael(barn, b, stjerner) {
   if (loggetIndBarn() !== barn || !b.stjerner) return;
@@ -1031,6 +1055,8 @@ async function beloenningKort(barn) {
   k.append(top);
   if (idagLinje.children.length) k.append(idagLinje);
   k.append(ul);
+  const hylde = pokalHylde(d);
+  if (hylde) k.append(hylde);
   const venter = d.indl.filter(x => x.status === 'afventer');
   const raad = sorteret.filter(b => b.stjerner <= s.stjerner);
   const naesteB = sorteret.find(b => b.stjerner > s.stjerner);
