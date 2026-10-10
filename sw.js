@@ -25,14 +25,20 @@ async function tilfoejTal() {
   } catch {}
 }
 
-// Tryk på notifikationen: åbn appen (eller hent den frem, hvis den allerede er åben)
+// Tryk på notifikationen: åbn appen (eller hent den frem) og gå hen til det, beskeden handler om.
+// tag = '<liste>-<id>' (fx 'sedler-…'); appen finder selv stedet (app.js gaaTil).
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  const url = new URL(e.notification.data?.url || './', self.registration.scope).href;
+  const tag = e.notification.tag || '';
+  const url = new URL((e.notification.data?.url || './') + (tag ? '#gaa=' + encodeURIComponent(tag) : ''), self.registration.scope).href;
   e.waitUntil((async () => {
     const vinduer = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
     for (const v of vinduer) {
-      if (v.url.startsWith(self.registration.scope)) { await v.focus(); return; }
+      if (v.url.startsWith(self.registration.scope)) {
+        await v.focus();
+        if (tag) v.postMessage({ gaa: tag });
+        return;
+      }
     }
     await self.clients.openWindow(url);
   })());

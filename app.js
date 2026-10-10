@@ -3059,6 +3059,7 @@ async function opdaterVenter() {
   if (Data.bruger()?.rolle !== 'voksen') {
     // Børn: sedler til mig, der ikke er svaret på
     if (Data.bruger()) saetAppTal(typeof sedlerTilMig === 'function' ? await sedlerTilMig() : 0);
+    if (Data.bruger() && typeof rydNotifikationer === 'function') rydNotifikationer();   // push.js
     return;
   }
   const n = (await Data.list('indloesninger')).filter(x => x.status === 'afventer').length
@@ -3074,6 +3075,7 @@ async function opdaterVenter() {
   }
   document.getElementById('ov-oensker').classList.toggle('venter', n > 0);
   saetAppTal(n);
+  if (typeof rydNotifikationer === 'function') rydNotifikationer();   // push.js
 }
 
 function tegnAlt() {
@@ -3146,7 +3148,32 @@ async function startTavle() {
   Data.onChange(tegnAlt);
   document.body.dataset.tilstand = 'klar';
   if (typeof pushOpfrisk === 'function') pushOpfrisk();   // push.js
+  // Åbnet fra en notifikation? (sw.js sætter #gaa=<liste>-<id>)
+  const gaa = new URLSearchParams(location.hash.slice(1)).get('gaa');
+  if (gaa) { history.replaceState(null, '', location.pathname + location.search); setTimeout(() => gaaTil(gaa), 400); }
 }
+
+// Gå hen til det, en notifikation handler om. tag = '<liste>-<id>'
+async function gaaTil(tag) {
+  const i = tag.indexOf('-');
+  if (i < 0 || !Data.bruger()) return;
+  const liste = tag.slice(0, i), id = tag.slice(i + 1);
+  if (typeof lukArk === 'function' && !arkEl.hidden) lukArk();
+  visFane('idag');
+  if (!erBarn()) { tavleVisning = 'familie'; lokal.set('tavle', 'familie'); }
+  await tegnOverblik();
+  if (typeof tegnTavle === 'function') await tegnTavle();
+  window.scrollTo(0, 0);
+  setTimeout(() => {
+    const maal = document.querySelector(`[data-seddel="${CSS.escape(id)}"]`)
+      || (liste === 'sedler' ? document.querySelector('#ov-sedler:not([hidden]), .seddel') : null)
+      || (!erBarn() && ['indloesninger', 'ekstra', 'madoensker'].includes(liste) ? document.getElementById('ov-oensker') : null);
+    if (!maal || !maal.offsetParent) return;
+    maal.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    maal.animate([{ boxShadow: '0 0 0 0 var(--accent)' }, { boxShadow: '0 0 0 6px var(--accent)' }, { boxShadow: '0 0 0 0 var(--accent)' }], { duration: 900, iterations: 2 });
+  }, 350);
+}
+navigator.serviceWorker?.addEventListener('message', e => { if (e.data?.gaa) gaaTil(e.data.gaa); });
 
 document.documentElement.lang = 'da'; // giver dansk orddeling i kalenderen
 document.getElementById('dato').textContent =

@@ -111,3 +111,26 @@ function pushValg(hvem) {
   })));
   return boks;
 }
+
+// Notifikationer, der er klaret i appen, fjernes fra telefonens liste (fx et ønske, der er svaret på, eller en besvaret seddel).
+// Børn: svar fra mor og far fjernes, når appen er åben (de bliver vist på tavlen).
+async function rydNotifikationer() {
+  try {
+    if (!('serviceWorker' in navigator) || document.visibilityState !== 'visible') return;
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg?.getNotifications) return;
+    const mig = Data.bruger()?.navn, voksen = Data.bruger()?.rolle === 'voksen';
+    for (const n of await reg.getNotifications()) {
+      const tag = n.tag || '', i = tag.indexOf('-');
+      if (i < 0) continue;   // fx 'test'
+      const liste = tag.slice(0, i), id = tag.slice(i + 1);
+      if (!['sedler', 'indloesninger', 'ekstra', 'madoensker', 'justeringer'].includes(liste)) continue;
+      const x = (await Data.list(liste)).find(p => p.id === id);
+      let aaben = false;
+      if (x && liste === 'sedler') aaben = x.til === mig && !(x.reaktion || x.svarTekst);
+      else if (x && voksen) aaben = x.status === 'afventer';
+      if (!aaben) n.close();
+    }
+  } catch (e) { console.warn(e); }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && Data.bruger()) rydNotifikationer(); });

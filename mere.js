@@ -906,7 +906,7 @@ function justerSaldo(barn, d, s, st) {
   const gem = knap('Gem', 'knap', async () => {
     const iso = isoDato(new Date());
     const ds = Math.round(tal(stj.value)), dk = tal(krInp.value);
-    if (ds || dk) await Data.add('justeringer', { barn, dato: iso, stjerner: ds, kr: dk, tekst: tekst.value.trim() });
+    if (ds || dk) await Data.add('justeringer', { barn, dato: iso, stjerner: ds, kr: dk, tekst: tekst.value.trim(), fra: Data.bruger()?.navn });
     const nyStreak = Math.max(0, Math.round(tal(streakInp.value)));
     if (streakInp.value.trim() !== '' && nyStreak !== st) {
       // Ankeret lægges i går; tæller i dag allerede med, trækkes den fra, så tallet passer nu
@@ -1075,6 +1075,23 @@ function ekstraDele(barn, d) {
     ul.append(li);
   }
   if (venter.length) dele.push(ul);
+  // Stjerner givet i dag (ekstra og justeringer med plus) – kan ikke rettes her
+  const idagIso = isoDato(new Date());
+  const givet = [
+    ...(d.ekstra || []).filter(x => x.status === 'godkendt' && (x.besvaret || x.dato) === idagIso),
+    ...(d.just || []).filter(x => !x.type && x.dato === idagIso && Math.round(tal(x.stjerner)) > 0)
+  ];
+  if (givet.length) {
+    const gl = el('ul', 'liste i-kort gave-liste');
+    for (const x of givet) {
+      const li = el('li', 'punkt gave-punkt');
+      const tb = el('span', 'tekst-boks');
+      tb.append(el('span', 'tekst', (x.tekst || 'Ekstra stjerner') + (x.fra ? ' · fra ' + x.fra : '')));
+      li.append(el('span', 'gave-ikon', '⭐'), tb, el('span', 'stjerne-tag', '+★ ' + Math.round(tal(x.stjerner))));
+      gl.append(li);
+    }
+    dele.push(gl);
+  }
   if (erVoksen()) dele.push(knap('⭐ Giv ' + barn + ' en stjerne', 'lille-knap ekstra-knap', () => givEkstra(barn)));
   else if (loggetIndBarn() === barn && venter.length < EKSTRA_MAX) dele.push(knap('⭐ Jeg har gjort noget ekstra', 'lille-knap ekstra-knap', () => bedOmEkstra(barn)));
   return dele;
@@ -1084,28 +1101,50 @@ function ekstraDele(barn, d) {
 // Vises én gang pr. enhed – både når barnet logger ind, og mens tavlen er åben (live). Ja = konfetti, nej = venlig besked.
 async function svarTilBarn(barn) {
   if (loggetIndBarn() !== barn) return;
-  const [indl, ekstra, mad] = await Promise.all(['indloesninger', 'ekstra', 'madoensker'].map(l => Data.list(l)));
+  const [indl, ekstra, mad, just] = await Promise.all(['indloesninger', 'ekstra', 'madoensker', 'justeringer'].map(l => Data.list(l)));
   const svar = [
     ...indl.filter(x => x.barn === barn && x.besvaret && ['godkendt', 'afvist'].includes(x.status))
       .map(x => ({ id: x.id, ja: x.status === 'godkendt', tekst: x.status === 'godkendt' ? 'Ja! Du får ' + x.navn + ' 🎁' : 'Mor og far sagde nej til ' + x.navn + ' denne gang' })),
     ...ekstra.filter(x => x.barn === barn && ['godkendt', 'afvist'].includes(x.status))
-      .map(x => ({ id: x.id, ja: x.status === 'godkendt', stjerner: x.stjerner,
-        tekst: x.status === 'godkendt' ? (x.fra ? x.fra + ' gav dig' : 'Du fik') + ' ★ ' + x.stjerner + ' – ' + x.tekst + '!' : 'Ikke denne gang: ' + x.tekst })),
+      .map(x => ({ id: x.id, ja: x.status === 'godkendt', stjerner: x.status === 'godkendt' ? Math.round(tal(x.stjerner)) : 0,
+        tekst: x.status === 'godkendt' ? gaveTekst(x) : 'Ikke denne gang: ' + x.tekst })),
     ...mad.filter(x => x.barn === barn && ['godkendt', 'afvist'].includes(x.status))
       .map(x => ({ id: x.id, ja: x.status === 'godkendt', tekst: x.status === 'godkendt' ? 'Ja! Du får ' + x.ret + ' 😋' : 'Nej til ' + x.ret + ' denne gang' }))
   ];
+  // Stjerner en voksen har givet med "Justér" (plus, ikke streak) – egen "set"-liste, så gamle ikke vises igen
+  const gaveJust = just.filter(x => x.barn === barn && !x.type && Math.round(tal(x.stjerner)) > 0)
+    .map(x => ({ id: x.id, ja: true, stjerner: Math.round(tal(x.stjerner)), tekst: gaveTekst(x) }));
+  const nyeJust = nyeSiden('gave-set-' + barn, gaveJust);
   const noegle = 'svar-set-' + barn;
   let set;
   try { set = JSON.parse(lokal.get(noegle) || lokal.get('ekstra-set-' + barn) || 'null'); } catch { set = null; }
-  if (!Array.isArray(set)) { lokal.set(noegle, JSON.stringify(svar.map(x => x.id))); return; }   // første gang: gamle svar er set
-  const nye = svar.filter(x => !set.includes(x.id));
-  if (!nye.length) return;
-  lokal.set(noegle, JSON.stringify([...set, ...nye.map(x => x.id)].slice(-300)));
-  const ja = nye.filter(x => x.ja), nej = nye.filter(x => !x.ja);
-  setTimeout(() => {
+  if (!Array.isArray(set)) { lokal.set(noegle, JSON.stringify(svar.map(x => x.id))); set = svar.map(x => x.id); }   // første gang: gamle svar er set
+  const nyeSvar = svar.filter(x => !set.includes(x.id));
+  if (nyeSvar.length) lokal.set(noegle, JSON.stringify([...set, ...nyeSvar.map(x => x.id)].slice(-300)));
+  const nye = [...nyeSvar, ...nyeJust];
+  if (!nye.length || svarVisesNu) return;
+  svarVisesNu = true;
+  // Stjerner: stor stjerne, der bliver til der trykkes (sjov.js). Bagefter de andre svar som før.
+  const gaver = nye.filter(x => x.ja && x.stjerner > 0);
+  const ja = nye.filter(x => x.ja && !(x.stjerner > 0)), nej = nye.filter(x => !x.ja);
+  setTimeout(() => stjerneGave(gaver, () => {
+    svarVisesNu = false;
     if (ja.length) fejr(ja.length === 1 ? ja[0].tekst : ja.length + ' ja-svar fra mor og far! 🎉');   // fra sjov.js
     if (nej.length) setTimeout(() => besked(nej.length === 1 ? nej[0].tekst : nej.length + ' svar fra mor og far – se under Pligter'), ja.length ? 2800 : 0);
-  }, 700);
+    tegnAlt();
+  }), 700);
+}
+let svarVisesNu = false;
+// "Far gav dig ★ 3 – for opvasken!"
+const gaveTekst = x => (x.fra ? x.fra + ' gav dig' : 'Du fik') + ' ★ ' + Math.round(tal(x.stjerner)) + (x.tekst ? ' – ' + x.tekst : '') + '!';
+// Nye punkter siden sidst (husket pr. enhed). Første gang tæller intet som nyt.
+function nyeSiden(noegle, liste) {
+  let set;
+  try { set = JSON.parse(lokal.get(noegle) || 'null'); } catch { set = null; }
+  if (!Array.isArray(set)) { lokal.set(noegle, JSON.stringify(liste.map(x => x.id))); return []; }
+  const nye = liste.filter(x => !set.includes(x.id));
+  if (nye.length) lokal.set(noegle, JSON.stringify([...set, ...nye.map(x => x.id)].slice(-300)));
+  return nye;
 }
 
 // Indhold til "Ønsker" på de voksnes I dag (tomt hvis intet venter)

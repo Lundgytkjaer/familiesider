@@ -1420,3 +1420,32 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .fast-felt .var-chips { flex-basis: 100%; display: flex; padding-top: 4px; }
 .var-detaljer { margin-top: 14px; }
 .var-detaljer > summary { cursor: pointer; color: var(--daempet); font-weight: 600; padding: 6px 0; }
+
+/* Stjerner fra mor og far (sjov.js stjerneGave): stor stjerne, der bliver til der trykkes */
+.gave-fest { position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; padding: 24px 16px;
+  background: radial-gradient(circle at 50% 38%, rgb(120 80 0 / .55), rgb(10 12 30 / .9) 65%); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); animation: gf-ind .3s ease both; }
+.gave-fest.vaek { opacity: 0; transition: opacity .35s; }
+.gave-fest.ryst { animation: gf-ryst .6s cubic-bezier(.36,.07,.19,.97) both; }
+@keyframes gf-ind { from { opacity: 0; } }
+@keyframes gf-ryst {
+  10%, 90% { transform: translate(-2px, 1px) rotate(-.5deg); } 20%, 80% { transform: translate(4px, -2px) rotate(.8deg); }
+  30%, 50%, 70% { transform: translate(-8px, 3px) rotate(-1.2deg); } 40%, 60% { transform: translate(8px, -3px) rotate(1.2deg); }
+}
+.gf-scene { display: grid; justify-items: center; gap: 10px; text-align: center; max-width: 420px; }
+.gf-stjerne { position: relative; width: 220px; height: 220px; display: grid; place-items: center; }
+.gf-stjerne.frem { animation: gf-frem .8s cubic-bezier(.2, 1.6, .4, 1) both; }
+@keyframes gf-frem { 0% { transform: scale(.1) rotate(-160deg); opacity: 0; } 60% { opacity: 1; } 100% { transform: none; } }
+.gf-form { font-size: 220px; line-height: 1; color: #ffcf2e; filter: drop-shadow(0 0 28px rgb(255 190 0 / .95)) drop-shadow(0 6px 0 #d99a00);
+  animation: gf-pulse 1.6s ease-in-out .8s infinite; }
+@keyframes gf-pulse { 50% { transform: scale(1.06); filter: drop-shadow(0 0 44px rgb(255 210 0 / 1)) drop-shadow(0 6px 0 #d99a00); } }
+.gf-tal { position: absolute; top: 52%; left: 50%; transform: translate(-50%, -50%); font-size: 52px; font-weight: 900; color: #7a4a00;
+  text-shadow: 0 2px 0 rgb(255 255 255 / .6); font-variant-numeric: tabular-nums; }
+.gf-tekst { margin: 0; color: #fff; font-size: 24px; font-weight: 800; line-height: 1.25; text-shadow: 0 2px 8px rgb(0 0 0 / .5); overflow-wrap: anywhere; }
+.gf-ialt { margin: 0; color: #ffe27a; font-weight: 700; font-size: 16px; min-height: 1em; }
+.gf-knap { margin-top: 10px; min-width: 220px; min-height: 60px; font-size: 20px; }
+@media (prefers-reduced-motion: reduce) { .gf-form { animation: none; } }
+
+/* Stjerner givet i dag – på pligt-kortet (kan ikke rettes) */
+.gave-liste .gave-punkt { display: flex; align-items: center; gap: 10px; padding: 10px 14px; min-height: 52px; }
+.gave-liste .gave-ikon { font-size: 22px; }
+.gave-liste .tekst-boks { flex: 1; }

@@ -227,6 +227,59 @@ function flammeStjerne({ n, ekstra = 0, dage, jokerBrugt = false }) {
   }, 650);
 }
 
+// ---------- Stjerner fra mor og far: stor stjerne, der bliver stående til barnet trykker ----------
+// gaver: [{stjerner, tekst}] – flere gaver: skærmen ryster, og en ny stjerne bryder frem for hver. faerdig() kaldes bagefter.
+function stjerneGave(gaver, faerdig = () => {}) {
+  if (!gaver.length) { faerdig(); return; }
+  const roligt = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const fest = el('div', 'gave-fest');
+  fest.setAttribute('role', 'dialog');
+  fest.setAttribute('aria-label', 'Du har fået stjerner');
+  const scene = el('div', 'gf-scene');
+  const stjerne = el('div', 'gf-stjerne');
+  const tal = el('span', 'gf-tal');
+  stjerne.append(el('span', 'gf-form', '★'), tal);
+  const tekst = el('p', 'gf-tekst');
+  const iAlt = el('p', 'gf-ialt');
+  const videre = knap('', 'knap gf-knap', () => naeste());
+  scene.append(stjerne, tekst, iAlt, videre);
+  fest.append(scene);
+  document.body.append(fest);
+  let i = -1, sum = 0;
+  const vis = () => {
+    const g = gaver[i];
+    sum += g.stjerner;
+    tal.textContent = '+' + g.stjerner;
+    tekst.textContent = g.tekst;
+    iAlt.textContent = gaver.length > 1 ? (i + 1) + ' af ' + gaver.length + ' · i alt +★ ' + sum : '';
+    videre.textContent = i < gaver.length - 1 ? 'Der er mere! ✨' : 'Fedt! 🙌';
+    if (roligt) return;
+    stjerne.classList.remove('frem'); void stjerne.offsetWidth; stjerne.classList.add('frem');
+    if (i > 0) { fest.classList.remove('ryst'); void fest.offsetWidth; fest.classList.add('ryst'); }
+    konfetti();
+    // Små stjerner, der flyver ud fra den store
+    for (let k = 0; k < Math.min(12, 4 + g.stjerner * 2); k++) {
+      const s2 = el('div', 'ff-stjerne', '★');
+      document.body.append(s2);
+      const r = stjerne.getBoundingClientRect(), cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      const v = (k / 12) * Math.PI * 2 + Math.random() * .4, afst = 120 + Math.random() * 90;
+      s2.animate([
+        { transform: `translate(${cx}px, ${cy}px) scale(.3)`, opacity: 0 },
+        { transform: `translate(${cx + Math.cos(v) * afst * .6}px, ${cy + Math.sin(v) * afst * .6}px) scale(1.3)`, opacity: 1, offset: .4 },
+        { transform: `translate(${cx + Math.cos(v) * afst}px, ${cy + Math.sin(v) * afst}px) scale(.4)`, opacity: 0 }
+      ], { duration: 1100 + Math.random() * 400, delay: 250 + k * 30, easing: 'cubic-bezier(.2,.7,.3,1)', fill: 'forwards' }).finished.then(() => s2.remove());
+    }
+  };
+  const naeste = () => {
+    i++;
+    if (i < gaver.length) { vis(); return; }
+    fest.classList.add('vaek');
+    setTimeout(() => { fest.remove(); faerdig(); }, 350);
+  };
+  naeste();
+  setTimeout(() => videre.focus(), 50);
+}
+
 // ---------- Alfie – orange løvehoved-dværgkanin ----------
 // hvordan: 'venter' | 'glad' | 'super' | 'sover'
 function alfieSvg(hvordan) {

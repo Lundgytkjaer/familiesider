@@ -74,6 +74,7 @@ function svarArk(s, k) {
 function seddelEl(s, opts = {}) {
   const rolle = opts.rolle || 'afsender';
   const k = el('div', 'seddel seddel-' + (SEDDEL_FARVER[s.farve] ? s.farve : 'gul') + (opts.animer ? ' folder-ud' : '') + (opts.lille ? ' lille' : ''));
+  k.dataset.seddel = s.id || '';
   k.style.setProperty('--drej', seddelDrej(s.id) + 'deg');
   k.append(el('span', 'seddel-magnet ' + (PK[s.fra] || 'c-faelles')));
 

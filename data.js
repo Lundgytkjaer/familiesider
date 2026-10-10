@@ -31,7 +31,7 @@ const Data = (() => {
 
   // Push trin 2: efter et nyt/rettet ønske eller en seddel bedes Edge Function'en "push" om at give besked.
   // Den henter selv rækken og afgør, om nogen skal have besked (og sender højst én gang). Fejl ignoreres stille.
-  const PUSH_LISTER = new Set(['indloesninger', 'ekstra', 'madoensker', 'sedler']);
+  const PUSH_LISTER = new Set(['indloesninger', 'ekstra', 'madoensker', 'sedler', 'justeringer']);
   function pushOm(liste, id) {
     if (!PUSH_LISTER.has(liste) || !id) return;
     db.functions.invoke('push', { body: { type: 'punkt', id } }).catch(() => {});
