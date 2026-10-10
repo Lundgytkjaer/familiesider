@@ -728,8 +728,8 @@ async function tegnForslag(type) {
       const tag = voksenRet ? knap('', 'tag ret-tag', () => redigerRet(f)) : el('span', 'tag');   // retter.js
       tag.append(f.tekst);
       const vs = aktiveVarianter(f);
-      const sd = passerSider(f), ek = passerEkstra(f);
-      const ekstra = [vs.map(v => v.navn).join(' · '), sd.length ? 'med ' + sd.join('/') : '', ek.length ? '+ ' + ek.join(', ') : ''].filter(Boolean).join(' – ');
+      const sd = passerSider(f), ek = passerEkstra(f), fy = passerFyld(f);
+      const ekstra = [[...fy, ...vs.map(v => v.navn)].join(' · '), sd.length ? 'med ' + sd.join('/') : '', ek.length ? '+ ' + ek.join(', ') : ''].filter(Boolean).join(' – ');
       if (ekstra) tag.append(el('span', 'tag-var', ekstra));
       const hvem = PERSONER.filter(p => kanLide(f).includes(p));
       if (hvem.length) {
@@ -767,11 +767,13 @@ async function tegnForslag(type) {
   if (!filter && favs.length && !erBarn()) {
     styr(st.ret ? 'Færdig' : erMaaltid ? 'Fjern fra listen' : 'Ret forslag', () => { st.ret = !st.ret; if (st.ret) Lide.person = null; tegnForslag(type); });
   }
-  if (erMaaltid && type === 'ret' && !st.ret && !erBarn()) {
-    const { ligner, udenKategori } = rydOpForslag(await Data.list('favoritter'));   // retter.js
-    const n = ligner.length + udenKategori.length;
-    if (n) styr('🧹 Ryd op (' + n + ')', rydOp);
-    styr('✎ Tilbehør og ekstra', redigerTilbehoerLister);
+  if (erMaaltid && !st.ret && !erBarn()) {
+    if (type === 'ret') {
+      const { ligner, udenKategori } = rydOpForslag(await Data.list('favoritter'));   // retter.js
+      const n = ligner.length + udenKategori.length;
+      if (n) styr('🧹 Ryd op (' + n + ')', rydOp);
+    }
+    styr('✎ Fyld, tilbehør og ekstra', redigerTilbehoerLister);
   }
 }
 
@@ -870,8 +872,10 @@ function fuldTekst(inp, visning) {
   vis.setAttribute('aria-hidden', 'true');
   const opdater = () => {
     const v = inp.value, hel = visning ? visning(v) : v;
-    const indre = el('span', null, v);
-    if (v && hel.length > v.length && hel.toLowerCase().startsWith(v.toLowerCase())) indre.append(el('span', 'fuld-ekstra', hel.slice(v.length)));
+    const forlaenget = v && hel.length > v.length && hel.toLowerCase().startsWith(v.toLowerCase());
+    // "Burger med oksebøf og bacon" vises som "Burger med oksebøf, bacon og pommes" (samme ret, pænere sat op)
+    const indre = el('span', null, forlaenget || !hel ? v : hel);
+    if (forlaenget) indre.append(el('span', 'fuld-ekstra', hel.slice(v.length)));
     vis.replaceChildren(indre);
     boks.classList.toggle('har-tekst', !!v);
   };
@@ -1005,6 +1009,8 @@ async function tegnFastPlan() {
   if (selv) fastBarn = selv;
   document.getElementById('ryd-uge').after(boks);   // under aftensmaden – for både børn og voksne
   const plan = (await Data.list('fastplan')).filter(r => r.barn === fastBarn);
+  const fastFavs = await Data.list('favoritter');
+  await hentTilbehoer();   // retter.js
   const seg = el('div', 'seg');
   seg.setAttribute('role', 'radiogroup');
   seg.append(...BOERN.map(b => {
@@ -1044,6 +1050,9 @@ async function tegnFastPlan() {
       t.setAttribute('aria-label', 'Tilfældig ' + navn.toLowerCase());
       const par = el('span', 'fast-felt');
       par.append(fuldTekst(inp), t);
+      // ✎ Tilpas: vælg pålæg (fx Rugbrød med leverpostej) – retter.js
+      const vc = inp.value ? retChips(fastFavs, felt, inp.value, async v => { await gemFast(fastBarn, i, felt, v); tegnFastPlan(); tegnOverblik(); }) : null;
+      if (vc) par.append(vc);
       li.append(par);
     }
     ol.append(li);

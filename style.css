@@ -1416,3 +1416,7 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .flere-valg .fjern-chip { white-space: nowrap; }
 .ryd-raekke { grid-template-columns: 1fr auto auto; }
 .ryd-raekke .tb-navn small { margin: 0; }
+.fast-felt { flex-wrap: wrap; }
+.fast-felt .var-chips { flex-basis: 100%; display: flex; padding-top: 4px; }
+.var-detaljer { margin-top: 14px; }
+.var-detaljer > summary { cursor: pointer; color: var(--daempet); font-weight: 600; padding: 6px 0; }

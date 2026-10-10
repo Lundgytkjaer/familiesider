@@ -1,5 +1,6 @@
-// retter.js – retterne som et lille katalog: kort navn, varianter, kategori, tilbehør og ekstra.
-// Data: favoritter (type 'ret' | 'morgen' | 'frokost') {tekst, gruppe?, side?, sider?: [..], ekstra?: [..], varianter?: [{navn, tekst?, slukket?}], ikkeAuto?}
+// retter.js – retterne som et lille katalog: kort navn, fyld, tilbehør, ekstra, varianter og kategori.
+// Data: favoritter (type 'ret' | 'morgen' | 'frokost') {tekst, gruppe?, fyld?: [..], side?, sider?: [..], ekstra?: [..], varianter?: [{navn, tekst?, slukket?}], ikkeAuto?}
+//   fyld = fyld/pålæg der passer (burger, pita, pizza, rugbrød …) – der kan vælges flere: "Pizza med skinke og pepperoni",
 //   side = standardtilbehør (står på tavlen), sider = tilbehør der passer (inkl. standard; mangler = [side]),
 //   ekstra = ting der kan komme med (hvidløgsbrød, flute …). Hele teksten: "Chicken nuggets med nudler og hvidløgsbrød".
 //        (ingrediens/ikkeAlternativ findes i data fra opdatering-retter.sql, men bruges ikke længere)
@@ -18,31 +19,36 @@ const GRUPPE_NAVN = Object.fromEntries(RET_GRUPPER.map(([k, i, n]) => [k, i + ' 
 const MAAL_TYPER = ['ret', 'morgen', 'frokost'];
 
 const lavt = t => (t || '').trim().toLowerCase();
-// Listerne over tilbehør og ekstra kan rettes af de voksne. Data: 'indstillinger' {noegle: 'tilbehoer', vaerdi: {sider: [..], ekstra: [..]}}
+// Listerne over fyld, tilbehør og ekstra kan rettes af de voksne. Data: 'indstillinger' {noegle: 'tilbehoer', vaerdi: {fyld: [..], sider: [..], ekstra: [..]}}
 const STANDARD_SIDER = ['ris', 'nudler', 'pasta', 'pommes', 'rösti', 'kartofler', 'kartoffelmos', 'kartoffelsalat', 'brød'];
 const STANDARD_EKSTRA = ['hvidløgsbrød', 'flute', 'salat', 'rødkål', 'agurkesalat', 'majs'];
-let SIDER = [...STANDARD_SIDER], EKSTRA = [...STANDARD_EKSTRA];
+const STANDARD_FYLD = ['skinke', 'ost', 'pepperoni', 'kylling', 'kebab', 'flæskesteg', 'pulled pork', 'oksebøf', 'bacon', 'pølser', 'tun',
+  'leverpostej', 'spegepølse', 'kødpølse', 'æg', 'hønsesalat', 'nutella', 'pålægschokolade', 'marmelade'];
+let SIDER = [...STANDARD_SIDER], EKSTRA = [...STANDARD_EKSTRA], FYLD = [...STANDARD_FYLD];
 async function tilbehoerRaekke() { return (await Data.list('indstillinger')).find(x => x.noegle === 'tilbehoer') || null; }
 async function hentTilbehoer() {
   const v = (await tilbehoerRaekke())?.vaerdi || {};
   SIDER = Array.isArray(v.sider) ? v.sider : [...STANDARD_SIDER];
   EKSTRA = Array.isArray(v.ekstra) ? v.ekstra : [...STANDARD_EKSTRA];
+  FYLD = Array.isArray(v.fyld) ? v.fyld : [...STANDARD_FYLD];
 }
 async function gemTilbehoer() {
-  const r = await tilbehoerRaekke(), vaerdi = { sider: SIDER, ekstra: EKSTRA };
+  const r = await tilbehoerRaekke(), vaerdi = { fyld: FYLD, sider: SIDER, ekstra: EKSTRA };
   if (r) await Data.update('indstillinger', r.id, { vaerdi }); else await Data.add('indstillinger', { noegle: 'tilbehoer', vaerdi });
 }
 const passerSider = f => Array.isArray(f.sider) ? f.sider : (f.side ? [f.side] : []);
 const passerEkstra = f => Array.isArray(f.ekstra) ? f.ekstra : [];
+const passerFyld = f => Array.isArray(f.fyld) ? f.fyld : [];
 // Alle kendte ekstra (listen + dem retterne selv har)
 const alleEkstra = favs => [...new Set([...EKSTRA, ...favs.flatMap(passerEkstra)].map(lavt))];
+const alleFyld = favs => [...new Set([...FYLD, ...favs.flatMap(passerFyld)].map(lavt))];
 const alleSider = favs => [...new Set([...SIDER, ...favs.flatMap(passerSider)].map(lavt))];
 // "a", "a og b", "a, b og c"
 const oprems = d => d.length < 2 ? (d[0] || '') : d.slice(0, -1).join(', ') + ' og ' + d[d.length - 1];
-// Hele teksten: ret (evt. variant) + tilbehør + ekstra
-function komponer(f, v, side, ekstra = []) {
+// Hele teksten: ret (evt. variant) + fyld + tilbehør + ekstra – "Pita med kebab, pommes og salat"
+function komponer(f, v, side, ekstra = [], fyld = []) {
   const base = v ? variantTekst(f, v) : f.tekst;
-  const dele = [side, ...ekstra].filter(Boolean);
+  const dele = [...fyld, side, ...ekstra].filter(Boolean);
   if (!dele.length) return base;
   return / med /i.test(base) ? oprems([base, ...dele]) : base + ' med ' + oprems(dele);
 }
@@ -61,19 +67,24 @@ function findPraecis(favs, felt, t) {
   }
   return null;
 }
-// Finder også "Chicken nuggets med nudler og hvidløgsbrød" = Chicken nuggets + tilbehøret nudler + ekstra hvidløgsbrød.
-// Svarer {fav, variant, side, ekstra} (side = valgt tilbehør eller null, ekstra = liste)
+// Finder også "Chicken nuggets med nudler og hvidløgsbrød" = Chicken nuggets + tilbehøret nudler + ekstra hvidløgsbrød,
+// og "Pizza med skinke og pepperoni" = Pizza + fyld skinke og pepperoni.
+// Svarer {fav, variant, fyld, side, ekstra} (side = valgt tilbehør eller null, fyld/ekstra = lister)
 function findRet(favs, felt, tekst) {
   let t = lavt(tekst);
   if (!t) return null;
-  const kendte = [...new Set([...alleSider(favs), ...alleEkstra(favs)])].sort((a, b) => b.length - a.length);
+  const kendte = [...new Set([...alleFyld(favs), ...alleSider(favs), ...alleEkstra(favs)])].sort((a, b) => b.length - a.length);
   const fjernet = [];
   for (let runde = 0; runde < 6; runde++) {
     const fund = findPraecis(favs, felt, t);
     if (fund) {
-      const dele = fjernet.reverse();
-      const side = dele.find(d => alleSider(favs).includes(d) && !passerEkstra(fund.fav).map(lavt).includes(d)) || null;
-      return { ...fund, side, ekstra: dele.filter(d => d !== side) };
+      const dele = fjernet.reverse(), f = fund.fav;
+      const egneFyld = passerFyld(f).map(lavt), egneSider = passerSider(f).map(lavt), egneEkstra = passerEkstra(f).map(lavt);
+      // Rettens egne lister først, så de fælles
+      const erFyld = d => egneFyld.includes(d) || (!egneSider.includes(d) && !egneEkstra.includes(d) && alleFyld(favs).includes(d) && !alleSider(favs).includes(d));
+      const fyld = dele.filter(erFyld);
+      const side = dele.find(d => !fyld.includes(d) && (egneSider.includes(d) || (!egneEkstra.includes(d) && alleSider(favs).includes(d)))) || null;
+      return { ...fund, fyld, side, ekstra: dele.filter(d => d !== side && !fyld.includes(d)) };
     }
     let fandt = false;
     for (const d of kendte) {
@@ -89,10 +100,10 @@ function findRet(favs, felt, tekst) {
 // Teksten der vises: med det valgte tilbehør, ellers rettens standardtilbehør (+ evt. ekstra)
 function retVisning(favs, felt, tekst) {
   const fund = findRet(favs, felt, tekst);
-  return fund ? komponer(fund.fav, fund.variant, fund.side || fund.fav.side, fund.ekstra) : tekst;
+  return fund ? komponer(fund.fav, fund.variant, fund.side || fund.fav.side, fund.ekstra, fund.fyld) : tekst;
 }
-// Alle tekster en ret kan stå som (selve retten + aktive varianter)
-const retTekster = f => [f.tekst, ...aktiveVarianter(f).map(v => variantTekst(f, v))];
+// Alle tekster en ret kan stå som (selve retten + aktive varianter + med ét slags fyld)
+const retTekster = f => [f.tekst, ...aktiveVarianter(f).map(v => variantTekst(f, v)), ...passerFyld(f).map(y => f.tekst + ' med ' + y)];
 
 // Til forslagslisten i tekstfelterne: retter + varianter (+ morgen/frokost til aftensmad, men bagerst)
 function forslagTekster(favs, felt) {
@@ -101,13 +112,15 @@ function forslagTekster(favs, felt) {
   return [...new Set([...egne, ...andre])];
 }
 
-// Til terningen: hver ret (ikke ikkeAuto/takeaway) med en tilfældig aktiv variant og et tilfældigt tilbehør der passer
+// Til terningen: hver ret (ikke ikkeAuto/takeaway) med en tilfældig aktiv variant, ét tilfældigt fyld og et tilfældigt tilbehør der passer
 const vilkaarlig = a => a[Math.floor(Math.random() * a.length)];
 function autoRetter(favs, felt) {
   return favs.filter(f => f.type === felt && !f.ikkeAuto && f.gruppe !== 'takeaway').map(f => {
-    const v = aktiveVarianter(f), sider = passerSider(f);
+    const v = aktiveVarianter(f), sider = passerSider(f), fyld = passerFyld(f);
     const side = sider.length > 1 ? vilkaarlig(sider) : null;
-    return { fav: f, tekst: komponer(f, v.length ? vilkaarlig(v) : null, side && side !== f.side ? side : null) };
+    // Enten en variant (fx "Hjemmelavet pizza margherita") eller ét fyld – aldrig begge
+    const medFyld = fyld.length && Math.random() < fyld.length / (fyld.length + v.length);
+    return { fav: f, tekst: komponer(f, !medFyld && v.length ? vilkaarlig(v) : null, side && side !== f.side ? side : null, [], medFyld ? [vilkaarlig(fyld)] : []) };
   });
 }
 
@@ -131,7 +144,7 @@ async function omdoebIPlaner(f, gammel, ny) {
 function redigerRet(f) {
   const s = {
     tekst: f.tekst, gruppe: f.gruppe || '', side: f.side || '', ikkeAuto: !!f.ikkeAuto,
-    sider: [...passerSider(f)], ekstra: [...passerEkstra(f)],
+    sider: [...passerSider(f)], ekstra: [...passerEkstra(f)], fyld: [...passerFyld(f)],
     varianter: (Array.isArray(f.varianter) ? f.varianter : []).map(v => ({ ...v }))
   };
   const erAften = f.type === 'ret';
@@ -140,7 +153,7 @@ function redigerRet(f) {
   const gruppeValg = chipValg(['', ...RET_GRUPPER.map(g => g[0])], s.gruppe, v => { s.gruppe = v; }, v => (v ? GRUPPE_NAVN[v] : 'Ingen'));
 
   // Tilbehør der passer (flere) + hvilket der står på tavlen
-  const siderBoks = el('div'), standardBoks = el('div'), ekstraBoks = el('div'), hint = el('p', 'hint');
+  const siderBoks = el('div'), standardBoks = el('div'), ekstraBoks = el('div'), fyldBoks = el('div'), hint = el('p', 'hint');
   const flereValg = (muligheder, liste, tegnIgen) => {
     const seg = el('div', 'seg wrap flere-valg');
     seg.append(...muligheder.map(m => {
@@ -172,6 +185,18 @@ function redigerRet(f) {
     ekstraBoks.replaceChildren(flereValg(muligheder, s.ekstra, tegnEkstra));
   };
   tegnEkstra();
+  const tegnFyld = () => fyldBoks.replaceChildren(flereValg([...new Set([...FYLD, ...s.fyld.map(lavt)])], s.fyld, tegnFyld));
+  tegnFyld();
+  const nyFyld = input('text', 'fyld-ny', '', erAften ? 'Andet fyld, fx tun' : 'Andet pålæg, fx rullepølse');
+  const fyldForm = el('form', 'oenske-form');
+  fyldForm.append(nyFyld, el('button', 'knap', 'Tilføj'));
+  fyldForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const t = lavt(nyFyld.value);
+    if (t && !s.fyld.map(lavt).includes(t)) s.fyld.push(t);
+    if (t && !FYLD.map(lavt).includes(t)) { FYLD = [...FYLD, t]; gemTilbehoer(); }
+    nyFyld.value = ''; tegnFyld();
+  });
   const nySide = input('text', 'side-ny', '', 'Andet tilbehør, fx couscous');
   const sideForm = el('form', 'oenske-form');
   sideForm.append(nySide, el('button', 'knap', 'Tilføj'));
@@ -235,7 +260,7 @@ function redigerRet(f) {
   const gem = knap('Gem', 'knap', async () => {
     if (!s.tekst.trim()) { navn.focus(); return; }
     const felter = {
-      tekst: s.tekst.trim(), ikkeAuto: s.ikkeAuto,
+      tekst: s.tekst.trim(), ikkeAuto: s.ikkeAuto, fyld: s.fyld,
       varianter: s.varianter.map(v => Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined && x !== false && x !== '')))
     };
     if (erAften) Object.assign(felter, { gruppe: s.gruppe || null, side: s.side || null, sider: s.sider, ekstra: s.ekstra });
@@ -247,11 +272,16 @@ function redigerRet(f) {
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('favoritter', f.id); lukArk(); tegnAlt(); }), gem);
   const dele = [felt('Navn', navn)];
-  if (erAften) dele.push(el('label', 'felt-label', 'Kategori'), gruppeValg,
+  if (erAften) dele.push(el('label', 'felt-label', 'Kategori'), gruppeValg);
+  dele.push(el('label', 'felt-label', erAften ? 'Fyld der passer (fx i burgeren, på pizzaen)' : 'Pålæg der passer'), fyldBoks, fyldForm);
+  if (erAften) dele.push(
     el('label', 'felt-label', 'Tilbehør der passer'), siderBoks, sideForm, standardBoks,
     el('label', 'felt-label', 'Ekstra der kan komme med'), ekstraBoks, ekstraForm, hint);
-  dele.push(el('label', 'felt-label', erAften ? 'Varianter (fx hvad der er i burgeren)' : 'Varianter (fx pålæg)'), varBoks, form,
-    el('p', 'hint', 'Varianterne kan vælges med et tryk under dagen på madplanen. Terningen vælger selv variant og tilbehør.'), flag1, knapper);
+  dele.push(el('details', 'var-detaljer'));
+  const det = dele[dele.length - 1];
+  det.open = s.varianter.length > 0;
+  det.append(el('summary', null, 'Varianter med eget navn (fx Franske hotdogs)'), varBoks, form);
+  dele.push(el('p', 'hint', 'Fyld, tilbehør og ekstra vælges under dagen med "✎ Tilpas". Terningen vælger selv ét fyld og et tilbehør.'), flag1, knapper);
   aabnArk(MAALTIDER[f.type] + ': ' + f.tekst, ...dele);
 }
 
@@ -260,10 +290,11 @@ function retChips(favs, felt, tekst, vaelg) {
   const fund = findRet(favs, felt, tekst);
   if (!fund || fund.fav.type !== felt) return null;
   const f = fund.fav;
-  if (!aktiveVarianter(f).length && passerSider(f).length < 2 && !passerEkstra(f).length) return null;
+  const kanSide = passerSider(f).length > 1 || (passerSider(f).length && !f.side);
+  if (!aktiveVarianter(f).length && !kanSide && !passerEkstra(f).length && !passerFyld(f).length) return null;
   const boks = el('div', 'var-chips');
   const k = knap('✎ Tilpas', 'var-chip tilpas-chip', () => tilpasRet(favs, felt, tekst, vaelg));
-  k.setAttribute('aria-label', 'Tilpas ' + f.tekst + ': variant, tilbehør og ekstra');
+  k.setAttribute('aria-label', 'Tilpas ' + f.tekst + ': fyld, tilbehør og ekstra');
   boks.append(k);
   return boks;
 }
@@ -272,8 +303,11 @@ function tilpasRet(favs, felt, tekst, vaelg) {
   const fund = findRet(favs, felt, tekst);
   const f = fund.fav;
   const vs = aktiveVarianter(f), sider = passerSider(f), ekstra = passerEkstra(f);
-  const nu = { variant: fund.variant, side: fund.side, ekstra: fund.ekstra.map(lavt) };
-  const tekstNu = () => komponer(f, nu.variant, nu.side || (nu.ekstra.length ? f.side : null), nu.ekstra);
+  // Fyld: rettens eget + det der står i teksten (fx gammelt fyld der ikke længere er på listen)
+  const fyldListe = [...new Set([...passerFyld(f).map(lavt), ...fund.fyld])];
+  const nu = { variant: fund.variant, side: fund.side, ekstra: fund.ekstra.map(lavt), fyld: fund.fyld.map(lavt) };
+  const fyldNu = () => fyldListe.filter(y => nu.fyld.includes(y));   // altid i rettens rækkefølge
+  const tekstNu = () => komponer(f, nu.variant, nu.side || (nu.ekstra.length ? f.side : null), nu.ekstra, fyldNu());
   const vis = el('p', 'tilpas-vis');
   const indhold = el('div');
   const vaelgKnap = (navn, valgt, fn) => {
@@ -288,13 +322,22 @@ function tilpasRet(favs, felt, tekst, vaelg) {
     indhold.append(el('label', 'felt-label', titel), seg);
   };
   const tegn = () => {
-    vis.replaceChildren(komponer(f, nu.variant, nu.side || f.side, nu.ekstra));
+    vis.replaceChildren(komponer(f, nu.variant, nu.side || f.side, nu.ekstra, fyldNu()));
     indhold.replaceChildren();
-    if (vs.length) raekke('Variant', vs.map(v => vaelgKnap(v.navn, nu.variant === v, () => { nu.variant = nu.variant === v ? null : v; })));
-    if (sider.length > 1) {
+    // En variant med eget navn (fx "Hjemmelavet pizza margherita") og fyld udelukker hinanden
+    if (vs.length) raekke('Variant', vs.map(v => vaelgKnap(v.navn, nu.variant === v, () => {
+      nu.variant = nu.variant === v ? null : v;
+      if (nu.variant?.tekst) nu.fyld = [];
+    })));
+    if (fyldListe.length) raekke(f.type === 'ret' ? 'Fyld' : 'Pålæg', fyldListe.map(y => {
+      const med = nu.fyld.includes(y);
+      return vaelgKnap(y, med, () => { nu.fyld = med ? nu.fyld.filter(x => x !== y) : [...nu.fyld, y]; if (nu.variant?.tekst) nu.variant = null; });
+    }));
+    if (sider.length > 1 || (sider.length && !f.side)) {
       const aktuel = lavt(nu.side || f.side);
       raekke('Tilbehør', sider.map(sd => vaelgKnap(sd, lavt(sd) === aktuel, () => {
-        nu.side = lavt(sd) === lavt(f.side) ? null : sd;   // standarden = intet valgt
+        // Med standardtilbehør: standarden = intet valgt. Uden: tryk igen fjerner tilbehøret
+        nu.side = lavt(sd) === lavt(f.side) || (!f.side && lavt(sd) === lavt(nu.side)) ? null : sd;
       })));
     }
     if (ekstra.length) raekke('Ekstra', ekstra.map(e => {
@@ -331,11 +374,12 @@ function redigerTilbehoerLister() {
     });
     boks.append(el('label', 'felt-label', titel), ul, form);
   };
+  sektion('Fyld og pålæg', () => FYLD, v => { FYLD = v; }, 'Fx tun');
   sektion('Tilbehør', () => SIDER, v => { SIDER = v; }, 'Fx couscous');
   sektion('Ekstra', () => EKSTRA, v => { EKSTRA = v; }, 'Fx tzatziki');
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Færdig', 'knap', () => { lukArk(); tegnAlt(); }));
-  aabnArk('Tilbehør og ekstra', el('p', 'hint', 'Det I kan vælge imellem, når I retter en ret. Fjerner I noget her, bliver det stadig på de retter og dage, der allerede har det.'), boks, knapper);
+  aabnArk('Fyld, tilbehør og ekstra', el('p', 'hint', 'Det I kan vælge imellem, når I retter en ret. Fjerner I noget her, bliver det stadig på de retter og dage, der allerede har det.'), boks, knapper);
 }
 
 // ---------- Til indkøbslisten: ekstra og tilbehør fra ugens madplan ----------
@@ -346,6 +390,7 @@ function ugensTilbehoer(favs, tekster) {
     const fund = findRet(favs, 'ret', t);
     if (!fund) continue;
     for (const e of fund.ekstra) if (!ud.has(e)) ud.set(e, true);
+    for (const y of fund.fyld) if (!ud.has(y)) ud.set(y, false);
     const side = lavt(fund.side || fund.fav.side);
     if (side && !ud.has(side)) ud.set(side, false);
   }
@@ -383,7 +428,7 @@ async function tilIndkoeb(tekster) {
   const knapper = el('div', 'ark-knapper');
   knapper.append(tilfoej);
   aabnArk('🛒 Til indkøbslisten',
-    el('p', 'hint', ting.length ? 'Ekstra og tilbehør fra ugens aftensmad. Ekstra er valgt på forhånd – tryk for at vælge til eller fra.' : 'Der er ingen ekstra eller tilbehør på ugens madplan.'),
+    el('p', 'hint', ting.length ? 'Ekstra, fyld og tilbehør fra ugens aftensmad. Ekstra er valgt på forhånd – tryk for at vælge til eller fra.' : 'Der er ingen ekstra eller tilbehør på ugens madplan.'),
     liste, knapper);
 }
 
@@ -398,7 +443,7 @@ function rydOpForslag(favs) {
     const andre = favs.filter(x => x !== f);
     const fund = findRet(andre, f.type, normaliser(f.tekst));
     if (fund && fund.fav.type === f.type && !ligner.some(l => l.dub === fund.fav && l.maal === f)) {
-      ligner.push({ dub: f, maal: fund.fav, ny: komponer(fund.fav, fund.variant, fund.side, fund.ekstra) });
+      ligner.push({ dub: f, maal: fund.fav, ny: komponer(fund.fav, fund.variant, fund.side, fund.ekstra, fund.fyld) });
     }
   }
   const dubIds = new Set(ligner.map(l => l.dub.id));
