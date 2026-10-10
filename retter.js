@@ -1,12 +1,11 @@
 // retter.js – retterne som et lille katalog: kort navn, varianter og kategori.
-// Data: favoritter (type 'ret' | 'morgen' | 'frokost') {tekst, gruppe?, ingrediens?, varianter?: [{navn, ingrediens?, tekst?, slukket?}],
-//        ikkeAuto? (aldrig i terningen, fx takeaway), ikkeAlternativ? (vises ikke som alternativ for børnene)}
+// Data: favoritter (type 'ret' | 'morgen' | 'frokost') {tekst, gruppe?, side?, varianter?: [{navn, tekst?, slukket?}], ikkeAuto?}
+//        (ingrediens/ikkeAlternativ findes i data fra opdatering-retter.sql, men bruges ikke længere)
 // En variant hedder "<ret> med <navn>" (fx "Burger med flæskesteg"), medmindre den har sin egen tekst ("Franske hotdogs").
-// Tilbehør (side): ris, nudler, pasta, pommes … er IKKE en del af retten. En ret har evt. et standardtilbehør
-// (favoritter.side, fx 'ris'), og børnene vælger selv et andet (gælder med det samme – det er lige meget for de voksne).
-// "Kylling i karry" + ris vises som "Kylling i karry med ris"; "Hakkebøf med spejlæg" + kartofler → "… og kartofler".
-// Børnene: morgen/frokost → vælg variant (gælder med det samme); aftensmad → vælg tilbehør + "Vil du hellere have …" =
-// retter med samme hovedingrediens (et ønske, de voksne siger ja/nej). Opsætningen: opdatering-retter.sql + -2.sql.
+// Tilbehør (side): ris, nudler, pasta, pommes … er IKKE en del af rettens navn. En ret har evt. et standardtilbehør
+// (favoritter.side, fx 'ris'), som vises på tavlen: "Kylling i karry med ris". Skriver man selv "Kyllingespyd med nudler",
+// genkendes det som Kyllingespyd + nudler. Børnene vælger IKKE tilbehør/varianter i appen (Timmos valg: det aftales ved
+// bordet) – de kan kun ønske en anden ret, som før. Opsætningen: opdatering-retter.sql + opdatering-retter-2.sql.
 
 const RET_GRUPPER = [
   ['kylling', '🐔', 'Kylling'], ['gris', '🐷', 'Gris'], ['okse', '🐮', 'Okse'], ['poelser', '🌭', 'Pølser'], ['fisk', '🐟', 'Fisk'],
@@ -76,38 +75,10 @@ function autoRetter(favs, felt) {
   });
 }
 
-// Børnenes valg ud fra det, der står på planen
-//  morgen/frokost: de andre varianter af samme ret ("Hvad vil du have på dine rundstykker?")
-//  aftensmad: retter/varianter med samme hovedingrediens ("Vil du hellere have …")
-function boerneValg(favs, felt, planTekst, barn) {
-  const fund = findRet(favs, felt, planTekst);
-  if (!fund) return { slags: null, valg: [] };
-  const { fav, variant } = fund;
-  if (felt !== 'ret') {
-    const valg = aktiveVarianter(fav).map(v => ({ tekst: variantTekst(fav, v), kort: v.navn }));
-    return { slags: 'variant', fav, valg };
-  }
-  const sider = fav.side ? { nu: fund.side || fav.side, standard: fav.side, base: komponer(fav, variant, null) } : null;
-  const ing = variant?.ingrediens || fav.ingrediens;
-  if (!ing) return { slags: 'alternativ', fav, valg: [], sider };
-  const nu = lavt(planTekst);
-  const res = [];
-  for (const f of favs.filter(x => x.type === 'ret' && !x.ikkeAlternativ && x.gruppe !== 'takeaway')) {
-    const vs = Array.isArray(f.varianter) ? f.varianter : [];
-    if ((f.ingrediens || '') === ing && !vs.length) res.push({ tekst: f.tekst, f });
-    for (const v of vs.filter(v => !v.slukket && (v.ingrediens || f.ingrediens) === ing)) res.push({ tekst: variantTekst(f, v), f });
-  }
-  const point = x => (kanLide(x.f).includes(barn) ? 1000 : 0) + (x.f.brugt || 0);
-  const egen = lavt(komponer(fav, variant, null));
-  const valg = res.filter(x => lavt(x.tekst) !== nu && lavt(x.tekst) !== egen).sort((a, b) => point(b) - point(a)).slice(0, 6)
-    .map(x => ({ tekst: x.tekst, kort: komponer(x.f, null, null) === x.tekst ? komponer(x.f, null, x.f.side) : x.tekst }));
-  return { slags: 'alternativ', fav, valg, sider };
-}
-
 // ---------- Voksne: ret en ret i kataloget ----------
 function redigerRet(f) {
   const s = {
-    tekst: f.tekst, gruppe: f.gruppe || '', ingrediens: f.ingrediens || '', side: f.side || '', ikkeAuto: !!f.ikkeAuto, ikkeAlternativ: !!f.ikkeAlternativ,
+    tekst: f.tekst, gruppe: f.gruppe || '', side: f.side || '', ikkeAuto: !!f.ikkeAuto,
     varianter: (Array.isArray(f.varianter) ? f.varianter : []).map(v => ({ ...v }))
   };
   const erAften = f.type === 'ret';
@@ -115,13 +86,6 @@ function redigerRet(f) {
   navn.addEventListener('input', () => { s.tekst = navn.value; });
   const sideValg = chipValg(['', ...SIDER], s.side, v => { s.side = v; }, v => v || 'Intet');
   const gruppeValg = chipValg(['', ...RET_GRUPPER.map(g => g[0])], s.gruppe, v => { s.gruppe = v; }, v => (v ? GRUPPE_NAVN[v] : 'Ingen'));
-  // Hovedingredienser der allerede bruges – vælg en eller skriv en ny
-  const alleIng = async () => [...new Set((await Data.list('favoritter')).flatMap(x => [x.ingrediens, ...(x.varianter || []).map(v => v.ingrediens)]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'da'));
-  const ingListe = el('datalist'); ingListe.id = 'ingrediens-forslag';
-  alleIng().then(l => ingListe.replaceChildren(...l.map(i => { const o = el('option'); o.value = i; return o; })));
-  const ing = input('text', 'ret-ingrediens', s.ingrediens, 'Fx kylling, flæskesteg, pølser');
-  ing.setAttribute('list', 'ingrediens-forslag');
-  ing.addEventListener('input', () => { s.ingrediens = ing.value.trim().toLowerCase(); });
 
   const varBoks = el('div');
   const tegnVar = () => {
@@ -130,14 +94,6 @@ function redigerRet(f) {
       const li = el('li', 'var-raekke' + (v.slukket ? ' slukket' : ''));
       const t = el('span', 'tb-navn');
       t.append(el('span', null, variantTekst({ tekst: s.tekst }, v)));
-      if (erAften) {
-        const vi = input('text', 'var-ing-' + i, v.ingrediens || '', 'samme som retten');
-        vi.setAttribute('list', 'ingrediens-forslag');
-        vi.className = 'var-ing';
-        vi.setAttribute('aria-label', 'Hovedingrediens for ' + v.navn);
-        vi.addEventListener('input', () => { v.ingrediens = vi.value.trim().toLowerCase() || undefined; });
-        t.append(vi);
-      }
       const til = knap(v.slukket ? 'Slukket' : 'Til', 'lille-knap tb-til', () => { v.slukket = !v.slukket; tegnVar(); });
       til.setAttribute('aria-pressed', !v.slukket);
       const slet = knap('', 'slet', () => { s.varianter.splice(i, 1); tegnVar(); });
@@ -168,26 +124,25 @@ function redigerRet(f) {
   };
   const flag1 = el('div', 'seg wrap tilpas-valg');
   flag1.append(flag('🎲 Med i terningen', 'ikkeAuto', true));
-  if (erAften) flag1.append(flag('🧒 Kan ønskes af børnene', 'ikkeAlternativ', true));
 
   const gem = knap('Gem', 'knap', async () => {
     if (!s.tekst.trim()) { navn.focus(); return; }
     const felter = {
-      tekst: s.tekst.trim(), ikkeAuto: s.ikkeAuto, ikkeAlternativ: s.ikkeAlternativ,
+      tekst: s.tekst.trim(), ikkeAuto: s.ikkeAuto,
       varianter: s.varianter.map(v => Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined && x !== false && x !== '')))
     };
-    if (erAften) Object.assign(felter, { gruppe: s.gruppe || null, ingrediens: s.ingrediens || null, side: s.side || null });
+    if (erAften) Object.assign(felter, { gruppe: s.gruppe || null, side: s.side || null });
     await Data.update('favoritter', f.id, felter);
     lukArk(); tegnAlt();
   });
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('favoritter', f.id); lukArk(); tegnAlt(); }), gem);
   const dele = [felt('Navn', navn)];
-  if (erAften) dele.push(el('label', 'felt-label', 'Tilbehør (det der normalt kommer med)'), sideValg,
-    el('p', 'hint', 'Børnene kan selv vælge et andet tilbehør (ris, nudler, pommes …) – det gælder med det samme.'),
-    el('label', 'felt-label', 'Kategori'), gruppeValg, felt('Hovedingrediens', ing),
-    el('p', 'hint', 'Retter med samme hovedingrediens bliver foreslået til børnene som alternativ (fx burger med flæskesteg → flæskesteg med kartofler).'), ingListe);
-  dele.push(el('label', 'felt-label', erAften ? 'Varianter (fx hvad der er i burgeren)' : 'Varianter (fx pålæg)'), varBoks, form, flag1, knapper);
+  if (erAften) dele.push(el('label', 'felt-label', 'Kategori'), gruppeValg,
+    el('label', 'felt-label', 'Tilbehør der normalt kommer med'), sideValg,
+    el('p', 'hint', 'Vises på tavlen, fx "' + s.tekst + (s.side ? ' med ' + s.side : ' med ris') + '". Man kan altid skrive noget andet på dagen.'));
+  dele.push(el('label', 'felt-label', erAften ? 'Varianter (fx hvad der er i burgeren)' : 'Varianter (fx pålæg)'), varBoks, form,
+    el('p', 'hint', 'Varianterne kan vælges med et tryk under dagen på madplanen. Terningen vælger selv en.'), flag1, knapper);
   aabnArk(MAALTIDER[f.type] + ': ' + f.tekst, ...dele);
 }
 

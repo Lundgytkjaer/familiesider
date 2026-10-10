@@ -231,10 +231,10 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .dag.ny { animation: blink .9s ease; }
 @keyframes blink { from { background: var(--accent-blod); } }
 .retter-boks { margin-top: 14px; background: var(--flade); border-radius: var(--radius); padding: 0 14px; }
-.retter-boks summary { min-height: var(--raekke); display: flex; align-items: center; justify-content: space-between; font-weight: 700; cursor: pointer; list-style: none; }
-.retter-boks summary::-webkit-details-marker { display: none; }
-.retter-boks summary::after { content: "›"; color: var(--daempet); font-size: 20px; transition: transform .15s; }
-.retter-boks[open] summary::after { transform: rotate(90deg); }
+.retter-boks > summary { min-height: var(--raekke); display: flex; align-items: center; justify-content: space-between; font-weight: 700; cursor: pointer; list-style: none; }
+.retter-boks > summary::-webkit-details-marker { display: none; }
+.retter-boks > summary::after { content: "›"; color: var(--daempet); font-size: 20px; transition: transform .15s; }
+.retter-boks[open] > summary::after { transform: rotate(90deg); }
 .retter-boks .tilfoj input[type="text"] { background: var(--bg); }
 .dag label { display: flex; flex-direction: column; line-height: 1.1; font-weight: 700; font-size: 14px; color: var(--daempet); }
 .dag label small { font-weight: 500; font-size: 12px; font-variant-numeric: tabular-nums; }
@@ -1372,20 +1372,33 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .tilpas-valg button { white-space: normal; text-align: left; max-width: 100%; }
 
 /* Retter: kategorier, varianter (retter.js) */
-.forslag .ret-gruppe { flex-basis: 100%; font-size: 13px; font-weight: 700; color: var(--daempet); margin: 10px 0 0; }
+.ret-gruppe-boks { flex-basis: 100%; border-bottom: 1px solid var(--linje); }
+.forslag .ret-gruppe { min-height: 44px; display: flex; align-items: center; gap: 6px; font-size: 15px; font-weight: 700; cursor: pointer; list-style: none; }
+.forslag .ret-gruppe::-webkit-details-marker { display: none; }
+.forslag .ret-gruppe::after { content: "›"; margin-left: auto; color: var(--daempet); font-size: 20px; transition: transform .15s; }
+.ret-gruppe-boks[open] > .ret-gruppe::after { transform: rotate(90deg); }
+.ret-gruppe-antal { font-weight: 500; font-size: 13px; color: var(--daempet); }
+.ret-gruppe-indhold { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 0 12px; }
 .forslag .ret-tag { cursor: pointer; color: var(--fg); }
 .forslag .tag-var { font-weight: 500; font-size: 12px; color: var(--daempet); }
-.dag .var-chips { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px 58px; }
-.var-chip { min-height: 32px; padding: 0 11px; border-radius: 999px; border: 1.5px solid var(--linje); background: var(--bg); color: var(--daempet); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
+/* Varianter: én række, der kan skubbes sidelæns, så dagene ikke bliver høje */
+.dag .var-chips { grid-column: 2 / -1; display: flex; gap: 6px; padding: 0 12px 10px 0; margin-top: -4px; overflow-x: auto; scrollbar-width: none; }
+.dag .var-chips::-webkit-scrollbar { display: none; }
+.var-chip { flex: none; white-space: nowrap; min-height: 30px; padding: 0 10px; border-radius: 999px; border: 1.5px solid var(--linje); background: var(--bg); color: var(--daempet); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; }
 .var-chip[aria-pressed="true"] { border-color: var(--accent); color: var(--fg); background: var(--accent-blod); }
 .tb-raekker { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
 .var-raekke { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 6px 4px; border-bottom: 1px solid var(--linje); }
 .var-raekke.slukket .tb-navn > span:first-child { color: var(--daempet); text-decoration: line-through; }
 .tb-navn { display: flex; flex-direction: column; gap: 4px; font-size: 16px; overflow-wrap: anywhere; }
-.var-ing { font: inherit; font-size: 13px; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--linje); background: var(--bg); color: var(--fg); max-width: 220px; }
-.mad-andet { margin-top: 16px; }
-.mad-andet > summary { cursor: pointer; color: var(--daempet); font-size: 15px; padding: 6px 0; }
 
-/* Tilbehør: små knapper, 3 pr. række */
-.mad-valg.side-valg { grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.side-valg .mad-valg-knap { min-height: 44px; padding: 6px 4px; font-size: 15px; }
+
+/* Hele teksten i madplanens felter (fuldTekst i app.js): ombrudt tekst ovenpå feltet, når man ikke skriver */
+.fuld-felt { display: grid; flex: 1; min-width: 0; align-self: stretch; }
+.fuld-felt > input, .fuld-felt > .fuld-vis { grid-area: 1 / 1; }
+.fuld-felt > input { height: 100%; width: 100%; }
+.fuld-vis { pointer-events: none; visibility: hidden; display: flex; align-items: center; overflow-wrap: anywhere; line-height: 1.25; }
+.fuld-felt.har-tekst:not(:focus-within) > .fuld-vis { visibility: visible; }
+.fuld-felt.har-tekst:not(:focus-within) > input { color: transparent; }
+.dag .fuld-vis { padding: 8px 0; min-height: var(--raekke); }
+.fast-felt .fuld-vis { padding: 6px 9.5px; font-size: 15px; min-height: 40px; }
+.fuld-ekstra { color: var(--daempet); }
