@@ -1449,3 +1449,8 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .gave-liste .gave-punkt { display: flex; align-items: center; gap: 10px; padding: 10px 14px; min-height: 52px; }
 .gave-liste .gave-ikon { font-size: 22px; }
 .gave-liste .tekst-boks { flex: 1; }
+
+/* Mit mål (mere.js beloenLi) */
+.maal-knap { padding: 2px 8px; min-height: 30px; font-size: 13px; align-self: flex-start; margin-bottom: 2px; }
+.maal-knap[aria-pressed="false"] { opacity: .55; }
+.beloen.mit-maal { border: 2px solid var(--accent); border-radius: 14px; background: var(--accent-blod); }

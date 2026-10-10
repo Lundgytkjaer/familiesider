@@ -40,15 +40,15 @@ async function sendSvar(s, reaktion, svarTekst, k) {
   const nu = new Date().toISOString();
   await Data.update('sedler', s.id, { reaktion: reaktion || '', svarTekst: (svarTekst || '').trim(), svaret: nu, aabnet: s.aabnet || nu });
   k?.classList.add('flyv');
-  if (s.stjerner > 0) fejr('🎁 ' + s.stjerner + ' ★ fra ' + s.fra + '!');   // fra sjov.js
-  else besked((reaktion || '✉️') + ' Svar sendt til ' + s.fra);
+  if (s.stjerner > 0) fejr('🎁 ' + s.stjerner + ' ★ fra ' + kaldNavn(s.fra) + '!');   // fra sjov.js
+  else besked((reaktion || '✉️') + ' Svar sendt til ' + kaldNavn(s.fra));
   setTimeout(() => tegnAlt(), 700);
 }
 
 // Et helt svar: en emoji og/eller en kort tekst
 function svarArk(s, k) {
   let valgt = '';
-  const forhaand = el('p', 'svar-citat', '"' + kortTekst(s.tekst, 80) + '" – ' + s.fra);
+  const forhaand = el('p', 'svar-citat', '"' + kortTekst(s.tekst, 80) + '" – ' + kaldNavn(s.fra));
   const plade = el('div', 'svar-emoji');
   const tegnPlade = () => plade.replaceChildren(...SEDDEL_EMOJI.map(e => {
     const b = knap(e, 'svar-emoji-knap', () => { valgt = valgt === e ? '' : e; tegnPlade(); });
@@ -66,7 +66,7 @@ function svarArk(s, k) {
   });
   const knapper = el('div', 'ark-knapper');
   knapper.append(send);
-  aabnArk('Svar ' + s.fra, forhaand, el('label', 'felt-label', 'Vælg en emoji'), plade,
+  aabnArk('Svar ' + kaldNavn(s.fra), forhaand, el('label', 'felt-label', 'Vælg en emoji'), plade,
     felt('Og/eller skriv noget', tekst), knapper);
 }
 
@@ -87,7 +87,7 @@ function seddelEl(s, opts = {}) {
       await Data.update('sedler', s.id, { aabnet });
       k.replaceWith(seddelEl({ ...s, aabnet }, { ...opts, animer: true }));
     });
-    b.append(el('span', 'seddel-hemmelig-ikon', '🤫'), el('span', 'seddel-tekst', 'Hemmelig seddel fra ' + (s.fra || '')),
+    b.append(el('span', 'seddel-hemmelig-ikon', '🤫'), el('span', 'seddel-tekst', 'Hemmelig seddel fra ' + (kaldNavn(s.fra) || '')),
       el('span', 'seddel-hint', 'Tryk for at åbne'));
     k.append(b);
     return k;
@@ -96,7 +96,7 @@ function seddelEl(s, opts = {}) {
   if (s.sticker) k.append(el('span', 'seddel-sticker', s.sticker));
   if (rolle === 'afsender' && !opts.udenTil) k.append(el('span', 'seddel-til', 'Til ' + s.til));
   k.append(el('p', 'seddel-tekst', s.tekst || (rolle === 'forhaand' ? 'Skriv noget …' : '')));
-  k.append(el('span', 'seddel-fra', '– ' + (s.fra || '')));
+  k.append(el('span', 'seddel-fra', '– ' + (kaldNavn(s.fra) || '')));
   if (s.stjerner > 0) k.append(el('span', 'seddel-gave', '🎁 ' + s.stjerner + ' ★ ' + (rolle === 'afsender' ? 'med' : 'til dig')));
   if (rolle === 'forhaand') return k;
 
@@ -112,7 +112,7 @@ function seddelEl(s, opts = {}) {
       mere.setAttribute('aria-label', 'Skriv et svar eller vælg en anden emoji');
       svar.append(mere);
     }
-    k.append(el('span', 'seddel-hint', 'Svar ' + (s.fra || '') + ':'), svar);
+    k.append(el('span', 'seddel-hint', 'Svar ' + (kaldNavn(s.fra) || '') + ':'), svar);
     return k;
   }
 
@@ -231,7 +231,7 @@ function skrivSeddel(tilStandard, gl) {
   const mig = Data.bruger()?.navn || '';
   const barn = !erVoksen();
   const modtagere = barn ? [...VOKSNE, ALLE_VOKSNE] : [...BOERN, ALLE_BOERN, ...VOKSNE.filter(v => v !== mig)];
-  const tilNavn = v => (v === ALLE_BOERN ? 'Begge børn' : v === ALLE_VOKSNE ? VOKSNE.join(' og ') : v);
+  const tilNavn = v => (v === ALLE_BOERN ? 'Begge børn' : v === ALLE_VOKSNE ? (barn ? 'Mor og far' : VOKSNE.join(' og ')) : kaldNavn(v));
   const s = {
     til: gl?.til || (modtagere.includes(tilStandard) ? tilStandard : modtagere[0]), fra: gl?.fra || mig, tekst: gl?.tekst || '',
     sticker: gl?.sticker ?? '', farve: gl?.farve || 'gul', hemmelig: !!gl?.hemmelig,

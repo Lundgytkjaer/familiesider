@@ -24,7 +24,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-10k">
+  <link rel="stylesheet" href="style.css?v=2026-10-11a">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -164,6 +164,7 @@
 
     <!-- TO DO -->
     <section id="todo" class="fane" hidden>
+      <button type="button" class="tilbage kun-voksen" data-gaa="mere">‹ Mere</button>
       <div class="sek-hoved"><h2>To do</h2><span class="taeller" data-taeller="todo"></span></div>
       <form class="tilfoj" data-liste="todo">
         <input type="text" id="ny-todo" placeholder="Fx bestil tid til vinterdæk" aria-label="Ny opgave" autocomplete="off" enterkeyhint="done">
@@ -216,11 +217,15 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4h4"/><path d="M12 7.5V12l3 2"/></svg>
           <span class="mere-navn">Aktivitet</span><span class="under">Hvem har ændret hvad – gendan slettede ting</span>
         </button>
+        <button type="button" class="kort mere-kort kun-voksen" data-gaa="todo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6h10M10 12h10M10 18h10M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5M3.5 18l1.5 1.5 2.5-2.5"/></svg>
+          <span class="mere-navn">To do</span><span class="under">Familiens huskeliste</span>
+        </button>
         <button type="button" class="kort mere-kort" data-gaa="rutiner">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2.5h6"/></svg>
           <span class="mere-navn">Rutiner</span><span class="under">Tandbørstning, sengetid og andet med billeder</span>
         </button>
-        <button type="button" class="kort mere-kort" data-gaa="pligter">
+        <button type="button" class="kort mere-kort kun-barn" data-gaa="pligter">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
           <span class="mere-navn">Pligter</span><span class="under">Med eller uden lommepenge og stjerner</span>
         </button>
@@ -274,8 +279,8 @@
 
     <!-- PLIGTER -->
     <section id="pligter" class="fane" hidden>
-      <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
-      <div class="sek-hoved"><h2>Pligter</h2></div>
+      <button type="button" class="tilbage kun-barn" data-gaa="mere">‹ Mere</button>
+      <div class="sek-hoved"><h2><span class="kun-barn">Pligter</span><span class="kun-voksen">Børn</span></h2></div>
       <div id="pligter-indhold"></div>
     </section>
 
@@ -418,6 +423,10 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 6h10M10 12h10M10 18h10M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5M3.5 18l1.5 1.5 2.5-2.5"/></svg>
       To do<span class="badge" data-badge="todo" hidden></span>
     </button>
+    <button role="tab" class="fane-knap" data-fane="pligter" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
+      Børn<span class="badge haster venter-badge" data-badge="pligter" hidden></span>
+    </button>
     <button role="tab" class="fane-knap" data-fane="mere">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
       Mere
@@ -446,17 +455,17 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="data.js?v=2026-10-10k"></script>
-<script src="dage.js?v=2026-10-10k"></script>
-<script src="vejr.js?v=2026-10-10k"></script>
-<script src="app.js?v=2026-10-10k"></script>
-<script src="mere.js?v=2026-10-10k"></script>
-<script src="sjov.js?v=2026-10-10k"></script>
-<script src="seddel.js?v=2026-10-10k"></script>
-<script src="familie.js?v=2026-10-10k"></script>
-<script src="handel.js?v=2026-10-10k"></script>
-<script src="retter.js?v=2026-10-10k"></script>
-<script src="aktivitet.js?v=2026-10-10k"></script>
-<script src="push.js?v=2026-10-10k"></script>
+<script src="data.js?v=2026-10-11a"></script>
+<script src="dage.js?v=2026-10-11a"></script>
+<script src="vejr.js?v=2026-10-11a"></script>
+<script src="app.js?v=2026-10-11a"></script>
+<script src="mere.js?v=2026-10-11a"></script>
+<script src="sjov.js?v=2026-10-11a"></script>
+<script src="seddel.js?v=2026-10-11a"></script>
+<script src="familie.js?v=2026-10-11a"></script>
+<script src="handel.js?v=2026-10-11a"></script>
+<script src="retter.js?v=2026-10-11a"></script>
+<script src="aktivitet.js?v=2026-10-11a"></script>
+<script src="push.js?v=2026-10-11a"></script>
 </body>
 </html>

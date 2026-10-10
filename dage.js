@@ -70,6 +70,11 @@ async function valgFor(navn) {
   const r = (await Data.list('personvalg')).find(x => x.navn === navn);
   return { ...STANDARD_VALG, ...(r || {}) };
 }
+// Hvad børnene kalder en voksen ("Far", "Mor") – personvalg.kaldes. Kun i børnenes visning; voksne ser fornavne.
+function kaldNavn(navn) {
+  if (!navn || typeof erBarn !== 'function' || !erBarn()) return navn;
+  return Data.listNu('personvalg').find(x => x.navn === navn)?.kaldes || navn;
+}
 async function saetValg(navn, felt, vaerdi) {
   const r = (await Data.list('personvalg')).find(x => x.navn === navn);
   if (r) await Data.update('personvalg', r.id, { [felt]: vaerdi });

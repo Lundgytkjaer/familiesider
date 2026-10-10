@@ -446,6 +446,7 @@ async function pligtData(barn) {
     just: mineJust.filter(x => x.type !== 'streak'),   // + / − stjerner og kr fra en voksen
     streakAnker: mineJust.filter(x => x.type === 'streak').sort((a, b) => (a.oprettet || '').localeCompare(b.oprettet || '')).pop() || null,
     regel: await regelFor(barn),
+    maal: (await valgFor(barn)).maal || null,   // "Mit mål": den belønning barnet sparer op til (personvalg.maal)
     barn,
     kalender: await Data.list('kalender')   // bruges til sygedage (bryder ikke streak)
   };
@@ -671,7 +672,12 @@ async function tegnPligter() {
   const s = saldo(d);
   const dele = [];
 
-  if (erVoksen()) dele.push(knap('📊 Ugens overblik – hvad har drengene tjent?', 'lille-knap uge-knap', () => ugeOverblik(0)));
+  if (erVoksen()) {
+    // Børn-fanen samler det hele: først det, børnene venter på svar på
+    const oensker = await oenskerIndhold();
+    if (oensker.length) { const ok = el('div', 'kort oensker-kort venter'); ok.append(...oensker); dele.push(ok); }
+    dele.push(knap('📊 Ugens overblik – hvad har drengene tjent?', 'lille-knap uge-knap', () => ugeOverblik(0)));
+  }
 
   if (personer.length > 1) {
     dele.push(valgSeg(personer, barn, b => { pligtBarn = b; lokal.set('pligt-barn', b); tegnPligter(); },
@@ -950,10 +956,19 @@ function justerSaldo(barn, d, s, st) {
 
 // Én belønning med fremdrift og knap: voksne "Indløs", børn "Ønsk" (eller "Venter på en voksen")
 function beloenLi(barn, b, d, s) {
-  const li = el('li', 'beloen');
+  const erMaal = d.maal === b.navn;
+  const li = el('li', 'beloen' + (erMaal ? ' mit-maal' : ''));
   const nok = s.stjerner >= b.stjerner;
   const info = el('div', 'beloen-info');
-  info.append(el('span', 'beloen-navn', b.navn),
+  // 📌 = mit mål (ét ad gangen) – barnet vælger selv; tryk igen for at fjerne
+  const pin = knap(erMaal ? '📌 Mit mål' : '📌', 'lille-knap maal-knap', async () => {
+    await saetValg(barn, 'maal', erMaal ? null : b.navn);   // dage.js
+    if (!erMaal && loggetIndBarn() === barn) fejr('Nyt mål: ' + b.navn + ' 🎯');
+    tegnAlt();
+  });
+  pin.setAttribute('aria-pressed', erMaal);
+  pin.setAttribute('aria-label', erMaal ? 'Fjern som mit mål' : 'Gør ' + b.navn + ' til mit mål');
+  info.append(pin, el('span', 'beloen-navn', b.navn),
     el('span', 'beloen-pris', '★ ' + b.stjerner + (nok ? ' · du har nok!' : ' · mangler ' + (b.stjerner - s.stjerner)) + (b.engang ? ' · kun én gang' : '')),
     fremskridt(b.stjerner ? s.stjerner / b.stjerner : 1));
   const venter = d.indl.find(x => x.status === 'afventer' && x.navn === b.navn);
@@ -977,6 +992,18 @@ function beloenLi(barn, b, d, s) {
   return li;
 }
 
+// Jubel når barnet når 25, 50, 75 og 100 % af sit mål (huskes pr. enhed, så det kun sker én gang)
+function maalMilepael(barn, b, stjerner) {
+  if (loggetIndBarn() !== barn || !b.stjerner) return;
+  const noegle = 'maal-trin-' + barn + '-' + b.navn;
+  const trin = Math.floor(Math.min(1, Math.max(0, stjerner / b.stjerner)) * 4);   // 0–4
+  const foer = lokal.get(noegle);
+  lokal.set(noegle, String(trin));
+  if (foer === null || foer === undefined || trin <= Number(foer)) return;   // første gang eller ikke højere: ingen jubel
+  const tekst = trin === 4 ? 'Du har nok til ' + b.navn + '! 🎉' : ['', 'En fjerdedel af vejen', 'Halvvejs', 'Tre fjerdedele'][trin] + ' til ' + b.navn + '! 💪';
+  setTimeout(() => fejr(tekst), 1200);   // sjov.js
+}
+
 // Belønninger på børnetavlen: stjerner + de næste belønninger, så barnet ikke skal ind under Mere
 async function beloenningKort(barn) {
   const d = await pligtData(barn);
@@ -988,7 +1015,7 @@ async function beloenningKort(barn) {
   const ul = el('ul', 'beloen-liste i-kort');
   d.indl.filter(x => x.status === 'afventer').forEach(x => ul.append(oenskeLi(x, !erVoksen())));
   // Alle belønninger (billigste først) – også dem man sparer op til
-  const sorteret = [...d.beloenninger].sort((a, c) => a.stjerner - c.stjerner)
+  const sorteret = [...d.beloenninger].sort((a, c) => (c.navn === d.maal) - (a.navn === d.maal) || a.stjerner - c.stjerner)
     .filter(b => !brugtOp(b, d) && !d.indl.some(x => x.status === 'afventer' && x.navn === b.navn));
   sorteret.forEach(b => ul.append(beloenLi(barn, b, d, s)));
   // Sammenhæng med pligterne: hvad er tjent i dag, og hvad kan stadig nås
@@ -1007,6 +1034,14 @@ async function beloenningKort(barn) {
   const venter = d.indl.filter(x => x.status === 'afventer');
   const raad = sorteret.filter(b => b.stjerner <= s.stjerner);
   const naesteB = sorteret.find(b => b.stjerner > s.stjerner);
+  const maalB = sorteret.find(b => b.navn === d.maal);
+  if (maalB) {
+    maalMilepael(barn, maalB, s.stjerner);
+    k.tavle = { noegle: 'beloenninger', ikon: '🎯', titel: 'Mit mål', stor: '★ ' + Math.min(s.stjerner, maalB.stjerner) + '/' + maalB.stjerner,
+      lille: venter.length ? 'Ønske venter på en voksen 🎁' : s.stjerner >= maalB.stjerner ? maalB.navn + ' – du har nok! 🎉' : maalB.navn + ' · mangler ★ ' + (maalB.stjerner - s.stjerner),
+      andel: maalB.stjerner ? s.stjerner / maalB.stjerner : 1, klar: s.stjerner >= maalB.stjerner };
+    return k;
+  }
   k.tavle = { noegle: 'beloenninger', ikon: '🎁', titel: 'Belønninger', stor: '★ ' + s.stjerner + (tjentIdag ? '  +' + tjentIdag + ' i dag' : ''),
     lille: venter.length ? 'Ønske venter på en voksen 🎁' : raad.length ? 'Nok stjerner til ' + (raad.length === 1 ? '"' + raad[0].navn + '"' : raad.length + ' belønninger') + ' 🎉'
       : naesteB ? 'Mangler ★ ' + (naesteB.stjerner - s.stjerner) + ' til ' + naesteB.navn + (kanNaas ? ' · ★ ' + kanNaas + ' at hente i dag' : '') : '',
@@ -1111,7 +1146,7 @@ function ekstraDele(barn, d) {
     for (const x of givet) {
       const li = el('li', 'punkt gave-punkt');
       const tb = el('span', 'tekst-boks');
-      tb.append(el('span', 'tekst', (x.tekst || 'Ekstra stjerner') + (x.fra ? ' · fra ' + x.fra : '')));
+      tb.append(el('span', 'tekst', (x.tekst || 'Ekstra stjerner') + (x.fra ? ' · fra ' + kaldNavn(x.fra) : '')));
       li.append(el('span', 'gave-ikon', '⭐'), tb, el('span', 'stjerne-tag', '+★ ' + Math.round(tal(x.stjerner))));
       gl.append(li);
     }
@@ -1163,7 +1198,7 @@ async function svarTilBarn(barn) {
 }
 let svarVisesNu = false;
 // "Far gav dig ★ 3 – for opvasken!"
-const gaveTekst = x => (x.fra ? x.fra + ' gav dig' : 'Du fik') + ' ★ ' + Math.round(tal(x.stjerner)) + (x.tekst ? ' – ' + x.tekst : '') + '!';
+const gaveTekst = x => (x.fra ? kaldNavn(x.fra) + ' gav dig' : 'Du fik') + ' ★ ' + Math.round(tal(x.stjerner)) + (x.tekst ? ' – ' + x.tekst : '') + '!';
 // Nye punkter siden sidst (husket pr. enhed). Første gang tæller intet som nyt.
 function nyeSiden(noegle, liste) {
   let set;

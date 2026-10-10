@@ -117,6 +117,7 @@ const Data = (() => {
     async list(liste) {
       return raekker.filter(r => r.liste === liste).map(tilPunkt);
     },
+    listNu(liste) { return raekker.filter(r => r.liste === liste).map(tilPunkt); },   // samme, uden at vente
 
     async add(liste, felter) {
       const { data, error } = await db.from('punkter').insert({ liste, data: felter }).select().single();

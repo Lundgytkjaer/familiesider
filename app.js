@@ -90,7 +90,10 @@ const kortDag = iso => { const d = new Date(iso + 'T00:00'); return d.getDate() 
 // ---------- Faner ----------
 const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet'];
 const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet'];   // sider man når via "Mere"
-const FANE_NAVN = { idag: 'I dag', kalender: 'Kalender', madplan: 'Madplan', indkob: 'Indkøb', todo: 'To do', mere: 'Mere' };
+// Voksne: "Børn" (pligter, belønninger, ønsker) er en fane i bundmenuen, og To do ligger under Mere. Børn: som før.
+const underMere = navn => (Data.bruger()?.rolle === 'voksen'
+  ? (navn === 'todo' || (UNDER_MERE.includes(navn) && navn !== 'pligter')) : UNDER_MERE.includes(navn));
+const FANE_NAVN = { idag: 'I dag', kalender: 'Kalender', madplan: 'Madplan', indkob: 'Indkøb', todo: 'To do', mere: 'Mere', pligter: 'Børn' };
 // Børn ser kun de faner, de voksne har slået til for dem (personvalg.faner). Tavlen ("I dag") er der altid.
 const BOERNE_FANER = ['kalender', 'madplan', 'mere'];   // standard for børn
 const VALGBARE_FANER = { kalender: 'Kalender', madplan: 'Madplan', indkob: 'Indkøb', todo: 'To do', mere: 'Mere' };
@@ -103,10 +106,14 @@ async function anvendFaner() {
     tilladteFaner = ['idag', ...(Array.isArray(valg.faner) ? valg.faner : BOERNE_FANER)];
   }
   const knapper = [...document.querySelectorAll('.bundmenu [data-fane]')];
-  knapper.forEach(b => { b.hidden = !!tilladteFaner && !tilladteFaner.includes(b.dataset.fane); });
+  const voksen = p?.rolle === 'voksen';
+  knapper.forEach(b => {
+    b.hidden = b.dataset.fane === 'pligter' ? !voksen : b.dataset.fane === 'todo' && voksen ? true
+      : !!tilladteFaner && !tilladteFaner.includes(b.dataset.fane);
+  });
   document.querySelector('.bundmenu-indre').style.gridTemplateColumns = 'repeat(' + knapper.filter(b => !b.hidden).length + ', 1fr)';
   const aaben = document.querySelector('.fane:not([hidden])')?.id;
-  if (aaben && tilladteFaner && !tilladteFaner.includes(UNDER_MERE.includes(aaben) ? 'mere' : aaben)) visFane('idag');
+  if (aaben && tilladteFaner && !tilladteFaner.includes(underMere(aaben) ? 'mere' : aaben)) visFane('idag');
 }
 // Tilbage-knappen på undersiderne går derhen, man kom fra (fx "‹ I dag", når man trykkede på vejret på tavlen)
 let aktivFane = null, tilbageTil = null;
@@ -114,13 +121,14 @@ function visFane(navn) {
   if (typeof lukZoom === 'function') lukZoom();
   if (!FANER.includes(navn)) navn = 'idag';
   if ((navn === 'kontakter' || navn === 'aktivitet') && erBarn()) navn = 'idag';   // kontakter og aktivitet er kun for voksne
-  if (navn !== 'hjaelp' && tilladteFaner && !tilladteFaner.includes(UNDER_MERE.includes(navn) ? 'mere' : navn)) navn = 'idag';
+  if (navn !== 'hjaelp' && tilladteFaner && !tilladteFaner.includes(underMere(navn) ? 'mere' : navn)) navn = 'idag';
   const fra = aktivFane;
-  if (!UNDER_MERE.includes(navn)) tilbageTil = null;
-  else if (fra && fra !== navn && !UNDER_MERE.includes(fra)) tilbageTil = fra === 'mere' ? null : fra;
+  if (!underMere(navn)) tilbageTil = null;
+  else if (fra && fra !== navn && !underMere(fra)) tilbageTil = fra === 'mere' ? null : fra;
   aktivFane = navn;
   document.querySelectorAll('.fane').forEach(s => (s.hidden = s.id !== navn));
-  const iMenu = UNDER_MERE.includes(navn) ? 'mere' : navn;
+  const iMenu = underMere(navn) ? 'mere' : navn;
+  if (navn === 'pligter' && typeof tegnPligter === 'function') tegnPligter();
   document.querySelectorAll('[data-fane]').forEach(b => b.setAttribute('aria-selected', b.dataset.fane === iMenu));
   lokal.set('fane', navn);
   opdaterTilbage();
@@ -2905,6 +2913,11 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
   }
   dele.push(seg, el('p', 'hint', (hvem === mig ? 'Gælder din kalender og din I dag-side – på alle dine enheder.' : 'Gælder ' + hvem + 's tavle og kalender.')
     + ' Relationen kan også slås til og fra for den enkelte person på personens kort under Mere → Familie.'));
+  // Voksne: hvad kalder børnene mig? (vises i stedet for fornavnet i børnenes visning: "Far gav dig 2 ★")
+  if (!erBarn() && hvem === mig) {
+    const kseg = chipValg(['Far', 'Mor', ''], valg.kaldes || '', async v => { await saetValg(mig, 'kaldes', v || null); tegnAlt(); }, v => v || 'Mit navn');
+    dele.push(el('label', 'felt-label', 'Børnene kalder mig'), kseg);
+  }
   // Voksne vælger, hvilke faner et barn kan se (tavlen er der altid)
   if (!erBarn() && BOERN.includes(hvem)) {
     const faner = new Set(Array.isArray(valg.faner) ? valg.faner : BOERNE_FANER);
@@ -3085,6 +3098,8 @@ async function opdaterVenter() {
     + (typeof sedlerTilMig === 'function' ? await sedlerTilMig() : 0);   // sedler til mig (seddel.js)
   const badge = document.querySelector('[data-badge="idag"]');
   badge.textContent = n; badge.hidden = !n;
+  const bBadge = document.querySelector('[data-badge="pligter"]');   // Børn-fanen
+  if (bBadge) { bBadge.textContent = n; bBadge.hidden = !n; }
   const fam = document.querySelector('#idag-valg button');   // "Familien"
   if (fam) {
     fam.querySelector('.valg-badge')?.remove();
