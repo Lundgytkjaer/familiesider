@@ -1462,7 +1462,7 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 
 /* 🏆 Pokalhylde (mere.js pokalHylde) */
 .pokalhylde { margin-top: 14px; padding-top: 10px; border-top: 1px dashed var(--linje); }
-.pokal-tal { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pokal-tal { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 .pokal-stat { display: grid; justify-items: center; text-align: center; gap: 2px; padding: 10px 4px; border-radius: 14px; background: var(--accent-blod); }
 .pokal-stat b { font-size: 22px; }
 .pokal-stat span:last-child { font-size: 12px; color: var(--daempet); line-height: 1.2; }
@@ -1486,3 +1486,9 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .kl-hvem { grid-column: 2 / -1; font-size: 13px; color: var(--daempet); margin-top: -4px; }
 .kl-tom { color: var(--daempet); font-size: 14px; padding: 4px 0 6px; }
 .kl-prikker .prik { width: 10px; height: 10px; border-radius: 50%; background: var(--p, var(--accent)); }
+
+/* Makkeren vokser (sjov.js makkerNiveau) */
+.makker-figur-boks { position: relative; flex: none; }
+.makker-pynt { position: absolute; top: -10px; left: 50%; transform: translateX(-50%) rotate(-8deg); font-size: 30px; line-height: 1; pointer-events: none; filter: drop-shadow(0 2px 2px rgb(0 0 0 / .25)); }
+.fliser > .alfie-kort .makker-pynt { font-size: 24px; top: -8px; }
+.makker-niveau { margin: 4px 0 0; font-size: 13px; font-weight: 600; color: var(--daempet); }

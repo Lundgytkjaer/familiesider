@@ -640,6 +640,8 @@ async function pligtKort(barn, titel = 'Pligter i dag') {
   const bs = d.regel.stjerner ? bonusStatus(d) : { n: 0 };   // fra sjov.js
   const bl = bonusLinje(bs);
   if (bl) k.append(bl);
+  const ul2 = ugepokalLinje(barn, d);
+  if (ul2) k.append(ul2);
   k.append(...ekstraDele(barn, d));   // ⭐ ekstra stjerner
   if (liste.some(r => r.o.piktogram)) k.append(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
   // Opsummering til tavle-visningen
@@ -992,6 +994,21 @@ function beloenLi(barn, b, d, s) {
   return li;
 }
 
+// 🏆 Ugepokal-linje på pligt-kortet: "3 af 5 dage" – og fest, når den er vundet (én gang pr. uge pr. enhed)
+function ugepokalLinje(barn, d) {
+  if (typeof ugeStatus !== 'function') return null;
+  const man = isoDato(mandagDenneUge());
+  const st = ugeStatus(d, man);   // sjov.js
+  if (!st.maal) return null;
+  const vundet = st.n >= st.maal;
+  if (vundet && loggetIndBarn() === barn && !lokal.get('ugepokal-' + barn + '-' + man)) {
+    lokal.set('ugepokal-' + barn + '-' + man, '1');
+    setTimeout(() => fejr('🏆 Du har vundet ugens pokal!'), 2200);
+  }
+  return el('p', 'bonus-linje ugepokal' + (vundet ? ' givet' : ''), vundet ? '🏆 Ugens pokal er vundet! (' + st.n + ' dage)'
+    : '🏆 Ugepokal: ' + st.n + ' af ' + st.maal + ' dage med alle pligter');
+}
+
 // 🏆 Pokalhylde: det barnet har opnået – regnes ud fra det, der allerede er gemt (ingen ny data)
 function pokalHylde(d) {
   const bonus = d.bonus || [];
@@ -1000,16 +1017,19 @@ function pokalHylde(d) {
   const faaet = d.indl.filter(x => (x.status || 'godkendt') === 'godkendt').sort((a, c) => (c.dato || '').localeCompare(a.dato || ''));
   const tjent = sum(d.flueben, 'stjerner') + sum(bonus, 'stjerner') + sum((d.ekstra || []).filter(x => x.status === 'godkendt'), 'stjerner')
     + (d.just || []).filter(x => !x.type && tal(x.stjerner) > 0).reduce((n, x) => n + tal(x.stjerner), 0);
-  if (!medaljer.length && rekord < 2 && !faaet.length && !tjent) return null;
+  const pokaler = typeof ugepokaler === 'function' ? ugepokaler(d) : [];   // sjov.js
+  if (!medaljer.length && rekord < 2 && !faaet.length && !tjent && !pokaler.length) return null;
   const boks = el('div', 'pokalhylde');
   boks.append(el('h3', 'lille-titel', '🏆 Pokalhylde'));
   const tal3 = el('div', 'pokal-tal');
   const stat = (ikon, vaerdi, tekst) => { const t = el('div', 'pokal-stat'); t.append(el('span', 'pokal-ikon', ikon), el('b', null, vaerdi), el('span', null, tekst)); tal3.append(t); };
   stat('⭐', String(Math.round(tjent)), 'stjerner tjent i alt');
   if (rekord >= 2) stat('🔥', String(rekord), 'dage i træk – rekord');
+  stat('🏆', String(pokaler.length), pokaler.length === 1 ? 'ugepokal' : 'ugepokaler');
   stat('🏅', String(medaljer.length), medaljer.length === 1 ? 'medalje' : 'medaljer');
   boks.append(tal3);
   const ul = el('ul', 'pokal-liste');
+  for (const p of pokaler.slice(0, 4)) ul.append(el('li', null, '🏆 Ugepokal uge ' + ugenummer(new Date(p.man + 'T12:00')) + ' · ' + p.n + ' dage'));
   for (const m of medaljer.slice(0, 6)) ul.append(el('li', null, '🏅 ' + m.milepael + ' dage i træk · ' + kortDato(m.dato)));
   for (const x of faaet.slice(0, 6)) ul.append(el('li', null, '🎁 ' + x.navn + ' · ' + kortDato(x.dato)));
   if (ul.children.length) boks.append(ul);

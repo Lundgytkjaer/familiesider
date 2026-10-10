@@ -88,7 +88,9 @@ function dagligeDen(d, iso) {
 function dagKlaret(d, iso) {
   const planlagt = dagligeDen(d, iso);
   if (!planlagt.length) return null;
-  return planlagt.every(o => d.flueben.some(f => f.opgave === o.id && f.periode === iso && !f.sprunget));
+  // Opslag i et sæt (bygges én gang pr. d) – ellers bliver mange dage × mange flueben langsomt
+  if (!d._fb) Object.defineProperty(d, '_fb', { value: new Set(d.flueben.filter(f => !f.sprunget).map(f => f.opgave + '|' + f.periode)) });
+  return planlagt.every(o => d._fb.has(o.id + '|' + iso));
 }
 // Syg den dag (simpel udgave som i databasen: en "Syg"-aftale uden gentagelse, der dækker dagen)
 const sygSimpel = (d, iso) => (d.kalender || []).some(a => a.type === 'syg' && !a.gentag && a.dato <= iso
@@ -116,6 +118,55 @@ function streak(d) {
   return n;
 }
 const streakTekst = n => '🔥 ' + n + (n === 1 ? ' dag' : ' dage') + ' i træk';
+
+// ---------- Ugepokal: 5 af ugens dage med alle hver-dag-pligter klaret (tilgivende – én glemt dag ødelægger ikke ugen) ----------
+// Mål = 5 dage, eller færre hvis ugen har færre pligt-dage. Syge-/joker-dage tæller som klaret. Regnes ud – gemmes ikke.
+function ugeStatus(d, man) {
+  let n = 0, planlagt = 0;
+  for (let i = 0; i < 7; i++) {
+    const iso = plusDage(man, i);
+    if (springOverDag(d, iso)) { if (dagligeDen(d, iso).length) { n++; planlagt++; } continue; }
+    const k = dagKlaret(d, iso);
+    if (k === null) continue;
+    planlagt++;
+    if (k) n++;
+  }
+  return { n, maal: Math.min(5, planlagt) };
+}
+// Alle vundne ugepokaler (nyeste først)
+function ugepokaler(d) {
+  const tidligste = tidligstePligt(d);
+  if (tidligste === '9999-99-99') return [];
+  const res = [], idag = isoDato(new Date());
+  let man = isoDato(mandagFor(new Date(tidligste + 'T12:00')));   // app.js
+  for (let k = 0; k < 160 && man <= idag; k++, man = plusDage(man, 7)) {
+    const st = ugeStatus(d, man);
+    if (st.maal && st.n >= st.maal) res.push({ man, ...st });
+  }
+  return res.reverse();
+}
+
+// ---------- Makkeren vokser: får nyt pynt for hver 5 (10, 20 …) klarede dage ----------
+const MAKKER_PYNT = [[5, '🧢', 'en kasket'], [10, '🕶️', 'solbriller'], [20, '🧣', 'et halstørklæde'], [35, '🎩', 'en flot hat'],
+  [50, '👑', 'en krone'], [75, '🦸', 'en superheltekappe'], [100, '🏆', 'en guldpokal']];
+function klaredeDage(d) {
+  const tidligste = tidligstePligt(d);
+  if (tidligste === '9999-99-99') return 0;
+  const idag = isoDato(new Date());
+  let n = 0;
+  for (let i = 0; i < 1000; i++) {
+    const iso = plusDage(idag, -i);
+    if (iso < tidligste) break;
+    if (dagKlaret(d, iso) === true) n++;
+  }
+  return n;
+}
+function makkerNiveau(d) {
+  const dage = klaredeDage(d);
+  const fået = MAKKER_PYNT.filter(([n]) => dage >= n);
+  const naeste = MAKKER_PYNT.find(([n]) => dage < n);
+  return { dage, niveau: fået.length, pynt: fået.map(p => p[1]), sidste: fået[fået.length - 1] || null, naeste };
+}
 
 // Den seneste dag før 'iso', der tæller: true = holdt (klaret eller voksen-sat række), false = brudt.
 // Giver også datoen, så jokeren ved, hvilken dag den skal redde.
@@ -660,6 +711,7 @@ async function alfieKort(barn) {
     : hvordan === 'venter' ? m.venter(mangler, aften) : hvordan === 'glad' ? m.glad(mangler) : m[hvordan];
 
   const k = el('div', 'kort alfie-kort makker-' + (valg.ven || 'alfie'));
+  const nv = makkerNiveau(d);
   const figur = el('button', 'alfie-figur');
   figur.type = 'button';
   figur.setAttribute('aria-label', m.navn);
@@ -678,14 +730,26 @@ async function alfieKort(barn) {
     figur.classList.remove('vip'); void figur.offsetWidth; figur.classList.add('vip');
     boble.textContent = m.siger[Math.floor(Math.random() * m.siger.length)];
   });
+  // Pynt: det nyeste sidder på makkeren, resten står under som en lille samling
+  const figurBoks = el('div', 'makker-figur-boks');
+  figurBoks.append(figur);
+  if (nv.sidste) figurBoks.append(el('span', 'makker-pynt', nv.sidste[1]));
   const hoejre = el('div', 'alfie-hoejre');
   hoejre.append(boble, ialt ? fremskridt(klaret / ialt) : '');
+  hoejre.append(el('p', 'makker-niveau', (nv.niveau ? 'Niveau ' + (nv.niveau + 1) + ' ' + nv.pynt.join('') : 'Niveau 1')
+    + (nv.naeste ? ' · ' + (nv.naeste[0] - nv.dage) + (nv.naeste[0] - nv.dage === 1 ? ' dag' : ' dage') + ' til ' + nv.naeste[1] : '')));
+  // Nyt pynt siden sidst (husket på enheden) → fest
+  if (loggetIndBarn() === barn) {
+    const noegle = 'makker-niveau-' + barn, foer = lokal.get(noegle);
+    lokal.set(noegle, String(nv.niveau));
+    if (foer !== null && nv.niveau > Number(foer) && nv.sidste) setTimeout(() => fejr(m.navn + ' har fået ' + nv.sidste[2] + '! ' + nv.sidste[1]), 1500);
+  }
   const s = streak(d);
   const bund = el('div', 'makker-bund');
   bund.append(s >= 2 ? el('span', 'streak', streakTekst(s)) : el('span'),
     knap('Skift makker', 'lille-knap makker-skift', () => vaelgMakker(barn, valg.ven || 'alfie')));
   hoejre.append(bund);
-  k.append(figur, hoejre);
+  k.append(figurBoks, hoejre);
   return k;
 }
 
