@@ -727,7 +727,8 @@ async function tegnForslag(type) {
       const tag = voksenRet ? knap('', 'tag ret-tag', () => redigerRet(f)) : el('span', 'tag');   // retter.js
       tag.append(f.tekst);
       const vs = aktiveVarianter(f);
-      const ekstra = [vs.map(v => v.navn).join(' · '), f.side ? 'med ' + f.side : ''].filter(Boolean).join(' – ');
+      const sd = passerSider(f), ek = passerEkstra(f);
+      const ekstra = [vs.map(v => v.navn).join(' · '), sd.length ? 'med ' + sd.join('/') : '', ek.length ? '+ ' + ek.join(', ') : ''].filter(Boolean).join(' – ');
       if (ekstra) tag.append(el('span', 'tag-var', ekstra));
       const hvem = PERSONER.filter(p => kanLide(f).includes(p));
       if (hvem.length) {
@@ -942,7 +943,7 @@ async function tegnMadplan() {
     li.append(label, fuldTekst(felt, t => retVisning(alleFavs, 'ret', t)), gentag, terning);   // retter.js
     // Varianter af dagens ret (fx burger: flæskesteg · kyllingebøf …) – tryk for at vælge
     if (!erBarn() && felt.value) {
-      const vc = variantChips(alleFavs, 'ret', felt.value, async t => {   // retter.js
+      const vc = retChips(alleFavs, 'ret', felt.value, async t => {   // retter.js
         if (fast && !egen && t === fast) return;
         await gemRet(i, t === fast ? '' : t);
         tegnMadplan();

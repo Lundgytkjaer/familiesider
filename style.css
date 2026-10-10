@@ -1402,3 +1402,8 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .dag .fuld-vis { padding: 8px 0; min-height: var(--raekke); }
 .fast-felt .fuld-vis { padding: 6px 9.5px; font-size: 15px; min-height: 40px; }
 .fuld-ekstra { color: var(--daempet); }
+/* Madplan: skel mellem varianter, tilbehør og ekstra; ekstra med stiplet kant */
+.var-skil { flex: none; width: 1px; align-self: stretch; margin: 4px 2px; background: var(--linje); }
+.var-chip.ekstra-chip { border-style: dashed; }
+.var-chip.ekstra-chip[aria-pressed="true"] { border-style: solid; }
+.lille-label { font-size: 13px; color: var(--daempet); margin-top: 6px; }
