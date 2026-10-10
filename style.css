@@ -1468,3 +1468,21 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .pokal-stat span:last-child { font-size: 12px; color: var(--daempet); line-height: 1.2; }
 .pokal-ikon { font-size: 24px; }
 .pokal-liste { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font-size: 15px; }
+
+/* Kalender som liste (app.js tegnKalListe) */
+.kal-liste { display: grid; gap: 10px; }
+.kl-dag { background: var(--flade); border-radius: var(--radius); padding: 8px 12px 6px; }
+.kl-dag.idag { box-shadow: inset 0 0 0 2px var(--accent); }
+.kl-dag.forbi { opacity: .6; }
+.kl-hoved { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.kl-navn { font-weight: 800; }
+.kl-ny { margin-left: auto; width: 36px; height: 32px; border-radius: 10px; border: 1.5px solid var(--linje); background: var(--bg); color: var(--accent); font-size: 20px; font-weight: 700; }
+.kl-liste { list-style: none; margin: 0; padding: 0; }
+.kl-punkt + .kl-punkt { border-top: 1px solid var(--linje); }
+.kl-knap, .kl-punkt:not(:has(.kl-knap)) { width: 100%; display: grid; grid-template-columns: 92px 1fr auto; align-items: center; gap: 6px 8px; padding: 8px 0; border: 0; background: none; text-align: left; font: inherit; color: var(--fg); }
+.kl-tid { font-size: 14px; color: var(--daempet); font-variant-numeric: tabular-nums; }
+.kl-titel { font-weight: 600; overflow-wrap: anywhere; }
+.kl-prikker { display: inline-flex; gap: 3px; }
+.kl-hvem { grid-column: 2 / -1; font-size: 13px; color: var(--daempet); margin-top: -4px; }
+.kl-tom { color: var(--daempet); font-size: 14px; padding: 4px 0 6px; }
+.kl-prikker .prik { width: 10px; height: 10px; border-radius: 50%; background: var(--p, var(--accent)); }

@@ -1473,22 +1473,23 @@ function aftalerDen(aftaler, iso, hvem = null) {
 }
 
 // Uge- eller månedsvisning (huskes på denne enhed)
-let kalVisning = lokal.get('kal-visning') === 'maaned' ? 'maaned' : 'uge';
+let kalVisning = ['maaned', 'liste'].includes(lokal.get('kal-visning')) ? lokal.get('kal-visning') : 'uge';
 let kalMaaned = 0;                       // 0 = denne måned
 let kalValgtDag = isoDato(new Date());   // valgt dag i månedsvisningen
 
 function tegnKalVisningValg() {
   const seg = document.getElementById('kal-visning');
-  seg.replaceChildren(...[['uge', 'Uge'], ['maaned', 'Måned']].map(([v, navn]) => {
+  seg.replaceChildren(...[['liste', 'Liste'], ['uge', 'Uge'], ['maaned', 'Måned']].map(([v, navn]) => {
     const k = knap(navn, null, () => { kalVisning = v; lokal.set('kal-visning', v); tegnKalender(); });
     k.setAttribute('role', 'radio');
     k.setAttribute('aria-checked', v === kalVisning);
     return k;
   }));
   document.getElementById('kal-uge-del').hidden = kalVisning !== 'uge';
+  document.getElementById('kal-liste-del').hidden = kalVisning !== 'liste';
   document.getElementById('kal-maaned-del').hidden = kalVisning !== 'maaned';
-  document.getElementById('kal-forrige').setAttribute('aria-label', kalVisning === 'uge' ? 'Forrige uge' : 'Forrige måned');
-  document.getElementById('kal-naeste').setAttribute('aria-label', kalVisning === 'uge' ? 'Næste uge' : 'Næste måned');
+  document.getElementById('kal-forrige').setAttribute('aria-label', kalVisning !== 'maaned' ? 'Forrige uge' : 'Forrige måned');
+  document.getElementById('kal-naeste').setAttribute('aria-label', kalVisning !== 'maaned' ? 'Næste uge' : 'Næste måned');
 }
 
 async function tegnMaaned() {
@@ -1567,6 +1568,48 @@ async function tegnMaaned() {
   detalje.replaceChildren(top, ul);
 }
 
+// Liste: ugen dag for dag – én linje pr. aftale med farvede prikker (let at læse på en telefon)
+function tegnKalListe(man, aftaler, alleFoed, mineValg, idagIso) {
+  const boks = document.getElementById('kal-liste');
+  boks.replaceChildren();
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(man); d.setDate(man.getDate() + i);
+    const iso = isoDato(d);
+    const dag = el('div', 'kl-dag' + (iso === idagIso ? ' idag' : '') + (iso < idagIso ? ' forbi' : ''));
+    const hoved = el('div', 'kl-hoved');
+    hoved.append(el('span', 'kl-navn', DAGE_LANG[i] + ' ' + d.getDate() + '. ' + MDR_LANG[d.getMonth()].slice(0, 3) + '.'));
+    if (iso === idagIso) hoved.append(el('span', 'bt-idag', 'I dag'));
+    if (!erBarn()) hoved.append(knap('+', 'kl-ny', () => redigerAftale({ dato: iso, hvem: 'Fælles' })));
+    dag.append(hoved);
+    const ul = el('ul', 'kl-liste');
+    const egneFoed = alleFoed.filter(f => isoDato(datoIAar(f, d.getFullYear())) === iso);
+    for (const f of egneFoed) {
+      const alder = alderPaa(f, d);
+      const li = el('li', 'kl-punkt c-foed');
+      const b = knap('', 'kl-knap', () => redigerFoed(f));
+      b.append(el('span', 'kl-tid', ''), el('span', 'kl-titel', foedIkon(f) + f.navn + (alder != null && !f.minde ? ' · ' + alder + ' år' : '')));
+      li.append(b); ul.append(li);
+    }
+    for (const x of indbyggedeDageDen(iso, egneFoed, mineValg)) {
+      const li = el('li', 'kl-punkt ' + dagKlasse(x));
+      li.append(el('span', 'kl-tid', ''), el('span', 'kl-titel', x.ikon + ' ' + x.navn));
+      ul.append(li);
+    }
+    for (const a of aftalerDen(aftaler, iso)) {
+      const li = el('li', 'kl-punkt');
+      const b = knap('', 'kl-knap', () => redigerAftale(a, forekomstStart(a, iso)));
+      const prikker = el('span', 'kl-prikker');
+      prikker.append(...personerI(a).map(p => el('span', 'prik ' + (PK[p] || 'c-faelles'))));
+      b.append(el('span', 'kl-tid', a.tid ? visTid(a.tid) + (a.slut ? '–' + visTid(a.slut) : '') : 'Hele dagen'),
+        el('span', 'kl-titel', a.titel + (a.gentag ? ' ↻' : '') + laas(a)), prikker, el('span', 'kl-hvem', personerI(a).join(', ')));
+      li.append(b); ul.append(li);
+    }
+    if (!ul.children.length) ul.append(el('li', 'kl-tom', 'Intet'));
+    dag.append(ul);
+    boks.append(dag);
+  }
+}
+
 async function tegnKalender() {
   tegnKalVisningValg();
   if (kalVisning === 'maaned') return tegnMaaned();
@@ -1582,6 +1625,7 @@ async function tegnKalender() {
   const alleFoed = await foedselsListe();   // fra familie.js (personer + gamle rækker)
   const mineValg = await valgFor(Data.bruger()?.navn);
   const idagIso = isoDato(new Date());
+  if (kalVisning === 'liste') return tegnKalListe(man, aftaler, alleFoed, mineValg, idagIso);
   const g = document.getElementById('kal');
   g.replaceChildren(el('div'));
 
