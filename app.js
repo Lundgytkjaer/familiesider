@@ -117,12 +117,16 @@ async function anvendFaner() {
 }
 // Tilbage-knappen på undersiderne går derhen, man kom fra (fx "‹ I dag", når man trykkede på vejret på tavlen)
 let aktivFane = null, tilbageTil = null;
-function visFane(navn) {
+// Telefonens tilbage-knap: sidste faner huskes, så "tilbage" går dertil (se tilbageKnap)
+const faneHistorik = [];
+function visFane(navn, fraTilbage = false) {
   if (typeof lukZoom === 'function') lukZoom();
   if (!FANER.includes(navn)) navn = 'idag';
   if ((navn === 'kontakter' || navn === 'aktivitet') && erBarn()) navn = 'idag';   // kontakter og aktivitet er kun for voksne
   if (navn !== 'hjaelp' && tilladteFaner && !tilladteFaner.includes(underMere(navn) ? 'mere' : navn)) navn = 'idag';
   const fra = aktivFane;
+  if (!fraTilbage && fra && fra !== navn) { faneHistorik.push(fra); if (faneHistorik.length > 20) faneHistorik.shift(); }
+  if (navn !== 'pligter' && typeof pligtRet !== 'undefined') pligtRet = false;   // rette-tilstand slutter, når man går fra Pligter
   if (!underMere(navn)) tilbageTil = null;
   else if (fra && fra !== navn && !underMere(fra)) tilbageTil = fra === 'mere' ? null : fra;
   aktivFane = navn;
@@ -3026,6 +3030,7 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
   const MULIGHEDER = [['helligdage', '🎄 Helligdage'], ['maerkedage', '🎃 Mærkedage (halloween, mors dag …)'],
     ['sol', '🌅 Solopgang og solnedgang'], ['vejr', '🌦️ Vejret'], ['relationer', '👪 Familierelation ved fødselsdage – fx "Bente (mormor)"'],
     ['emoji', '😀 Automatisk emoji ved pligter og belønninger'],
+    ...(hvem === mig && !erBarn() ? [['fortryd', '↩️ "Fortryd"-knap efter sletning og svar (ellers: Mere → Aktivitet)']] : []),
     ...(BOERN.includes(hvem) ? [['nedtaelling', '⏳ Nedtælling på tavlen'], ['makker', '🐰 Makker på tavlen']] : [])];
   const seg = el('div', 'seg wrap tilpas-valg');
   for (const [felt, tekst] of MULIGHEDER) {
@@ -3223,6 +3228,8 @@ document.getElementById('log-ud').addEventListener('click', () => aabnIndstillin
 // Vises i 8 sekunder nederst: "Slettet: Lasagne · Fortryd"
 let fortrydEl = null, fortrydTimer = null;
 function visFortryd(g) {
+  // Kan slås fra under Indstillinger (personvalg.fortryd = false) – slettet kan stadig gendannes under Mere → Aktivitet
+  if (Data.listNu('personvalg').find(x => x.navn === Data.bruger()?.navn)?.fortryd === false) return;
   if (!fortrydEl) {
     fortrydEl = el('div', 'fortryd-boks');
     fortrydEl.setAttribute('role', 'status');
@@ -3354,6 +3361,39 @@ async function startTavle() {
   // Åbnet fra en notifikation? (sw.js sætter #gaa=<liste>-<id>)
   const gaa = new URLSearchParams(location.hash.slice(1)).get('gaa');
   if (gaa) { history.replaceState(null, '', location.pathname + location.search); setTimeout(() => gaaTil(gaa), 400); }
+  tilbageVagt();
+}
+
+// ---------- Telefonens tilbage-knap (Android) ----------
+// Der ligger altid én "vagt" i browserens historik. Trykker man tilbage, fanges det her og bruges i appen:
+// luk ark/zoom → afslut rette-tilstand → luk pakkeliste → forrige fane → I dag. På I dag: "Tryk tilbage igen for at lukke".
+let tilbageSat = false, lukVedNaeste = false, lukTimer = null;
+function tilbageVagt() {
+  if (tilbageSat) return;
+  tilbageSat = true;
+  history.replaceState({ base: true }, '');
+  history.pushState({ vagt: true }, '');
+  addEventListener('popstate', () => {
+    if (tilbageKnap()) { lukVedNaeste = false; history.pushState({ vagt: true }, ''); return; }
+    if (lukVedNaeste) return;   // andet tryk: lad telefonen lukke appen
+    lukVedNaeste = true;
+    visStatus('Tryk tilbage igen for at lukke appen');
+    history.pushState({ vagt: true }, '');
+    clearTimeout(lukTimer);
+    lukTimer = setTimeout(() => { lukVedNaeste = false; }, 2500);
+  });
+}
+// Gør det, tilbage skal gøre i appen. Svarer false, når der ikke er mere at gå tilbage til.
+function tilbageKnap() {
+  if (!arkEl.hidden) { lukArk(); return true; }
+  if (typeof zoomEl !== 'undefined' && zoomEl && !zoomEl.hidden) { lukZoom(); return true; }
+  if (aktivFane === 'pligter' && typeof pligtRet !== 'undefined' && pligtRet) { pligtRet = false; tegnPligter(); window.scrollTo(0, 0); return true; }
+  if (aktivFane === 'pakkelister' && typeof pakValgt !== 'undefined' && pakValgt) { pakValgt = ''; lokal.set('pak-valgt', ''); tegnPakkelister(); opdaterTilbage(); return true; }
+  while (faneHistorik.length && faneHistorik[faneHistorik.length - 1] === aktivFane) faneHistorik.pop();
+  const forrige = faneHistorik.pop();
+  if (forrige) { visFane(forrige, true); window.scrollTo(0, 0); return true; }
+  if (aktivFane !== 'idag') { visFane('idag', true); window.scrollTo(0, 0); return true; }
+  return false;
 }
 
 // Gå hen til det, en notifikation handler om. tag = '<liste>-<id>'
