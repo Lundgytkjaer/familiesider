@@ -1572,3 +1572,4 @@ body.cool .rutine-strip { display: none; }
 .antal-valg { margin-bottom: 12px; }
 .antal-valg .seg button { min-width: 48px; }
 .ai-side-knap { white-space: nowrap; }
+.kopi-felt { width: 100%; box-sizing: border-box; font: 12px/1.4 ui-monospace, monospace; padding: 10px; border-radius: 12px; border: 1px solid var(--linje); background: var(--bg); color: inherit; }

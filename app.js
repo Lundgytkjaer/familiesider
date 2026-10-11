@@ -626,6 +626,28 @@ function antalValg(p, efter = () => { lukArk(); tegnAlt(); }) {
   return boks;
 }
 
+// Alle retter (morgen, frokost, aftensmad) + listerne over tilbehør/ekstra/fyld som tekst – til at sætte ind i en chat med Claude
+async function kopierRetter() {
+  await hentTilbehoer();   // retter.js
+  const favs = (await Data.list('favoritter')).filter(f => ['ret', 'morgen', 'frokost'].includes(f.type))
+    .sort((a, b) => a.type.localeCompare(b.type) || a.tekst.localeCompare(b.tekst, 'da'));
+  const ren = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== '' && v !== false && !(Array.isArray(v) && !v.length)));
+  const data = {
+    lister: { tilbehoer: SIDER, ekstra: EKSTRA, fyld: FYLD },
+    retter: favs.map(f => ren({ m: f.type, t: f.tekst, g: f.gruppe, side: f.side, sider: f.sider, ekstra: f.ekstra, fyld: f.fyld,
+      var: (f.varianter || []).map(v => v.navn + (v.tekst ? '=' + v.tekst : '') + (v.slukket ? ' (slukket)' : '')), lide: f.kanLide, brugt: f.brugt, bv: f.boernevalg, ikkeAuto: f.ikkeAuto }))
+  };
+  const tekst = 'FAMILIETAVLEN-RETTER ' + new Date().toISOString().slice(0, 10) + ' (' + data.retter.length + ' retter)\n' + JSON.stringify(data);
+  let ok = false;
+  try { await navigator.clipboard.writeText(tekst); ok = true; } catch (e) { /* vis feltet i stedet */ }
+  const felt = el('textarea', 'kopi-felt');
+  felt.value = tekst; felt.readOnly = true; felt.rows = 8;
+  felt.addEventListener('focus', () => felt.select());
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('Kopiér igen', 'knap sekundaer', async () => { try { await navigator.clipboard.writeText(tekst); visStatus('Kopieret ✓'); } catch (e) { felt.focus(); felt.select(); } }), knap('Færdig', 'knap', lukArk));
+  aabnArk('📋 Retterne', el('p', null, ok ? '✓ ' + data.retter.length + ' retter er kopieret. Sæt dem ind i chatten med Claude.' : 'Markér teksten og kopiér den – og sæt den ind i chatten med Claude.'), felt, knapper);
+}
+
 function omdoebFavorit(f) {
   const inp = input('text', 'fav-nyt-navn', f.tekst);
   const knapper = el('div', 'ark-knapper');
@@ -896,7 +918,8 @@ async function tegnForslag(type) {
       const { ligner, udenKategori } = rydOpForslag(await Data.list('favoritter'));   // retter.js
       const n = ligner.length + udenKategori.length;
       if (n) styr('🧹 Ryd op (' + n + ')', rydOp);
-      if (typeof aabnAI === 'function') styr('✨ Ryd op med AI', () => aabnAI({ opgave: 'ryd_retter' }));   // ai.js – skriv evt. "kun kylling"
+      if (typeof aabnAI === 'function') styr('✨ Ryd op med AI', () => aabnAI({ opgave: 'ryd_retter' }));
+      styr('📋 Kopiér retterne', kopierRetter);   // til den store oprydning sammen med Claude   // ai.js – skriv evt. "kun kylling"
     }
     styr('✎ Fyld, tilbehør og ekstra', redigerTilbehoerLister);
   }
