@@ -1531,3 +1531,23 @@ body.cool .rutine-strip { display: none; }
 .punkt-panel { border: 2px solid var(--accent); border-radius: 14px; padding: 10px 12px; margin: 6px 0 10px; background: var(--flade); }
 .punkt-panel-tekst { margin: 0 0 8px; font-weight: 600; }
 .punkt-panel-knapper { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+/* ✨ AI-hjælperen */
+.ai-knap { margin-left: auto; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--linje); background: var(--flade); font-size: 20px; cursor: pointer; align-self: center; }
+.ai-knap + .bruger-knap { margin-left: 8px; }
+.ai-felt { width: 100%; box-sizing: border-box; font: inherit; font-size: 17px; padding: 12px; border-radius: 14px; border: 1.5px solid var(--linje); background: var(--flade); color: inherit; resize: vertical; }
+.ai-eksempler { margin: 10px 0; }
+.ai-eksempler button { font-size: 14px; }
+.ai-besked { font-weight: 600; margin: 12px 0 8px; }
+.ai-taenker { color: var(--daempet); font-weight: 700; animation: ai-puls 1.2s ease-in-out infinite; }
+@keyframes ai-puls { 50% { opacity: .4; } }
+.ai-fejl { color: #c0392b; font-weight: 600; }
+.ai-forslag { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 8px; }
+.ai-kort { display: flex; align-items: center; gap: 8px; background: var(--flade); border: 1.5px solid var(--linje); border-radius: 14px; padding: 4px 8px 4px 4px; }
+.ai-kort.fejl { padding: 10px 12px; color: var(--daempet); }
+.ai-valg { flex: 1; display: flex; align-items: center; gap: 10px; background: none; border: 0; color: inherit; font: inherit; text-align: left; padding: 8px; min-height: 48px; cursor: pointer; }
+.ai-flueben { width: 22px; height: 22px; border-radius: 6px; border: 2px solid var(--linje); flex: none; display: grid; place-items: center; }
+.ai-valg[aria-checked="true"] .ai-flueben { background: var(--accent); border-color: var(--accent); }
+.ai-valg[aria-checked="true"] .ai-flueben::after { content: '✓'; color: #fff; font-weight: 800; font-size: 14px; }
+.ai-valg[aria-checked="false"] .ai-tekst { opacity: .5; text-decoration: line-through; }
+.ai-ikon { font-size: 20px; flex: none; }
+.ai-tekst { line-height: 1.35; }
