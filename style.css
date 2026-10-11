@@ -1621,3 +1621,16 @@ body.cool .rutine-strip { display: none; }
 :root[data-theme="dark"] .sted-kort .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9); }
 .sted-hvem-valg button[class*="c-"][aria-checked="true"] { background: var(--p); border-color: var(--p); color: #fff; }
 #sted-aar { max-width: 140px; }
+
+/* Madplan: ⋯ pr. dag, 🎉 Vi er ude, forslag fra kalenderen (2026-10-11za) */
+.dag input::-webkit-calendar-picker-indicator, .fast-felt input::-webkit-calendar-picker-indicator { display: none !important; opacity: 0; }
+.gentag-knap.dag-menu { display: grid; place-items: center; opacity: .7; }
+.gentag-knap.dag-menu svg { width: 18px; height: 18px; }
+.gentag-knap.dag-menu.aktiv { opacity: 1; }
+.dag.ude .fuld-vis { color: var(--p2); font-style: italic; }
+.dag.ude input[type="text"] { cursor: pointer; }
+.ude-forslag { grid-column: 2 / -1; display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 0 12px 8px 0; font-size: 13px; color: var(--daempet); }
+.ude-forslag span { flex: 1 1 0; min-width: 0; }
+.ude-forslag .lille-knap { min-height: 32px; padding: 0 12px; font-size: 13px; }
+.dag-valg .seg-label { margin-top: 10px; }
+.byt-dage button { min-width: 64px; }

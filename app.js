@@ -163,16 +163,17 @@ document.querySelectorAll('[data-gaa]').forEach(b => b.addEventListener('click',
 
 // ---------- "Tryk igen"-bekræftelse ----------
 function bekraeft(knap, handling) {
+  const tilbage = () => { knap.classList.remove('bekraeft'); if (knap._html != null) knap.innerHTML = knap._html; else knap.textContent = knap.dataset.tekst; };   // ikonet kommer med tilbage
   if (knap.classList.contains('bekraeft')) {
     clearTimeout(knap._timer);
-    knap.classList.remove('bekraeft');
-    knap.textContent = knap.dataset.tekst;
+    tilbage();
     handling();
     return;
   }
+  if (knap.querySelector('svg')) knap._html = knap.innerHTML;
   knap.classList.add('bekraeft');
   knap.textContent = 'Tryk igen for at ' + (knap.dataset.handling || 'rydde');
-  knap._timer = setTimeout(() => { knap.classList.remove('bekraeft'); knap.textContent = knap.dataset.tekst; }, 3000);
+  knap._timer = setTimeout(tilbage, 3000);
 }
 
 // ---------- Ark (bundpanel) ----------
@@ -1048,6 +1049,8 @@ async function tegnMadplan() {
   const faste = await fastAftensmad();
   const egne = (await Data.list('madplan')).filter(r => r.uge === isoDato(mandag) && r.barn);
   const alleFavs = await Data.list('favoritter');
+  const voksen = !erBarn();
+  const aftaler = voksen ? [...await Data.list('kalender'), ...await Data.list('kalender_voksne')] : [];
   const idag = madUge === 0 ? idagNr() : madUge > 0 ? -1 : 7;   // markér dage der er gået
   const son = new Date(mandag); son.setDate(mandag.getDate() + 6);
   const navn = madUge === 0 ? 'Denne uge' : madUge === 1 ? 'Næste uge' : madUge === -1 ? 'Sidste uge' : null;
@@ -1070,11 +1073,15 @@ async function tegnMadplan() {
     felt.autocomplete = 'off';
     felt.enterKeyHint = 'done';
     felt.setAttribute('list', 'retter-forslag');
-    const egen = retter.find(r => r.dag === i)?.ret || '';
+    const raekke = retter.find(r => r.dag === i);
+    const egen = raekke?.ret || '';
+    const ude = !!(raekke?.ude && egen);   // 🎉 "Vi er ude" – kun tekst på dagen, aldrig en ret på listerne
     const fast = faste[i] || '';
     felt.value = egen || fast;
     if (fast && !egen) li.classList.add('fra-fast');
-    felt.readOnly = erBarn();
+    if (ude) li.classList.add('ude');
+    felt.readOnly = erBarn() || ude;
+    if (ude && voksen) felt.addEventListener('click', () => udeArk(i, dato, egen));
     felt.addEventListener('change', async () => {
       const ret = felt.value.trim();
       if (fast && !egen && ret === fast) return;
@@ -1090,34 +1097,34 @@ async function tegnMadplan() {
     terning.innerHTML = IKON_TERNING;
     terning.addEventListener('click', () => rulDage([i]));
 
-    // ↻ = retten kommer igen samme ugedag hver uge (kan stadig ændres for en enkelt uge)
-    const gentag = knap('📌', 'gentag-knap' + (fast ? ' aktiv' : ''), async () => {
-      const dagNavn = DAGE_LANG[i].toLowerCase();
-      if (fast) {
-        await gemFast('Fælles', i, 'ret', '');
-        if (!egen) await gemRet(i, fast);   // retten bliver stående denne uge – den kommer bare ikke igen
-        visStatus(fast + ' er ikke længere fast hver ' + dagNavn);
-      } else {
-        const ret = felt.value.trim();
-        if (!ret) { visStatus('Skriv en ret først – så kan den gå igen hver ' + dagNavn); felt.focus(); return; }
-        await gemFast('Fælles', i, 'ret', ret);
-        if (egen === ret) await gemRet(i, '');
-        visStatus(ret + ' kommer nu igen hver ' + dagNavn);
-      }
-      tegnMadplan(); tegnOverblik();
-    });
-    gentag.setAttribute('aria-pressed', !!fast);
-    gentag.setAttribute('aria-label', fast ? 'Fast hver ' + DAGE_LANG[i].toLowerCase() + ' – tryk for at stoppe' : 'Gentag hver uge');
+    // ⋯ = dagens valg: 🎉 Vi er ude, 📌 fast hver uge, ⇅ flyt/byt, ryd. Er dagen fast, står der 📌 (børn ser kun 📌)
+    const gentag = knap('', 'gentag-knap dag-menu' + (fast ? ' aktiv' : ''), () => dagMenu(i, dato, { egen, fast, ude, vist: felt.value.trim(), retter, faste }));
+    if (fast) gentag.textContent = '📌'; else gentag.innerHTML = IKON_MERE;
+    gentag.setAttribute('aria-label', (fast ? 'Fast hver ' + DAGE_LANG[i].toLowerCase() + '. ' : '') + 'Valg for ' + DAGE_LANG[i].toLowerCase());
 
     li.append(label, fuldTekst(felt, t => retVisning(alleFavs, 'ret', t)), gentag, terning);   // retter.js
     // Varianter af dagens ret (fx burger: flæskesteg · kyllingebøf …) – tryk for at vælge
-    if (!erBarn() && felt.value) {
+    if (!erBarn() && felt.value && !ude) {
       const vc = retChips(alleFavs, 'ret', felt.value, async t => {   // retter.js
         if (fast && !egen && t === fast) return;
         await gemRet(i, t === fast ? '' : t);
         tegnMadplan();
       });
       if (vc) li.append(vc);
+    }
+
+    // Står der noget for familien i kalenderen den aften? → "Spiser I ude?" (ét tryk)
+    if (voksen && !ude && i >= Math.max(idag, 0) && idag < 7) {
+      const iso = isoDato(dato);
+      const a = udeAftale(aftaler, iso);
+      if (a) {
+        const forslag = el('div', 'ude-forslag');
+        forslag.append(el('span', null, '📅 ' + a.titel + (a.tid ? ' ' + visTider(a.tid) : '') + ' – ude?'),
+          knap('🎉 Ja', 'lille-knap', async () => { await gemDag(i, '🎉 ' + a.titel, true); tegnMadplan(); }),
+          knap('✕', 'lille-knap ude-nej', () => { lokal.set('ude-nej', [...(lokal.get('ude-nej') || []), iso + '|' + a.titel].slice(-40)); tegnMadplan(); }));
+        forslag.lastChild.setAttribute('aria-label', 'Nej, vi spiser hjemme');
+        li.append(forslag);
+      }
     }
 
     // Drengenes egne valg denne dag
@@ -1133,7 +1140,7 @@ async function tegnMadplan() {
   nyeDage = new Set();
   // 🛒 Ekstra/tilbehør fra ugens aftensmad → indkøbslisten (voksne)
   const indk = document.getElementById('mad-indkob');
-  const ugensRetter = DAGE.map((_, i) => retter.find(r => r.dag === i)?.ret || faste[i] || '').filter(Boolean);
+  const ugensRetter = DAGE.map((_, i) => { const r = retter.find(x => x.dag === i); return r?.ude ? '' : r?.ret || faste[i] || ''; }).filter(Boolean);
   const ting = erBarn() ? [] : ugensTilbehoer(alleFavs, ugensRetter);   // retter.js
   indk.replaceChildren();
   if (ting.length) {
@@ -1148,13 +1155,106 @@ async function gemMad(dag, felt, vaerdi, uge = madUgeIso(), barn = null) {
   if (fundet) {
     const ny = { ...fundet, [felt]: vaerdi };
     if (!ny.ret && !ny.morgen && !ny.frokost) await Data.stille(() => Data.remove('madplan', fundet.id));
-    else await Data.update('madplan', fundet.id, { [felt]: vaerdi });
+    else await Data.update('madplan', fundet.id, felt === 'ret' && fundet.ude ? { ret: vaerdi, ude: null } : { [felt]: vaerdi });
   } else if (vaerdi) {
     await Data.add('madplan', barn ? { uge, dag, barn, [felt]: vaerdi } : { uge, dag, [felt]: vaerdi });
   }
   tegnOverblik();
 }
 const gemRet = (dag, ret) => gemMad(dag, 'ret', ret);
+// Aftensmad + "ude"-mærke på én dag (bruges af 🎉 Vi er ude og ⇅ Flyt/byt)
+async function gemDag(dag, ret, ude = false, uge = madUgeIso()) {
+  const fundet = (await madplanForUge(uge)).find(r => r.dag === dag);
+  if (fundet) {
+    if (!ret && !fundet.morgen && !fundet.frokost) await Data.stille(() => Data.remove('madplan', fundet.id));
+    else await Data.update('madplan', fundet.id, { ret, ude: ude || null });
+  } else if (ret) await Data.add('madplan', ude ? { uge, dag, ret, ude: true } : { uge, dag, ret });
+  tegnOverblik();
+}
+
+// Kalenderaftale for familien om aftenen → forslag om "Vi er ude" (ikke ferie/fravær, ikke ugentlige ting, ikke én persons aftaler)
+function udeAftale(aftaler, iso) {
+  const nej = new Set(lokal.get('ude-nej') || []);
+  return aftalerDen(aftaler, iso).find(a => {
+    if (a.fri || a.type || (a.tilDato && a.tilDato > a.dato) || ['uge', '2uger', 'maaned'].includes(a.gentag)) return false;
+    const hvem = personerI(a);
+    if (!hvem.includes('Fælles') && hvem.length < 2) return false;
+    const m = /(\d{1,2})[.:](\d{2})/.exec(a.tid || '');
+    if (m && (+m[1] < 15 || +m[1] * 60 + +m[2] >= 19 * 60)) return false;   // kun det der starter omkring aftensmaden (15.00–18.59) eller ingen tid
+    return !nej.has(iso + '|' + a.titel);
+  });
+}
+
+// ⋯ ved en dag på madplanen
+function dagMenu(i, dato, { egen, fast, ude, vist, retter, faste }) {
+  if (erBarn()) return;
+  const dagNavn = DAGE_LANG[i].toLowerCase();
+  const titel = DAGE_LANG[i] + ' ' + dato.getDate() + '/' + (dato.getMonth() + 1) + (vist ? ' · ' + vist : '');
+  const boks = el('div', 'punkt-valg dag-valg');
+  boks.append(knap(ude ? '🎉 Ret "Vi er ude"' : '🎉 Vi er ude / spiser ikke hjemme', 'knap sekundaer', () => udeArk(i, dato, ude ? egen : '')));
+  if (!ude) boks.append(knap(fast ? '📌 Ikke fast hver ' + dagNavn + ' længere' : '📌 Fast hver ' + dagNavn, 'knap sekundaer', async () => {
+    if (fast) {
+      await gemFast('Fælles', i, 'ret', '');
+      if (!egen) await gemRet(i, fast);   // retten bliver stående denne uge – den kommer bare ikke igen
+      visStatus(fast + ' er ikke længere fast hver ' + dagNavn);
+    } else {
+      if (!vist) { lukArk(); visStatus('Skriv en ret først – så kan den gå igen hver ' + dagNavn); document.getElementById('dag-' + i)?.focus(); return; }
+      await gemFast('Fælles', i, 'ret', vist);
+      if (egen === vist) await gemRet(i, '');
+      visStatus(vist + ' kommer nu igen hver ' + dagNavn);
+    }
+    lukArk(); tegnMadplan(); tegnOverblik();
+  }));
+  // ⇅ Flyt eller byt med en anden dag (tom dag = flyt)
+  const aabne = aabneDage();
+  if (vist && aabne.includes(i) && aabne.length > 1) {
+    boks.append(el('p', 'seg-label', '⇅ Flyt til / byt med'));
+    const seg = el('div', 'seg wrap byt-dage');
+    for (const j of aabne) {
+      if (j === i) continue;
+      const r = retter.find(x => x.dag === j);
+      const andenVist = r?.ret || faste[j] || '';
+      const k = knap(DAGE[j] + (andenVist ? ' ⇄' : ''), null, async () => {
+        const mig = { ret: vist, ude };
+        const den = { ret: andenVist, ude: !!(r?.ude && r?.ret) };
+        // En fast ret skrives ikke som dagens egen (så står den bare som fast)
+        await gemDag(j, mig.ret === faste[j] && !mig.ude ? '' : mig.ret, mig.ude);
+        await gemDag(i, den.ret === faste[i] && !den.ude ? '' : den.ret, den.ude);
+        lukArk(); nyeDage.add(i); nyeDage.add(j); tegnMadplan();
+        const blev = fast && !den.ret ? ' (' + fast + ' er fast om ' + dagNavn + 'en og står der stadig)' : '';
+        visStatus((den.ret ? 'Byttede ' + DAGE_LANG[i].toLowerCase() + ' og ' + DAGE_LANG[j].toLowerCase() : 'Flyttede til ' + DAGE_LANG[j].toLowerCase()) + blev);
+      });
+      k.title = andenVist ? 'Byt med ' + andenVist : 'Flyt hertil';
+      seg.append(k);
+    }
+    boks.append(seg);
+  }
+  if (egen) boks.append(knap('🧹 Ryd dagen', 'knap sekundaer', async () => { await gemDag(i, ''); lukArk(); tegnMadplan(); }));
+  aabnArk(titel, boks);
+}
+
+// 🎉 Vi er ude: kort tekst på dagen (fx "Fødselsdag hos Lisbeth") – bliver aldrig en ret på listerne
+function udeArk(i, dato, nu) {
+  const tekst = input('text', 'ude-tekst', (nu || '').replace(/^🎉\s*/, ''), 'Fx Fødselsdag hos Lisbeth');
+  tekst.maxLength = 60;
+  const forslag = el('div', 'seg wrap');
+  const iso = isoDato(dato);
+  Promise.all([Data.list('kalender'), Data.list('kalender_voksne')]).then(([a, b]) => {
+    const fra = aftalerDen([...a, ...b], iso).filter(x => !x.fri && !x.type).map(x => x.titel);
+    for (const t of [...new Set([...fra, 'Spiser ude', 'Hver for sig'])]) forslag.append(knap(t, null, () => { tekst.value = t; }));
+  });
+  const knapper = el('div', 'ark-knapper');
+  if (nu) knapper.append(knap('Vi spiser hjemme', 'knap sekundaer', async () => { await gemDag(i, ''); lukArk(); tegnMadplan(); }));
+  knapper.append(knap('Gem', 'knap', async () => {
+    const t = tekst.value.trim();
+    if (!t) { tekst.focus(); return; }
+    await gemDag(i, '🎉 ' + t, true);
+    lukArk(); tegnMadplan();
+  }));
+  aabnArk('🎉 Vi er ude · ' + DAGE_LANG[i].toLowerCase() + ' ' + dato.getDate() + '/' + (dato.getMonth() + 1), felt('Hvad skal I?', tekst), forslag,
+    el('p', 'hint', 'Står kun på dagen – kommer ikke på listen over retter eller i terningen.'), knapper);
+  setTimeout(() => tekst.focus(), 50);
+}
 
 // Drengenes faste morgenmad og frokost (redigeres af voksne under madplanen)
 let fastBarn = BOERN.includes(lokal.get('fast-barn')) ? lokal.get('fast-barn') : BOERN[0];
@@ -1277,7 +1377,8 @@ document.getElementById('kopier-uge').addEventListener('click', async () => {
   const plan = await madplanForUge(madUgeIso());
   let n = 0;
   for (const d of aabneDage()) {
-    const ret = sidste.find(r => r.dag === d)?.ret;
+    const fra = sidste.find(r => r.dag === d);
+    const ret = fra?.ude ? '' : fra?.ret;   // "Vi er ude" kopieres ikke
     if (!ret || faste[d] || plan.some(r => r.dag === d && r.ret)) continue;
     await gemMad(d, 'ret', ret); nyeDage.add(d); n++;
   }
@@ -1287,7 +1388,8 @@ document.getElementById('kopier-uge').addEventListener('click', async () => {
 const blandUge = document.getElementById('bland-uge');
 blandUge.addEventListener('click', () => bekraeft(blandUge, () => {
   if (!aabneDage().length) { visStatus('Den uge er gået – vælg denne eller næste uge.'); return; }
-  return fastAftensmad().then(faste => rulDage(aabneDage().filter(d => !faste[d]), synligeMaaltider()));
+  return Promise.all([fastAftensmad(), madplanForUge(madUgeIso())]).then(([faste, plan]) =>
+    rulDage(aabneDage().filter(d => !faste[d] && !plan.some(r => r.dag === d && r.ude)), synligeMaaltider()));   // 🎉-dage røres ikke
 }));
 
 document.getElementById('mad-forrige').addEventListener('click', () => { madUge--; tegnMadplan(); });
@@ -3278,7 +3380,7 @@ function visAftale(a, forekomst) {
 const TIPS = {
   kalender: { voksen: ['Tryk på en dag for at se den – og på en aftale for at rette den.', 'Liste starter altid i dag – "Vis flere dage" nederst. Uge og Måned har ‹ ›.', 'Hvad der vises (helligdage, vejr …), vælges under forbogstav-knappen øverst til højre.', 'En aftale kan gælde én, flere eller Fælles. Fælles = hele familien.', '↻ betyder, at aftalen gentages.'],
     barn: ['Tryk på en dag for at se, hvad der sker.', 'Din farve viser dine aftaler.'] },
-  madplan: { voksen: ['Skriv eller vælg en ret pr. dag. 🎲 vælger en tilfældig.', '📌 = retten kommer igen samme dag hver uge.', '"✎ Tilpas" under en ret vælger fyld, tilbehør og ekstra.', 'Børnenes ønsker skal I sige ja/nej til på I dag.'],
+  madplan: { voksen: ['Skriv eller vælg en ret pr. dag. 🎲 vælger en tilfældig.', '⋯ ved en dag: 🎉 Vi er ude, 📌 fast hver uge, ⇅ flyt/byt med en anden dag.', '"✎ Tilpas" under en ret vælger fyld, tilbehør og ekstra.', 'Børnenes ønsker skal I sige ja/nej til på I dag.'],
     barn: ['Tryk på en dag for at ønske mad.', 'Det mor og far har sagt "må vælges", gælder med det samme.'] },
   indkob: { voksen: ['Skriv en vare og tryk Tilføj.', '🛒 Handle gør listen stor og nem i butikken.', 'Tryk på en vare for at krydse den af.'],
     barn: ['Skriv en vare, så kommer den på listen.'] },
