@@ -19,6 +19,9 @@ const RET_GRUPPER = [
 ];
 const GRUPPE_NAVN = Object.fromEntries(RET_GRUPPER.map(([k, i, n]) => [k, i + ' ' + n]));
 const MAAL_TYPER = ['ret', 'morgen', 'frokost'];
+// En ret kan passe til flere måltider: type = hvor den hører til, ogsaa = de andre (fx Pita: type 'ret', ogsaa ['frokost'])
+const passerTil = (f, m) => f.type === m || (Array.isArray(f.ogsaa) && f.ogsaa.includes(m));
+const retMaaltider = f => [f.type, ...(Array.isArray(f.ogsaa) ? f.ogsaa : [])].filter((m, i, a) => MAAL_TYPER.includes(m) && a.indexOf(m) === i);
 
 const lavt = t => (t || '').trim().toLowerCase();
 // Listerne over fyld, tilbehør og ekstra kan rettes af de voksne. Data: 'indstillinger' {noegle: 'tilbehoer', vaerdi: {fyld: [..], sider: [..], ekstra: [..]}}
@@ -180,15 +183,15 @@ const retTekster = f => [f.tekst, ...aktiveVarianter(f).map(v => variantTekst(f,
 
 // Til forslagslisten i tekstfelterne: retter + varianter (+ morgen/frokost til aftensmad, men bagerst)
 function forslagTekster(favs, felt) {
-  const egne = favs.filter(f => f.type === felt).flatMap(retTekster);
-  const andre = felt === 'ret' ? favs.filter(f => f.type !== 'ret' && MAAL_TYPER.includes(f.type)).flatMap(retTekster) : [];
+  const egne = favs.filter(f => passerTil(f, felt)).flatMap(retTekster);
+  const andre = felt === 'ret' ? favs.filter(f => !passerTil(f, 'ret') && MAAL_TYPER.includes(f.type)).flatMap(retTekster) : [];
   return [...new Set([...egne, ...andre])];
 }
 
 // Til terningen: hver ret (ikke ikkeAuto/takeaway) med en tilfældig aktiv variant, ét tilfældigt fyld og et tilfældigt tilbehør der passer
 const vilkaarlig = a => a[Math.floor(Math.random() * a.length)];
 function autoRetter(favs, felt) {
-  return favs.filter(f => f.type === felt && !f.ikkeAuto && f.gruppe !== 'takeaway').map(f => {
+  return favs.filter(f => passerTil(f, felt) && !f.ikkeAuto && f.gruppe !== 'takeaway').map(f => {
     const v = aktiveVarianter(f), sider = passerSider(f), fyld = passerFyld(f);
     const side = sider.length > 1 ? vilkaarlig(sider) : null;
     // Enten en variant (fx "Hjemmelavet pizza margherita") eller ét fyld – aldrig begge
@@ -218,9 +221,10 @@ function redigerRet(f) {
   const s = {
     tekst: f.tekst, gruppe: f.gruppe || '', side: f.side || '', ikkeAuto: !!f.ikkeAuto,
     sider: [...passerSider(f)], ekstra: [...passerEkstra(f)], fyld: [...passerFyld(f)], sovse: [...passerSovse(f)], sovs: f.sovs || '',
-    varianter: (Array.isArray(f.varianter) ? f.varianter : []).map(v => ({ ...v }))
+    varianter: (Array.isArray(f.varianter) ? f.varianter : []).map(v => ({ ...v })), maal: retMaaltider(f)
   };
-  const erAften = f.type === 'ret';
+  const erAften = s.maal.includes('ret');   // tilbehør, sovs, ekstra og kategori bruges kun til aftensmad
+  const aftenDele = [], katDele = [];
   const navn = input('text', 'ret-navn', s.tekst);
   navn.addEventListener('input', () => { s.tekst = navn.value; tegnHint(); });
   const gruppeValg = chipValg(['', ...RET_GRUPPER.map(g => g[0])], s.gruppe, v => { s.gruppe = v; }, v => (v ? GRUPPE_NAVN[v] : 'Ingen'));
@@ -360,13 +364,32 @@ function redigerRet(f) {
   const flag1 = el('div', 'seg wrap tilpas-valg');
   flag1.append(flag('🎲 Med i terningen', 'ikkeAuto', true));
 
+  // Passer til: morgen / frokost / aften (mindst ét)
+  const maalBoks = el('div', 'seg wrap maal-valg');
+  const tegnMaal = () => maalBoks.replaceChildren(...['morgen', 'frokost', 'ret'].map(m => {
+    const valgt = s.maal.includes(m);
+    const k = knap((valgt ? '✓ ' : '') + MAALTIDER[m], null, () => {
+      if (valgt && s.maal.length === 1) { visStatus('En ret skal passe til mindst ét måltid'); return; }
+      s.maal = valgt ? s.maal.filter(x => x !== m) : [...s.maal, m];
+      const aften = s.maal.includes('ret');
+      for (const d of [...aftenDele, ...katDele]) d.hidden = !aften;
+      tegnMaal();
+    });
+    k.setAttribute('role', 'checkbox'); k.setAttribute('aria-checked', valgt);
+    return k;
+  }));
+  tegnMaal();
+
   const gem = knap('Gem', 'knap', async () => {
     if (!s.tekst.trim()) { navn.focus(); return; }
     const felter = {
       tekst: s.tekst.trim(), ikkeAuto: s.ikkeAuto, fyld: s.fyld,
       varianter: s.varianter.map(v => Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined && x !== false && x !== '')))
     };
-    if (erAften) Object.assign(felter, { gruppe: s.gruppe || null, side: s.side || null, sider: s.sider, ekstra: s.ekstra, sovse: s.sovse, sovs: s.sovs || null });
+    const orden = ['morgen', 'frokost', 'ret'].filter(m => s.maal.includes(m));
+    felter.type = s.maal.includes(f.type) ? f.type : orden[orden.length - 1];   // bliver hvor den er, hvis den stadig passer dér
+    felter.ogsaa = orden.filter(m => m !== felter.type);
+    if (s.maal.includes('ret')) Object.assign(felter, { gruppe: s.gruppe || null, side: s.side || null, sider: s.sider, ekstra: s.ekstra, sovse: s.sovse, sovs: s.sovs || null });
     const gammel = f.tekst;
     await Data.update('favoritter', f.id, felter);
     if (felter.tekst !== gammel) await omdoebIPlaner(f, gammel, felter.tekst);
@@ -374,25 +397,28 @@ function redigerRet(f) {
   });
   const knapper = el('div', 'ark-knapper');
   knapper.append(bekraeftKnap('Slet', 'slette retten', 'knap fare', async () => { await Data.remove('favoritter', f.id); lukArk(); tegnAlt(); }), gem);   // to tryk
-  const dele = [felt('Navn', navn)];
-  if (erAften) dele.push(el('label', 'felt-label', 'Kategori'), gruppeValg);
+  const dele = [felt('Navn', navn), el('label', 'felt-label', 'Passer til'), maalBoks];
+  katDele.push(el('label', 'felt-label', 'Kategori (aftensmad)'), gruppeValg);
+  dele.push(...katDele);
   dele.push(el('label', 'felt-label', erAften ? 'Fyld der passer (fx i burgeren, på pizzaen)' : 'Pålæg der passer'), fyldBoks, fyldForm);
-  if (erAften) dele.push(
+  aftenDele.push(
     el('label', 'felt-label', 'Tilbehør der passer'), siderBoks, sideForm, standardBoks,
     el('label', 'felt-label', 'Sovs der passer'), sovsBoks, sovsForm, sovsStdBoks,
     el('label', 'felt-label', 'Ekstra der kan komme med'), ekstraBoks, ekstraForm, hint);
+  dele.push(...aftenDele);
+  for (const d of [...aftenDele, ...katDele]) d.hidden = !erAften;
   dele.push(el('details', 'var-detaljer'));
   const det = dele[dele.length - 1];
   det.open = s.varianter.length > 0;
   det.append(el('summary', null, 'Varianter med eget navn (fx Franske hotdogs)'), varBoks, form);
   dele.push(el('p', 'hint', 'Fyld, tilbehør, sovs og ekstra vælges under dagen med "✎ Tilpas". Terningen vælger selv ét fyld og et tilbehør. Hold fingeren på et punkt for at omdøbe eller slette det.'), flag1, knapper);
-  aabnArk(MAALTIDER[f.type] + ': ' + f.tekst, ...dele);
+  aabnArk(f.tekst, ...dele);
 }
 
 // Under en dag i madplanen (voksne): én lille "Tilpas"-knap → ark med varianter, tilbehør og ekstra (alt kan ses, intet løber ud af skærmen)
 function retChips(favs, felt, tekst, vaelg) {
   const fund = findRet(favs, felt, tekst);
-  if (!fund || fund.fav.type !== felt) return null;
+  if (!fund || !passerTil(fund.fav, felt)) return null;
   const f = fund.fav;
   const boks = el('div', 'var-chips');
   const k = knap('✎ Tilpas', 'var-chip tilpas-chip', () => tilpasRet(favs, felt, tekst, vaelg));
@@ -586,7 +612,7 @@ function rydOpForslag(favs) {
     }
   }
   const dubIds = new Set(ligner.map(l => l.dub.id));
-  const udenKategori = maal.filter(f => f.type === 'ret' && !f.gruppe && !dubIds.has(f.id));
+  const udenKategori = maal.filter(f => passerTil(f, 'ret') && !f.gruppe && !dubIds.has(f.id));
   return { ligner, udenKategori };
 }
 async function slaaSammen(dub, maal, ny) {

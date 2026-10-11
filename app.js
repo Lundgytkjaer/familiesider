@@ -637,7 +637,7 @@ async function kopierRetter() {
   const ren = o => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined && v !== null && v !== '' && v !== false && !(Array.isArray(v) && !v.length)));
   const data = {
     lister: { tilbehoer: SIDER, ekstra: EKSTRA, fyld: FYLD },
-    retter: favs.map(f => ren({ m: f.type, t: f.tekst, g: f.gruppe, side: f.side, sider: f.sider, ekstra: f.ekstra, fyld: f.fyld,
+    retter: favs.map(f => ren({ m: f.type, ogsaa: f.ogsaa, t: f.tekst, g: f.gruppe, side: f.side, sider: f.sider, ekstra: f.ekstra, fyld: f.fyld,
       var: (f.varianter || []).map(v => v.navn + (v.tekst ? '=' + v.tekst : '') + (v.slukket ? ' (slukket)' : '')), lide: f.kanLide, brugt: f.brugt, bv: f.boernevalg, ikkeAuto: f.ikkeAuto }))
   };
   const tekst = 'FAMILIETAVLEN-RETTER ' + new Date().toISOString().slice(0, 10) + ' (' + data.retter.length + ' retter)\n' + JSON.stringify(data);
@@ -792,7 +792,7 @@ async function tegnForslag(type) {
   const erMaaltid = type in MAALTIDER;
   const boks = erMaaltid ? document.getElementById('maaltid-forslag') : document.querySelector(`[data-forslag="${type}"]`);
   const st = FavTilstand[type];
-  let favs = (await Data.list('favoritter')).filter(f => f.type === type);
+  let favs = (await Data.list('favoritter')).filter(f => type in MAALTIDER ? passerTil(f, type) : f.type === type);   // retter.js: en ret kan passe til flere måltider
   let filter = '';
 
   if (erMaaltid) {
@@ -855,6 +855,7 @@ async function tegnForslag(type) {
     favs.sort((a, b) => (orden[a.gruppe] ?? 99) - (orden[b.gruppe] ?? 99) || a.tekst.localeCompare(b.tekst, 'da'));
   }
   const antalIGruppe = g => favs.filter(f => (f.gruppe || '') === g).length;
+  if (erMaaltid && !grupper && !st.ret) { maal = el('div', 'ret-gruppe-indhold ret-flad'); boks.append(maal); }   // morgen/frokost: samme rækker, uden kategorier
   for (const f of favs.slice(0, max)) {
     if (erMaaltid && !st.ret) {
       if (grupper && (f.gruppe || '') !== sidsteGruppe) {
@@ -878,7 +879,8 @@ async function tegnForslag(type) {
       const fyldVar = [...vs.map(v => v.navn), ...fy];
       if (fyldVar.length) linje1.append(el('span', 'tag-fyld', ' · ' + fyldVar.join(' · ')));
       tag.append(linje1);
-      const linje2 = [sd.join(' / '), sv.join(' / '), ek.length ? '+ ' + ek.join(', ') : ''].filter(Boolean).join(' · ');
+      const ogsaa = retMaaltider(f).filter(m => m !== type).map(m => MAALTIDER[m].toLowerCase());
+      const linje2 = [type === 'ret' ? sd.join(' / ') : '', type === 'ret' ? sv.join(' / ') : '', type === 'ret' && ek.length ? '+ ' + ek.join(', ') : '', ogsaa.length ? 'også ' + ogsaa.join(' og ') : ''].filter(Boolean).join(' · ');
       if (linje2) tag.append(el('span', 'tag-var', linje2));
       const hvem = PERSONER.filter(p => kanLide(f).includes(p));
       if (hvem.length) {
@@ -896,7 +898,10 @@ async function tegnForslag(type) {
     k.setAttribute('aria-label', (st.ret ? 'Fjern ' : 'Tilføj ') + f.tekst);
     k.addEventListener('click', async () => {
       if (st.ret) {
-        await Data.remove('favoritter', f.id);
+        // Passer retten også til andre måltider, fjernes den kun fra denne liste
+        const andre = erMaaltid ? retMaaltider(f).filter(m => m !== type) : [];
+        if (andre.length) await Data.update('favoritter', f.id, { type: f.type === type ? andre[andre.length - 1] : f.type, ogsaa: andre.filter(m => m !== (f.type === type ? andre[andre.length - 1] : f.type)) });
+        else await Data.remove('favoritter', f.id);
       } else {
         const felter = { tekst: f.tekst, klaret: false };
         if (type === 'todo') felter.prio = nyPrio;
@@ -2630,7 +2635,7 @@ async function redigerMaaltid(barn, dato, felt) {
   });
 
   const alleFavs = await Data.list('favoritter');
-  const favs = alleFavs.filter(f => f.type === felt).map(f => f.tekst).sort((a, b) => a.localeCompare(b, 'da'));
+  const favs = alleFavs.filter(f => passerTil(f, felt)).map(f => f.tekst).sort((a, b) => a.localeCompare(b, 'da'));
   const chips = el('div', 'forslag');
   const kandidater = favs.map(v => {
     const k = knap('', null, () => vaelg(v));
@@ -2672,7 +2677,7 @@ async function redigerMaaltid(barn, dato, felt) {
 // Databasen tjekker barnets ønsker (opdatering-madoensker.sql).
 const MAD_NAVN = { morgen: 'Morgenmad', frokost: 'Frokost', ret: 'Aftensmad' };
 async function maaVaelges(felt) {
-  return new Set((await Data.list('favoritter')).filter(f => f.type === felt && f.boernevalg).map(f => f.tekst.toLowerCase()));
+  return new Set((await Data.list('favoritter')).filter(f => passerTil(f, felt) && f.boernevalg).map(f => f.tekst.toLowerCase()));
 }
 // Gældende ønsker for et barn en dag: {felt: ønske} – og dem der venter: {felt: ønske}
 async function madOensker(barn, iso) {
@@ -2703,7 +2708,7 @@ async function oenskMad(barn, dato, felt) {
   const plan = await madFor(dato, barn);
   const { gaelder, venter } = await madOensker(barn, iso);
   const frit = [...(await maaVaelges(felt))];
-  const favs = (await Data.list('favoritter')).filter(f => f.type === felt && f.boernevalg).map(f => f.tekst).sort((a, b) => a.localeCompare(b, 'da'));
+  const favs = (await Data.list('favoritter')).filter(f => passerTil(f, felt) && f.boernevalg).map(f => f.tekst).sort((a, b) => a.localeCompare(b, 'da'));
   const mine = async () => (await Data.list('madoensker')).filter(x => x.barn === barn && x.dato === iso && x.felt === felt && x.status === 'afventer');
   const send = async (ret, frivalg) => {
     for (const x of await mine()) await Data.remove('madoensker', x.id);   // et nyt valg erstatter det gamle
@@ -2728,7 +2733,7 @@ async function oenskMad(barn, dato, felt) {
     andet.push(el('h3', 'lille-titel', 'Vælg selv'), grid);
   }
   // Retter barnet kan lide (♥ under Vores lister) – ét tryk = et ønske, uden at skrive
-  const liker = [...new Set((await Data.list('favoritter')).filter(f => f.type === felt && !f.boernevalg && Array.isArray(f.kanLide) && f.kanLide.includes(barn))
+  const liker = [...new Set((await Data.list('favoritter')).filter(f => passerTil(f, felt) && !f.boernevalg && Array.isArray(f.kanLide) && f.kanLide.includes(barn))
     .map(f => f.tekst))].sort((a, b) => a.localeCompare(b, 'da'));
   if (liker.length) {
     const grid = el('div', 'mad-valg');
@@ -2754,7 +2759,7 @@ async function redigerBoernevalg() {
   const dele = [el('p', 'hint', 'Det markerede kan børnene selv vælge på deres tavle – uden at spørge. Alt andet bliver et ønske, som I godkender under 🎁 Ønsker.')];
   for (const felt of ['morgen', 'frokost', 'ret']) {
     const seg = el('div', 'seg wrap');
-    for (const f of favs.filter(x => x.type === felt).sort((a, b) => a.tekst.localeCompare(b.tekst, 'da'))) {
+    for (const f of favs.filter(x => passerTil(x, felt)).sort((a, b) => a.tekst.localeCompare(b.tekst, 'da'))) {
       const k = knap(f.tekst, null, async () => {
         f.boernevalg = !f.boernevalg;
         k.setAttribute('aria-checked', !!f.boernevalg);

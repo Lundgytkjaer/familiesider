@@ -63,7 +63,7 @@ async function aiKontekst(opgave = 'fri', uge = null) {
     });
     const fra = new Date(mandag); fra.setDate(fra.getDate() - 21);
     k.seneste = [...new Set(Data.listNu('madplan').filter(r => !r.barn && r.ret && !r.ude && r.uge >= isoDato(fra) && r.uge < uge).map(r => r.ret))];
-    k.retter = aiRetter().filter(f => f.type === 'ret' && !f.ikkeAuto).map(f => ({ tekst: f.tekst, maaltid: 'ret', gruppe: f.gruppe || '', sider: passerSider(f), kanLide: f.kanLide || [], brugt: f.brugt || 0 }));
+    k.retter = aiRetter().filter(f => passerTil(f, 'ret') && !f.ikkeAuto).map(f => ({ tekst: f.tekst, maaltid: 'ret', gruppe: f.gruppe || '', sider: passerSider(f), kanLide: f.kanLide || [], brugt: f.brugt || 0 }));
   } else if (opgave === 'ryd_retter') {
     Object.assign(k, { tilbehoer: SIDER, ekstra: EKSTRA, fyld: FYLD,
       sovse: SOVSE,
