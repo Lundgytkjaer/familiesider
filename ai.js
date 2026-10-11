@@ -8,7 +8,7 @@ const AI_IKON = { kalender_ny: '📅', indkob_ny: '🛒', todo_ny: '☑️', ret
 // Foto-knapperne: tekst der sendes med billedet
 const AI_FOTO = {
   indkob: { knap: '📷 Indkøbsseddel', label: 'Indkøbsseddel',
-    tekst: 'Læs indkøbssedlen på billedet og læg alle varerne på indkøbslisten (indkob_ny). Overskrifter med et butiksnavn (fx Netto, Rema) er butikken for varerne under – lav én handling pr. butik. Ret stavefejl, skriv varer kort med lille begyndelsesbogstav. Kan et ord ikke læses, så nævn det i svar.' },
+    tekst: 'Læs indkøbssedlen på billedet og læg alle varerne på indkøbslisten (indkob_ny). Overskrifter med et butiksnavn (fx Netto, Rema) er butikken for varerne under – lav én handling pr. butik. Ret stavefejl, og brug jeres egne varenavne fra listen "varer", når det er samme vare. Kan et ord ikke læses, så nævn det i svar.' },
   kalender: { knap: '📷 Ugeseddel', label: 'Ugeseddel',
     tekst: 'Læs billedet (fx ugeseddel, skoleinfo eller invitation) og foreslå kalenderaftaler (kalender_ny) for de datoer og tider, der står. Brug navne fra personlisten, hvis det fremgår hvem det gælder – ellers spørg i svar.' }
 };
@@ -19,6 +19,23 @@ const aiListe = (v, n = 20) => (Array.isArray(v) ? [...new Set(v.map(x => lavt(a
 const aiDag = iso => { const d = new Date(iso + 'T00:00'); return DAGE_LANG[(d.getDay() + 6) % 7].toLowerCase() + ' ' + d.getDate() + '. ' + MDR_LANG[d.getMonth()].slice(0, 3) + '.'; };
 const aiRetter = () => Data.listNu('favoritter').filter(f => MAAL_TYPER.includes(f.type));
 
+// Familiens egne varenavne fra indkøbslisten (hurtigvalg), mest brugte først
+const aiKendteVarer = () => {
+  const set = new Map();
+  for (const f of Data.listNu('favoritter').filter(f => f.type === 'indkob').sort((a, b) => (b.brugt || 0) - (a.brugt || 0))) {
+    if (f.tekst && !set.has(lavt(f.tekst))) set.set(lavt(f.tekst), f.tekst.trim());
+  }
+  return [...set.values()];
+};
+// En vare fra AI'en: jeres egen stavemåde, hvis den findes – ellers stort forbogstav
+// "Mælk (2 l)" → { tekst: 'Mælk', note: '2 l' } – mængden står i varens note, så navnet passer med hurtigvalget
+function aiVare(v) {
+  const m = aiT(v, 60).match(/^(.*?)\s*(?:\(([^)]*)\))?$/);
+  const t = aiT(m?.[1], 40);
+  if (!t) return null;
+  const tekst = aiKendteVarer().find(k => lavt(k) === lavt(t)) || t[0].toUpperCase() + t.slice(1);
+  return { tekst, note: aiT(m?.[2], 40) };
+}
 // Det AI'en får at vide om familien (ikke mere)
 function aiKontekst() {
   const nu = new Date();
@@ -28,6 +45,7 @@ function aiKontekst() {
     kategorier: RET_GRUPPER.map(([noegle, , navn]) => ({ noegle, navn })),
     tilbehoer: SIDER, ekstra: EKSTRA, fyld: FYLD,
     butikker: [...new Set(Data.listNu('favoritter').filter(f => f.type === 'butik').map(f => f.tekst))],
+    varer: aiKendteVarer().slice(0, 300),   // familiens egne varenavne (mest brugte først), så AI'en skriver dem ens
     retter: aiRetter().map(f => ({ tekst: f.tekst, maaltid: f.type, gruppe: f.gruppe || '', side: f.side || '' }))
   };
 }
@@ -48,10 +66,12 @@ function aiTjek(r) {
         + (gentag ? ' · ' + GENTAG_NAVN[gentag].toLowerCase() + (h.gentagTil ? ' til ' + aiDag(h.gentagTil) : '') : '') + (h.note ? ' · ' + h.note : '') };
     }
     case 'indkob_ny': {
-      const varer = aiListe(r.varer, 60);
+      const set = new Map();   // samme vare to gange → den første (med evt. mængde) gælder
+      for (const v of (Array.isArray(r.varer) ? r.varer : []).map(aiVare)) if (v && !set.has(lavt(v.tekst))) set.set(lavt(v.tekst), v);
+      const varer = [...set.values()].slice(0, 60);
       if (!varer.length) return fejl('Ingen varer');
       const butik = Data.listNu('favoritter').find(f => f.type === 'butik' && lavt(f.tekst) === lavt(r.butik))?.tekst || '';
-      return { h: { type: r.type, varer, butik }, tekst: (butik ? butik + ': ' : '') + varer.join(', ') };
+      return { h: { type: r.type, varer, butik }, tekst: (butik ? butik + ': ' : '') + varer.map(v => v.tekst + (v.note ? ' (' + v.note + ')' : '')).join(', ') };
     }
     case 'todo_ny': {
       const tekst = aiT(r.tekst, 120);
@@ -142,7 +162,9 @@ async function aiUdfoer(h) {
         tid: h.tid, slut: h.slut, note: h.note, gentag: h.gentag, gentagTil: h.gentagTil, fri: false });
       return;
     case 'indkob_ny':
-      for (const v of h.varer) await tilfoejUdenDublet('indkob', { tekst: v, klaret: false, ...(h.butik ? { butik: h.butik } : {}) });
+      for (const v of h.varer) {
+        if (await tilfoejUdenDublet('indkob', { tekst: v.tekst, klaret: false, ...(v.note ? { note: v.note } : {}), ...(h.butik ? { butik: h.butik } : {}) })) await gemFavorit('indkob', v.tekst);   // kommer i hurtigvalget som når man skriver selv
+      }
       return;
     case 'todo_ny':
       await tilfoejUdenDublet('todo', { tekst: h.tekst, klaret: false, prio: 2, ...(h.hvem ? { hvem: h.hvem } : {}), ...(h.frist ? { frist: h.frist } : {}) });
