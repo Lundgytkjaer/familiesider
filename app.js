@@ -219,13 +219,14 @@ function knap(tekst, klasse, fn) {
   return k;
 }
 // Valg mellem chips (fx hvem eller butik)
-function chipValg(muligheder, valgt, onValg, tekstFn = v => v) {
+function chipValg(muligheder, valgt, onValg, tekstFn = v => v, hold = null) {
   const seg = el('div', 'seg wrap');
   seg.setAttribute('role', 'radiogroup');
   const tegn = () => seg.replaceChildren(...muligheder.map(m => {
     const k = knap(tekstFn(m), null, () => { valgt = m; onValg(m); tegn(); });
     k.setAttribute('role', 'radio');
     k.setAttribute('aria-checked', m === valgt);
+    if (hold && m) langtTryk(k, () => hold(m));   // hold fingeren = fx omdøb/slet
     return k;
   }));
   tegn();
@@ -261,10 +262,55 @@ function tegnButikFilter(punkter) {
   boks.hidden = !butikker.length;
   boks.replaceChildren(...['', ...butikker].map(b => {
     const k = knap(b || 'Alle butikker', null, () => { butikFilter = b; tegnListe('indkob'); });
+    if (b && !erBarn()) langtTryk(k, () => butikValgHold(b));   // hold = omdøb/slet butikken
     k.setAttribute('role', 'radio');
     k.setAttribute('aria-checked', b === butikFilter);
     return k;
   }));
+}
+
+// ---------- Butikker: omdøb eller slet (hold fingeren på butikken under ⋯ på en vare) ----------
+function butikValgHold(navn, efter) {
+  const varer = Data.listNu('indkob').filter(x => x.butik === navn && !x.klaret).length;
+  holdValg('Butik: ' + navn, {
+    foerst: [el('p', 'hint', varer ? navn + ' står på ' + varer + (varer === 1 ? ' vare' : ' varer') + ' på listen.' : 'Ingen varer på listen har ' + navn + '.')],
+    retTekst: '✏️ Omdøb', ret: () => omdoebButik(navn, efter),
+    slet: async () => { await skiftButik(navn, ''); visStatus(navn + ' er slettet' + (varer ? ' – varerne står uden butik' : '')); }
+  });
+}
+function omdoebButik(navn, efter) {
+  const inp = input('text', 'butik-nyt-navn', navn);
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('Annullér', 'knap sekundaer', () => { lukArk(); efter?.(); }), knap('Gem', 'knap', async () => {
+    const ny = inp.value.trim();
+    if (ny && ny !== navn) { await skiftButik(navn, ny); visStatus(navn + ' hedder nu ' + ny); }
+    lukArk(); tegnAlt(); efter?.();
+  }));
+  aabnArk('Omdøb butik', felt('Nyt navn', inp), el('p', 'hint', 'Varer, hurtigvalg og butikkens rækkefølge følger med.'), knapper);
+  setTimeout(() => inp.focus(), 50);
+}
+// Butik → nyt navn (eller '' = slet): favoritter type butik, varer og hurtigvalg med butikken, og rækkefølgen i handletilstand
+async function skiftButik(gammel, ny) {
+  const favs = await Data.list('favoritter');
+  const butikFavs = favs.filter(f => f.type === 'butik' && f.tekst.toLowerCase() === gammel.toLowerCase());
+  const findesNy = ny && favs.some(f => f.type === 'butik' && f.tekst.toLowerCase() === ny.toLowerCase());
+  for (const [i, f] of butikFavs.entries()) {
+    if (!ny || findesNy || i > 0) await Data.remove('favoritter', f.id);
+    else await Data.update('favoritter', f.id, { tekst: ny });
+  }
+  for (const f of favs.filter(f => f.type === 'indkob' && f.butik === gammel)) await Data.update('favoritter', f.id, { butik: ny || null });
+  for (const v of (await Data.list('indkob')).filter(v => v.butik === gammel)) await Data.update('indkob', v.id, { butik: ny || null });
+  if (typeof ordenRaekke === 'function') {   // handel.js
+    const r = await ordenRaekke();
+    if (r?.vaerdi && gammel in r.vaerdi) {
+      const v = { ...r.vaerdi };
+      if (ny && !(ny in v)) v[ny] = v[gammel];
+      delete v[gammel];
+      await Data.update('indstillinger', r.id, { vaerdi: v });
+    }
+  }
+  if (butikFilter === gammel) butikFilter = ny || '';
+  tegnAlt();
 }
 
 async function saetFavFelter(type, tekst, felter) {
@@ -313,7 +359,8 @@ async function redigerVare(p) {
   if (p.butik && !butikker.includes(p.butik)) butikker.push(p.butik);
   let butik = p.butik || '';
   const muligheder = ['', ...butikker];
-  const lavButikValg = () => chipValg(muligheder, butik, b => { butik = b; gemSnart(); }, b => b || 'Ingen');
+  const lavButikValg = () => chipValg(muligheder, butik, b => { butik = b; gemSnart(); }, b => b || 'Ingen',
+    b => butikValgHold(b, () => redigerVare(Data.listNu('indkob').find(x => x.id === p.id) || p)));   // hold = omdøb/slet butikken
   let butikValg = lavButikValg();
 
   // Ny butik: skriv navnet, så bliver den tilføjet og valgt
@@ -579,6 +626,22 @@ function antalValg(p, efter = () => { lukArk(); tegnAlt(); }) {
   return boks;
 }
 
+function omdoebFavorit(f) {
+  const inp = input('text', 'fav-nyt-navn', f.tekst);
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('Annullér', 'knap sekundaer', lukArk), knap('Gem', 'knap', async () => {
+    const ny = inp.value.trim();
+    if (ny && ny !== f.tekst) {
+      const findes = Data.listNu('favoritter').find(x => x.type === f.type && x.id !== f.id && x.tekst.toLowerCase() === ny.toLowerCase());
+      if (findes) { await Data.update('favoritter', findes.id, { brugt: (findes.brugt || 0) + (f.brugt || 0) }); await Data.remove('favoritter', f.id); }   // lægges sammen
+      else await Data.update('favoritter', f.id, { tekst: ny });
+    }
+    lukArk(); tegnAlt();
+  }));
+  aabnArk('Omdøb forslag', felt('Navn', inp), el('p', 'hint', 'Findes navnet allerede, lægges de to forslag sammen.'), knapper);
+  setTimeout(() => inp.focus(), 50);
+}
+
 // Prioritet til nye opgaver
 let nyPrio = 2;
 function tegnNyPrio() {
@@ -813,6 +876,11 @@ async function tegnForslag(type) {
       }
       tegnAlt();
     });
+    if (!erBarn() && !st.ret) langtTryk(k, () => holdValg(f.tekst, {   // hold fingeren på et forslag = slet eller omdøb
+      foerst: [el('p', 'hint', 'Forslaget forsvinder kun fra hurtigvalget – ikke fra listen.')],
+      slet: async () => { for (const x of Data.listNu('favoritter').filter(x => x.type === f.type && x.tekst.toLowerCase() === f.tekst.toLowerCase())) await Data.remove('favoritter', x.id); },   // også evt. dubletter
+      retTekst: '✏️ Omdøb', ret: () => omdoebFavorit(f)
+    }));
     boks.append(k);
   }
 
