@@ -234,18 +234,18 @@ function chipValg(muligheder, valgt, onValg, tekstFn = v => v) {
 }
 
 // Billeder gøres små, før de gemmes
-function laesBillede(fil) {
+function laesBillede(fil, maks = 900, kvalitet = 0.72) {
   return new Promise((ok, fejl) => {
     const url = URL.createObjectURL(fil);
     const img = new Image();
     img.onload = () => {
-      const s = Math.min(1, 900 / Math.max(img.width, img.height));
+      const s = Math.min(1, maks / Math.max(img.width, img.height));
       const c = document.createElement('canvas');
       c.width = Math.round(img.width * s);
       c.height = Math.round(img.height * s);
       c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
       URL.revokeObjectURL(url);
-      ok(c.toDataURL('image/jpeg', 0.72));
+      ok(c.toDataURL('image/jpeg', kvalitet));
     };
     img.onerror = fejl;
     img.src = url;

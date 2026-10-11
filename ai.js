@@ -5,8 +5,13 @@
 // Data der sendes: dato, fornavne, kategorier, lister over tilbehør/ekstra/fyld og retternes navne/kategori. Intet andet.
 
 const AI_IKON = { kalender_ny: '📅', indkob_ny: '🛒', todo_ny: '☑️', ret_ny: '🍽️', ret_ret: '✏️', ret_saml: '🔗', madplan: '🗓️' };
-const AI_EKSEMPLER = ['Oliver tandlæge torsdag kl. 14', 'Mælk, æg og noget til tacos', 'Tilføj butter chicken med ris og naan',
-  'Pizza på fredag', 'Ryd op i kategorierne på retterne'];
+// Foto-knapperne: tekst der sendes med billedet
+const AI_FOTO = {
+  indkob: { knap: '📷 Indkøbsseddel', label: 'Indkøbsseddel',
+    tekst: 'Læs indkøbssedlen på billedet og læg alle varerne på indkøbslisten (indkob_ny). Overskrifter med et butiksnavn (fx Netto, Rema) er butikken for varerne under – lav én handling pr. butik. Ret stavefejl, skriv varer kort med lille begyndelsesbogstav. Kan et ord ikke læses, så nævn det i svar.' },
+  kalender: { knap: '📷 Ugeseddel', label: 'Ugeseddel',
+    tekst: 'Læs billedet (fx ugeseddel, skoleinfo eller invitation) og foreslå kalenderaftaler (kalender_ny) for de datoer og tider, der står. Brug navne fra personlisten, hvis det fremgår hvem det gælder – ellers spørg i svar.' }
+};
 const aiIso = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '') && !isNaN(new Date(v + 'T00:00'));
 const aiTid = v => /^\d{2}:\d{2}$/.test(v || '') && Number(v.slice(0, 2)) < 24 && Number(v.slice(3)) < 60;
 const aiT = (v, n = 80) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -22,6 +27,7 @@ function aiKontekst() {
     personer: PERSONER,
     kategorier: RET_GRUPPER.map(([noegle, , navn]) => ({ noegle, navn })),
     tilbehoer: SIDER, ekstra: EKSTRA, fyld: FYLD,
+    butikker: [...new Set(Data.listNu('favoritter').filter(f => f.type === 'butik').map(f => f.tekst))],
     retter: aiRetter().map(f => ({ tekst: f.tekst, maaltid: f.type, gruppe: f.gruppe || '', side: f.side || '' }))
   };
 }
@@ -42,9 +48,10 @@ function aiTjek(r) {
         + (gentag ? ' · ' + GENTAG_NAVN[gentag].toLowerCase() + (h.gentagTil ? ' til ' + aiDag(h.gentagTil) : '') : '') + (h.note ? ' · ' + h.note : '') };
     }
     case 'indkob_ny': {
-      const varer = aiListe(r.varer, 40);
+      const varer = aiListe(r.varer, 60);
       if (!varer.length) return fejl('Ingen varer');
-      return { h: { type: r.type, varer }, tekst: varer.join(', ') };
+      const butik = Data.listNu('favoritter').find(f => f.type === 'butik' && lavt(f.tekst) === lavt(r.butik))?.tekst || '';
+      return { h: { type: r.type, varer, butik }, tekst: (butik ? butik + ': ' : '') + varer.join(', ') };
     }
     case 'todo_ny': {
       const tekst = aiT(r.tekst, 120);
@@ -135,7 +142,7 @@ async function aiUdfoer(h) {
         tid: h.tid, slut: h.slut, note: h.note, gentag: h.gentag, gentagTil: h.gentagTil, fri: false });
       return;
     case 'indkob_ny':
-      for (const v of h.varer) await tilfoejUdenDublet('indkob', { tekst: v, klaret: false });
+      for (const v of h.varer) await tilfoejUdenDublet('indkob', { tekst: v, klaret: false, ...(h.butik ? { butik: h.butik } : {}) });
       return;
     case 'todo_ny':
       await tilfoejUdenDublet('todo', { tekst: h.tekst, klaret: false, prio: 2, ...(h.hvem ? { hvem: h.hvem } : {}), ...(h.frist ? { frist: h.frist } : {}) });
@@ -185,15 +192,25 @@ async function aiUdfoer(h) {
 let aiSamtale = [];   // [{rolle: 'user'|'assistant', tekst, forslag?: [{tekst, udfoert}]}]
 const aiHistorik = () => aiSamtale.slice(-12).map(b => ({
   rolle: b.rolle,
-  tekst: b.rolle === 'user' ? b.tekst : [b.tekst, ...(b.forslag || []).map(f => '- ' + f.tekst + (f.udfoert ? ' (udført)' : f.fejl ? ' (afvist af appen)' : ' (ikke udført)'))].join('\n')
+  tekst: b.rolle === 'user' ? (b.foto ? '[billede: ' + b.foto.label + '] ' : '') + b.tekst : [b.tekst, ...(b.forslag || []).map(f => '- ' + f.tekst + (f.udfoert ? ' (udført)' : f.fejl ? ' (afvist af appen)' : ' (ikke udført)'))].join('\n')
 }));
 
 function aabnAI(start = '') {
   const felt = el('textarea', 'ai-felt');
   felt.rows = 2; felt.maxLength = 1500; felt.value = start;
   const log = el('div', 'ai-log');
-  const eksempler = el('div', 'seg wrap ai-eksempler');
-  eksempler.append(...AI_EKSEMPLER.map(t => knap(t, null, () => { felt.value = t; felt.focus(); })));
+  // Foto-knapper: vælg/tag et billede → sendes med en fast opgave (+ det man evt. har skrevet)
+  const filInput = el('input');
+  filInput.type = 'file'; filInput.accept = 'image/*'; filInput.hidden = true;
+  let fotoType = null;
+  filInput.addEventListener('change', async () => {
+    const fil = filInput.files[0]; filInput.value = '';
+    if (!fil || !fotoType) return;
+    try { spoerg(await laesBillede(fil, 1568, 0.8), fotoType); }   // app.js – stort nok til håndskrift
+    catch (e) { visStatus('Kunne ikke læse billedet', true); }
+  });
+  const fotoKnapper = el('div', 'ai-foto');
+  fotoKnapper.append(filInput, ...Object.entries(AI_FOTO).map(([type, f]) => knap(f.knap, 'lille-knap', () => { fotoType = type; filInput.click(); })));
   const knapper = el('div', 'ark-knapper');
   const send = knap('➤', 'knap ai-send', () => spoerg());
   send.setAttribute('aria-label', 'Send');
@@ -205,7 +222,12 @@ function aabnAI(start = '') {
   function tegn() {
     log.replaceChildren();
     aiSamtale.forEach((b, nr) => {
-      if (b.rolle === 'user') { log.append(el('p', 'ai-boble mig', b.tekst)); return; }
+      if (b.rolle === 'user') {
+        const boble = el('div', 'ai-boble mig');
+        if (b.foto) { const img = el('img', 'ai-foto-vis'); img.src = b.foto.url; img.alt = b.foto.label; boble.append(img); }
+        boble.append(el('span', null, b.foto ? AI_FOTO[b.foto.type].knap + (b.tekst ? ' – ' + b.tekst : '') : b.tekst));
+        log.append(boble); return;
+      }
       const boks = el('div', 'ai-boble ai');
       if (b.tekst) boks.append(el('p', 'ai-besked', b.tekst));
       const sidst = nr === aiSamtale.length - 1;
@@ -216,8 +238,7 @@ function aabnAI(start = '') {
       if (sidst && aktuelle) boks.append(forslagKort(b));
       log.append(boks);
     });
-    eksempler.hidden = aiSamtale.length > 0;
-    felt.placeholder = aiSamtale.length ? 'Skriv videre …' : 'Skriv eller tal (🎤 på tastaturet) – fx "Villads fodbold hver tirsdag 16.30–17.45"';
+    felt.placeholder = aiSamtale.length ? 'Skriv videre …' : 'Hej ' + (Data.bruger()?.navn || '') + ' – hvad kan jeg hjælpe med?';
     knapper.replaceChildren(...(aiSamtale.length ? [knap('Ny samtale', 'knap sekundaer', () => { aiSamtale = []; aktuelle = null; tegn(); felt.focus(); })] : [knap('Luk', 'knap sekundaer', lukArk)]),
       ...(aktuelle?.udfoer ? [aktuelle.udfoer] : []));
     setTimeout(() => log.lastElementChild?.scrollIntoView({ block: 'nearest' }), 30);
@@ -260,11 +281,12 @@ function aabnAI(start = '') {
     return ul;
   }
 
-  async function spoerg() {
+  async function spoerg(billede = null, type = null) {
     const tekst = felt.value.trim();
-    if (!tekst) { felt.focus(); return; }
+    if (!tekst && !billede) { felt.focus(); return; }
     const historik = aiHistorik();
-    aiSamtale.push({ rolle: 'user', tekst });
+    const foto = billede ? { url: billede, type, label: AI_FOTO[type].label } : null;
+    aiSamtale.push({ rolle: 'user', tekst, ...(foto ? { foto } : {}) });
     felt.value = '';
     aktuelle = null;
     tegn();
@@ -272,7 +294,9 @@ function aabnAI(start = '') {
     log.append(vent);
     knapper.replaceChildren(knap('Luk', 'knap sekundaer', lukArk));
     let res;
-    try { res = await Data.ai(tekst, aiKontekst(), historik); }
+    const opgave = foto ? AI_FOTO[type].tekst + (tekst ? ' Brugeren skriver også: ' + tekst : '') : tekst;
+    const bil = foto ? { media_type: 'image/jpeg', data: billede.split(',')[1] } : null;
+    try { res = await Data.ai(opgave, aiKontekst(), historik, bil); }
     catch (e) {
       aiSamtale.pop(); felt.value = tekst;
       tegn();
@@ -287,8 +311,8 @@ function aabnAI(start = '') {
   }
 
   tegn();
-  aabnArk('✨ Hjælper', log, eksempler, inputRaekke,
-    el('p', 'hint', 'Den foreslår – du trykker "Udfør". Du kan skrive videre for at præcisere. Den kan lægge retter sammen, men sletter aldrig noget.'), knapper);
+  aabnArk('✨ Hjælper', log, fotoKnapper, inputRaekke,
+    el('p', 'hint', 'Intet gemmes, før du trykker "Udfør". Den sletter aldrig noget.'), knapper);
   setTimeout(() => felt.focus(), 50);
 }
 
