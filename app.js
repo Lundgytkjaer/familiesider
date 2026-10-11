@@ -344,6 +344,9 @@ async function redigerVare(p) {
 
   const note = input('text', 'vare-note', p.note, 'Fx 2 for 30 kr. eller "den med blåt låg"');
   note.addEventListener('input', () => gemSnart(800));
+  const antal = input('text', 'vare-antal', p.antal || '', 'Fx 2, 2 l eller 500 g');
+  antal.maxLength = 12;
+  antal.addEventListener('input', () => gemSnart(800));
   navn.addEventListener('input', () => gemSnart(800));
 
   let billede = p.billede || '';
@@ -377,7 +380,7 @@ async function redigerVare(p) {
     const tekst = navn.value.trim();
     if (!tekst) return;
     try {
-      await Data.update('indkob', p.id, { tekst, butik, tilbud: tilbud.checked, vigtig: vigtigTjek.checked, note: note.value.trim(), billede });
+      await Data.update('indkob', p.id, { tekst, antal: antal.value.trim(), butik, tilbud: tilbud.checked, vigtig: vigtigTjek.checked, note: note.value.trim(), billede });
       fejl.hidden = true;
       gemtTekst.textContent = 'Gemt';
       if (butik && butik !== sidsteButik) await gemFavorit('butik', butik);
@@ -404,7 +407,7 @@ async function redigerVare(p) {
   const fav = await Data.list('favoritter');
   const katValg = chipValg(KATEGORIER.map(k => k[0]), varensKategori(p, fav), async k => { await saetKategori(p, k); tegnAlt(); },
     k => KAT[k].ikon + ' ' + KAT[k].navn);
-  aabnArk('Vare', felt('Vare', navn), felt('Butik', butikValg), nyButik, vigtigLabel, tilbudLabel,
+  aabnArk('Vare', felt('Vare', navn), felt('Antal', antal), felt('Butik', butikValg), nyButik, vigtigLabel, tilbudLabel,
     felt('Note', note), felt('Billede', billedBoks), felt('Kategori (i handletilstand)', katValg), fejl, gemtTekst, knapper);
 }
 
@@ -436,7 +439,10 @@ async function tegnListe(navn) {
     const tjek = el('span', 'tjek');
     tjek.innerHTML = IKON_TJEK;
     const tekstBoks = el('span', 'tekst-boks');
-    tekstBoks.append(el('span', 'tekst' + (p.vigtig && !p.klaret ? ' vigtig' : ''), p.tekst));
+    const tekstEl = el('span', 'tekst' + (p.vigtig && !p.klaret ? ' vigtig' : ''));
+    if (p.antal) tekstEl.append(antalTag(p.antal));
+    tekstEl.append(p.tekst);
+    tekstBoks.append(tekstEl);
     if (p.butik || p.tilbud || p.note || p.af || p.hvem || p.frist) {
       const tags = el('span', 'tags');
       if (p.hvem) tags.append(el('span', 'hvem-tag ' + (PK[p.hvem] || ''), p.hvem));
@@ -538,15 +544,39 @@ function punktValg(liste, p, ekstra = []) {
   if (!maaSlette) return;
   // Indkøb: markér som vigtig (som med en overstregningstusch på en papirseddel)
   const foerst = liste === 'indkob' && !erBarn() && !p.klaret
-    ? [knap(p.vigtig ? '✖ Fjern markering' : '🖍️ Markér som vigtig', 'knap marker-knap', async () => { await Data.update('indkob', p.id, { vigtig: !p.vigtig }); lukArk(); tegnAlt(); })]
+    ? [antalValg(p), knap(p.vigtig ? '✖ Fjern markering' : '🖍️ Markér som vigtig', 'knap marker-knap', async () => { await Data.update('indkob', p.id, { vigtig: !p.vigtig }); lukArk(); tegnAlt(); })]
     : [];
   holdValg(p.tekst, {
     foerst,
     slet: () => Data.remove(liste, p.id),
     ret: erBarn() ? null : () => (liste === 'indkob' ? redigerVare(p) : redigerTodo(p)),
-    retTekst: liste === 'indkob' ? '✏️ Note, tilbud, billede …' : '✏️ Ret opgave',
+    retTekst: liste === 'indkob' ? '✏️ Butik, note, tilbud, billede …' : '✏️ Ret opgave',
     ekstra
   });
+}
+
+// ---------- Antal på indkøbslisten ----------
+// Data: indkob.antal (tekst, fx "2", "2 l", "500 g"). Skrives forrest: "2 mælk", "2 l mælk", "500 g hakket oksekød".
+const ANTAL_RE = /^(\d+(?:[.,]\d+)?\s*(?:x|stk|l|dl|cl|kg|g|pk|pakker?|ps|poser?|bakker?|ds|dåser?|bdt|bundter?|fl|flasker?)?\.?)\s+(\S.*)$/i;
+function delAntal(tekst) {
+  const m = tekst.match(ANTAL_RE);
+  return m ? { antal: m[1].replace(/\.$/, '').replace(/\s*x$/i, '').trim(), tekst: m[2].trim() } : { antal: '', tekst };
+}
+const antalTag = antal => el('span', 'antal-tag', antal);
+// Vælg antal (fra "hold fingeren"-vinduet og fra Ret vare)
+function antalValg(p, efter = () => { lukArk(); tegnAlt(); }) {
+  const boks = el('div', 'antal-valg');
+  const gem = async v => { await Data.update('indkob', p.id, { antal: v }); efter(); };
+  const seg = el('div', 'seg wrap');
+  seg.append(...['1', '2', '3', '4', '5', '6'].map(v => { const k = knap(v, null, () => gem(v)); k.setAttribute('aria-checked', p.antal === v); k.setAttribute('role', 'radio'); return k; }));
+  if (p.antal) seg.append(knap('Intet', null, () => gem('')));
+  const inp = input('text', 'antal-andet', ['1', '2', '3', '4', '5', '6'].includes(p.antal) ? '' : p.antal || '', 'Andet, fx 2 l eller 500 g');
+  inp.maxLength = 12;
+  const form = el('form', 'oenske-form');
+  form.append(inp, el('button', 'knap', 'OK'));
+  form.addEventListener('submit', e => { e.preventDefault(); gem(inp.value.trim()); });
+  boks.append(el('label', 'felt-label', '🔢 Antal'), seg, form);
+  return boks;
 }
 
 // Prioritet til nye opgaver
@@ -565,7 +595,9 @@ document.querySelectorAll('form.tilfoj[data-liste]').forEach(form => {
     const vigtig = form.dataset.liste === 'indkob' && /^!|!$/.test(tekst) && !erBarn();
     tekst = tekst.replace(/^!+\s*|\s*!+$/g, '').trim();
     if (!tekst) return;
-    const felter = { tekst, klaret: false, ...(vigtig ? { vigtig: true } : {}) };
+    let antal = '';
+    if (form.dataset.liste === 'indkob') ({ antal, tekst } = delAntal(tekst));   // "2 mælk" → antal 2
+    const felter = { tekst, klaret: false, ...(vigtig ? { vigtig: true } : {}), ...(antal ? { antal } : {}) };
     if (form.dataset.liste === 'todo') felter.prio = nyPrio;
     const nyt = await tilfoejUdenDublet(form.dataset.liste, felter);
     if (nyt) await gemFavorit(form.dataset.liste, tekst);
@@ -580,9 +612,12 @@ document.querySelectorAll('form.tilfoj[data-liste]').forEach(form => {
 // Står det allerede på listen, tilføjes det ikke igen. Er det krydset af, kommer det bare tilbage på listen.
 async function tilfoejUdenDublet(liste, felter) {
   const findes = (await Data.list(liste)).find(p => p.tekst.trim().toLowerCase() === felter.tekst.trim().toLowerCase());
-  if (findes && !findes.klaret) { visStatus(findes.tekst + ' står allerede på listen'); return false; }
+  if (findes && !findes.klaret) {
+    if (felter.antal && felter.antal !== findes.antal && !erBarn()) { await Data.update(liste, findes.id, { antal: felter.antal }); visStatus(findes.tekst + ': antal ' + felter.antal); return false; }
+    visStatus(findes.tekst + ' står allerede på listen'); return false;
+  }
   if (erBarn()) { await Data.add(liste, { ...felter, af: Data.bruger().navn }); return true; }   // børn: hvem ønskede det
-  if (findes) { await Data.update(liste, findes.id, { klaret: false, ...(felter.prio ? { prio: felter.prio } : {}), ...(felter.vigtig ? { vigtig: true } : {}) }); return true; }
+  if (findes) { await Data.update(liste, findes.id, { klaret: false, antal: felter.antal || '', ...(felter.note ? { note: felter.note } : {}), ...(felter.butik ? { butik: felter.butik } : {}), ...(felter.prio ? { prio: felter.prio } : {}), ...(felter.vigtig ? { vigtig: true } : {}) }); return true; }
   await Data.add(liste, felter);
   return true;
 }
@@ -2895,7 +2930,7 @@ async function tegnOverblik() {
   const ovInd = document.getElementById('ov-indkob');
   ovInd.replaceChildren();
   if (!varer.length) ovInd.append(el('span', null, 'Listen er tom'));
-  for (const v of varer.slice(0, 8)) ovInd.append(el('span', v.af ? 'hvem-tag ' + (PK[v.af] || '') : null, v.tekst + (v.af ? ' · ' + v.af : '')));
+  for (const v of varer.slice(0, 8)) ovInd.append(el('span', v.af ? 'hvem-tag ' + (PK[v.af] || '') : null, (v.antal ? v.antal + ' ' : '') + v.tekst + (v.af ? ' · ' + v.af : '')));
   document.getElementById('ov-indkob-antal').textContent = varer.length ? varer.length + (varer.length === 1 ? ' vare ›' : ' varer ›') : '›';
 }
 

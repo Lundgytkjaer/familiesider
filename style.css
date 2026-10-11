@@ -1566,3 +1566,8 @@ body.cool .rutine-strip { display: none; }
 .ai-foto { display: flex; gap: 8px; flex-wrap: wrap; margin: 0 0 8px; }
 .ai-foto .lille-knap { font-size: 14px; }
 .ai-foto-vis { display: block; max-width: 160px; max-height: 160px; border-radius: 10px; margin-bottom: 6px; object-fit: cover; }
+/* Antal på indkøbslisten: tydeligt forrest, kun når der er et */
+.antal-tag { display: inline-block; font-weight: 800; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border-radius: 8px; padding: 0 7px; margin-right: 6px; font-variant-numeric: tabular-nums; }
+.faerdig .antal-tag, .klaret .antal-tag { opacity: .6; }
+.antal-valg { margin-bottom: 12px; }
+.antal-valg .seg button { min-width: 48px; }

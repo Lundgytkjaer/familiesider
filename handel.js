@@ -244,6 +244,7 @@ function handleLi(p, k) {
   b.setAttribute('aria-pressed', !!p.klaret);
   const tjek = el('span', 'tjek'); tjek.innerHTML = IKON_TJEK;
   const tekst = el('span', 'handle-tekst', '');
+  if (p.antal) tekst.append(antalTag(p.antal));   // app.js
   tekst.append(el('span', p.vigtig && !p.klaret ? 'vigtig' : '', p.tekst));
   b.append(tjek, tekst);
   const ekstra = [p.tilbud ? 'Tilbud' : '', p.note || '', p.butik && !butikFilter ? p.butik : ''].filter(Boolean);

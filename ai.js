@@ -28,13 +28,13 @@ const aiKendteVarer = () => {
   return [...set.values()];
 };
 // En vare fra AI'en: jeres egen stavemåde, hvis den findes – ellers stort forbogstav
-// "Mælk (2 l)" → { tekst: 'Mælk', note: '2 l' } – mængden står i varens note, så navnet passer med hurtigvalget
+// "Mælk (2 l)" → { tekst: 'Mælk', antal: '2 l' } – navnet passer med hurtigvalget, antallet står forrest på listen
 function aiVare(v) {
   const m = aiT(v, 60).match(/^(.*?)\s*(?:\(([^)]*)\))?$/);
   const t = aiT(m?.[1], 40);
   if (!t) return null;
   const tekst = aiKendteVarer().find(k => lavt(k) === lavt(t)) || t[0].toUpperCase() + t.slice(1);
-  return { tekst, note: aiT(m?.[2], 40) };
+  return { tekst, antal: aiT(m?.[2], 12) };
 }
 // Det AI'en får at vide om familien (ikke mere)
 function aiKontekst() {
@@ -71,7 +71,7 @@ function aiTjek(r) {
       const varer = [...set.values()].slice(0, 60);
       if (!varer.length) return fejl('Ingen varer');
       const butik = Data.listNu('favoritter').find(f => f.type === 'butik' && lavt(f.tekst) === lavt(r.butik))?.tekst || '';
-      return { h: { type: r.type, varer, butik }, tekst: (butik ? butik + ': ' : '') + varer.map(v => v.tekst + (v.note ? ' (' + v.note + ')' : '')).join(', ') };
+      return { h: { type: r.type, varer, butik }, tekst: (butik ? butik + ': ' : '') + varer.map(v => (v.antal ? v.antal + ' ' : '') + v.tekst).join(', ') };
     }
     case 'todo_ny': {
       const tekst = aiT(r.tekst, 120);
@@ -163,7 +163,7 @@ async function aiUdfoer(h) {
       return;
     case 'indkob_ny':
       for (const v of h.varer) {
-        if (await tilfoejUdenDublet('indkob', { tekst: v.tekst, klaret: false, ...(v.note ? { note: v.note } : {}), ...(h.butik ? { butik: h.butik } : {}) })) await gemFavorit('indkob', v.tekst);   // kommer i hurtigvalget som når man skriver selv
+        if (await tilfoejUdenDublet('indkob', { tekst: v.tekst, klaret: false, ...(v.antal ? { antal: v.antal } : {}), ...(h.butik ? { butik: h.butik } : {}) })) await gemFavorit('indkob', v.tekst);   // kommer i hurtigvalget som når man skriver selv
       }
       return;
     case 'todo_ny':
