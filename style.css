@@ -1571,3 +1571,4 @@ body.cool .rutine-strip { display: none; }
 .faerdig .antal-tag, .klaret .antal-tag { opacity: .6; }
 .antal-valg { margin-bottom: 12px; }
 .antal-valg .seg button { min-width: 48px; }
+.ai-side-knap { white-space: nowrap; }

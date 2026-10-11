@@ -896,6 +896,7 @@ async function tegnForslag(type) {
       const { ligner, udenKategori } = rydOpForslag(await Data.list('favoritter'));   // retter.js
       const n = ligner.length + udenKategori.length;
       if (n) styr('🧹 Ryd op (' + n + ')', rydOp);
+      if (typeof aabnAI === 'function') styr('✨ Ryd op med AI', () => aabnAI({ opgave: 'ryd_retter' }));   // ai.js – skriv evt. "kun kylling"
     }
     styr('✎ Fyld, tilbehør og ekstra', redigerTilbehoerLister);
   }
