@@ -139,27 +139,45 @@ const AUTO_EMOJI = [[/\bbil/i, '🚗'], [/græs|have|blade/i, '🌿'], [/opvask/
 // Emoji kan slås fra pr. person (Indstillinger → "😀 Emoji ved pligter og belønninger" = personvalg.emoji)
 const emojiTil = barn => !barn || Data.listNu('personvalg').find(x => x.navn === barn)?.emoji !== false;
 const autoEmoji = (navn, barn) => (emojiTil(barn) && (AUTO_EMOJI.find(([r]) => r.test(navn || '')) || [])[1]) || '';
+// Ikon ved pligt/rutine: eget billede/piktogram > valgt emoji (x.emoji; 'ingen' = ingen) > automatisk emoji ud fra navnet
 function ikonBillede(x, klasse = 'lille-ikon', auto = true) {
   const url = x.piktogram ? PIKTO_URL(x.piktogram) : x.billede || '';
   if (!url) {
-    const barn = BOERN.includes(x.barn) ? x.barn : typeof pligtBarn !== 'undefined' ? pligtBarn : null;
-    const e = auto ? autoEmoji(x.navn, barn) : '';
+    if (x.emoji === 'ingen') return '';
+    const barn = x.barn && x.barn !== 'Begge' ? x.barn : typeof pligtBarn !== 'undefined' ? pligtBarn : null;
+    const e = x.emoji || (auto ? autoEmoji(x.navn, barn) : '');
     return e ? el('span', klasse + ' auto-emoji', e) : '';
   }
   const img = el('img', klasse);
   img.src = url; img.alt = ''; img.loading = 'lazy';
   return img;
 }
-// Fold-ud-felt med billedvælgeren. Samme element kan sættes ind igen, når panelet tegnes om.
+const EMOJI_VALG = ['🧹', '🍽️', '🍴', '🛏️', '🧺', '👕', '🗑️', '🪥', '🚿', '📖', '✏️', '🎒', '🐰', '🐶', '🌿', '🚗', '🍳', '🛒', '⚽', '🎹', '🧸', '👟', '💪', '⭐'];
+// Fold-ud-felt: emoji (Automatisk / Ingen / vælg / skriv selv) + billedvælgeren. Samme element kan sættes ind igen, når panelet tegnes om.
 function ikonFelt(start) {
   const vaelger = billedVaelger(start);
+  let emoji = start.emoji || '';   // '' = automatisk ud fra navnet
   const boks = el('details', 'ikon-felt');
   const titel = el('summary');
-  titel.append(el('span', null, 'Lille billede (valgfrit)'));
-  const vis = ikonBillede(start, 'lille-ikon', false);   // kun et rigtigt billede – ikke den automatiske emoji
-  if (vis) titel.append(vis);
-  boks.append(titel, ...vaelger.dele);
-  return { element: boks, vaerdi: vaelger.vaerdi };
+  const visPlads = el('span', 'ikon-vis');
+  titel.append(el('span', null, 'Emoji eller billede (valgfrit)'), visPlads);
+  const visNu = () => { const v = ikonBillede({ ...start, ...vaelger.vaerdi(), emoji }, 'lille-ikon', false); visPlads.replaceChildren(...(v ? [v] : [])); };
+  const seg = el('div', 'seg wrap emoji-valg');
+  const tegnSeg = () => seg.replaceChildren(...[['', 'Automatisk'], ['ingen', 'Ingen'], ...EMOJI_VALG.map(e => [e, e])].map(([v, tekst]) => {
+    const k = knap(tekst, v && v !== 'ingen' ? 'emoji-knap' : null, () => { emoji = v; tegnSeg(); visNu(); });
+    k.setAttribute('role', 'radio'); k.setAttribute('aria-checked', emoji === v);
+    if (v === '') k.setAttribute('aria-label', 'Automatisk emoji ud fra navnet');
+    return k;
+  }));
+  tegnSeg();
+  const egen = input('text', 'emoji-egen', EMOJI_VALG.includes(emoji) || emoji === 'ingen' ? '' : emoji, 'Eller skriv/indsæt en emoji');
+  egen.maxLength = 8;
+  egen.addEventListener('input', () => { const t = egen.value.trim(); emoji = t; tegnSeg(); visNu(); });
+  visNu();
+  boks.append(titel, el('label', 'felt-label', 'Emoji'), seg, egen,
+    el('p', 'hint', 'Automatisk = en emoji ud fra navnet, fx 🧹 ved "Ryd op". Et billede eller piktogram går forud for emojien.'),
+    ...vaelger.dele);
+  return { element: boks, vaerdi: () => ({ ...vaelger.vaerdi(), emoji: emoji || null }) };
 }
 
 // Kort til drengenes tavle
@@ -716,6 +734,79 @@ async function minePligterKort() {
   return pligtKort(mig.navn, 'Mine pligter i dag');
 }
 
+// Rette-tilstand: kun det der kan rettes – farvet bånd øverst og "Færdig" der altid kan ses
+function retPligterDele(barn, d, erMig) {
+  const dele = [];
+  const GENTAG = { dag: 'Hver dag', uge: 'Én gang om ugen', engang: 'Kun én gang', interval: '' };
+  dele.push(el('h3', 'lille-titel', erMig ? 'Mine pligter' : 'Pligter for ' + barn));
+  const ol = el('ul', 'ret-liste');
+  for (const o of d.opgaver) {
+    const li = el('li');
+    const b = knap('', 'ret-raekke', () => redigerOpgave(o, d.regel));
+    const under = [GENTAG[o.gentag] || 'Hver dag'];
+    if (o.gentag === 'dag' && o.dage && o.dage.length && o.dage.length < 7) under[0] = o.dage.map(i => DAGE[i]).join(', ');
+    if (o.gentag === 'interval') under[0] = intervalTekst(o) + ' · næste ' + kortDato(naesteForfald(o, d));
+    if (o.frivillig) under.push('Bonus');
+    if (d.regel.kr && tal(o.kr)) under.push(kr(tal(o.kr)));
+    if (d.regel.stjerner && tal(o.stjerner)) under.push('★ ' + tal(o.stjerner));
+    const oNavn = el('span', 'ret-navn');
+    oNavn.append(ikonBillede(o), o.navn);
+    b.append(oNavn, el('span', 'ret-under', under.join(' · ')), el('span', 'm-pil', '›'));
+    li.append(b);
+    ol.append(li);
+  }
+  if (!d.opgaver.length) ol.append(el('li', 'tom', 'Ingen pligter'));
+  dele.push(ol, knap('Ny pligt', 'lille-knap', () => redigerOpgave({ barn }, d.regel)));
+
+  if (d.regel.stjerner) {
+    dele.push(el('h3', 'lille-titel', 'Belønninger'));
+    const bl2 = el('ul', 'ret-liste');
+    for (const bel of d.beloenninger) {
+      const li = el('li');
+      const b = knap('', 'ret-raekke', () => redigerBeloenning(bel));
+      const under = ['★ ' + bel.stjerner, bel.barn === 'Begge' ? 'begge drenge' : bel.barn];
+      if (bel.engang) under.push(BOERN.includes(barn) && brugtOp(bel, d) ? 'kun én gang – ' + barn + ' har fået den ✓' : 'kun én gang');
+      const bNavn = el('span', 'ret-navn');
+      bNavn.append(ikonBillede({ ...bel, barn }), bel.navn);
+      b.append(bNavn, el('span', 'ret-under', under.join(' · ')), el('span', 'm-pil', '›'));
+      li.append(b);
+      bl2.append(li);
+    }
+    if (!d.beloenninger.length) bl2.append(el('li', 'tom', 'Ingen belønninger'));
+    dele.push(bl2, knap('Ny belønning', 'lille-knap', () => redigerBeloenning({ barn: BOERN.includes(barn) ? 'Begge' : barn })));
+  }
+
+  // Hvad personen kan tjene
+  dele.push(el('h3', 'lille-titel', (erMig ? 'Jeg' : barn) + ' kan tjene'));
+  const regelSeg = el('div', 'seg wrap');
+  for (const [felt, navn] of [['kr', 'Lommepenge'], ['stjerner', 'Stjerner']]) {
+    const k = knap(navn, null, async () => { await saetRegel(barn, felt, !d.regel[felt]); tegnAlt(); });
+    k.setAttribute('role', 'checkbox');
+    k.setAttribute('aria-checked', d.regel[felt]);
+    regelSeg.append(k);
+  }
+  dele.push(regelSeg, el('p', 'hint', 'Slå begge fra for pligter uden belønning.'));
+  if (d.regel.stjerner) {
+    // Streak-bonus: ekstra stjerner, når alle hver-dag-pligter er klaret to (eller flere) dage i træk
+    const avanceret = el('details', 'avanceret');
+    avanceret.append(el('summary', null, 'Avanceret: 🔥 bonus for dage i træk og joker'));
+    const adele = [];
+    adele.push(el('h3', 'lille-titel', '🔥 Bonus for dage i træk'),
+      valgSeg([0, 1, 2, 3], Math.round(tal(d.regel.streakBonus ?? 1)), async v => { await saetRegel(barn, 'streakBonus', v); tegnAlt(); },
+        v => (v === 0 ? 'Fra' : '+★ ' + v + ' pr. dag')),
+      el('p', 'hint', 'Gives automatisk (med flamme-animation), når alle hver-dag-pligter er klaret – fra dag 2 i træk. Milepæle giver ekstra: 7 dage +3, 14 +5, 21 +5, 30 +10, 50 +10, 75 +15, 100 +20. Sygedage bryder ikke rækken.'));
+    const jk = knap('🃏 Rednings-joker (1 pr. måned)', null, async () => { await saetRegel(barn, 'joker', !jokerTil(d)); tegnAlt(); });
+    jk.setAttribute('role', 'checkbox');
+    jk.setAttribute('aria-checked', jokerTil(d));
+    const jseg = el('div', 'seg wrap');
+    jseg.append(jk);
+    adele.push(jseg, el('p', 'hint', 'Glemmer barnet en dag, redder jokeren automatisk rækken, når næste dag klares – én gang pr. måned.'));
+    avanceret.append(...adele);
+    dele.push(avanceret);
+  }
+  return dele;
+}
+
 async function tegnPligter() {
   const boks = document.getElementById('pligter-indhold');
   const personer = pligtPersoner();
@@ -726,6 +817,18 @@ async function tegnPligter() {
   const s = saldo(d);
   const dele = [];
 
+  const sektion = document.getElementById('pligter');
+  sektion.classList.toggle('ret-tilstand', !!(pligtRet && erVoksen()));
+  if (pligtRet && erVoksen()) {
+    const baand = el('div', 'ret-baand');
+    baand.append(el('span', null, '✏️ Du retter ' + (erMig ? 'dine pligter' : barn + (/[sxz]$/i.test(barn) ? "'" : 's') + ' pligter og belønninger')),
+      knap('Færdig ✓', 'knap ret-faerdig', () => { pligtRet = false; tegnPligter(); window.scrollTo(0, 0); }));
+    dele.push(baand);
+    if (personer.length > 1) dele.push(valgSeg(personer, barn, b => { pligtBarn = b; lokal.set('pligt-barn', b); tegnPligter(); }, v => v));
+    dele.push(...retPligterDele(barn, d, erMig));
+    boks.replaceChildren(...dele);
+    return;
+  }
   if (erVoksen()) {
     // Børn-fanen samler det hele: først det, børnene venter på svar på
     const oensker = await oenskerIndhold();
@@ -850,77 +953,10 @@ async function tegnPligter() {
     }
   }
 
-  // Voksne: ret pligter, belønningstyper og belønninger
+  // Voksne: ret pligter og belønninger (egen tilstand – se retPligterDele)
   if (erVoksen()) {
-    dele.push(knap(pligtRet ? 'Færdig med at rette' : (erMig ? 'Ret mine pligter' : 'Ret pligter og belønninger'), 'ryd',
-      () => { pligtRet = !pligtRet; tegnPligter(); }));
-    if (pligtRet) {
-      // Hvad personen kan tjene
-      dele.push(el('h3', 'lille-titel', (erMig ? 'Jeg' : barn) + ' kan tjene'));
-      const regelSeg = el('div', 'seg wrap');
-      for (const [felt, navn] of [['kr', 'Lommepenge'], ['stjerner', 'Stjerner']]) {
-        const k = knap(navn, null, async () => { await saetRegel(barn, felt, !d.regel[felt]); tegnAlt(); });
-        k.setAttribute('role', 'checkbox');
-        k.setAttribute('aria-checked', d.regel[felt]);
-        regelSeg.append(k);
-      }
-      dele.push(regelSeg, el('p', 'hint', 'Slå begge fra for pligter uden belønning.'));
-      if (d.regel.stjerner) {
-        // Streak-bonus: ekstra stjerner, når alle hver-dag-pligter er klaret to (eller flere) dage i træk
-        const avanceret = el('details', 'avanceret');
-        avanceret.append(el('summary', null, 'Avanceret: 🔥 bonus for dage i træk og joker'));
-        const adele = [];
-        adele.push(el('h3', 'lille-titel', '🔥 Bonus for dage i træk'),
-          valgSeg([0, 1, 2, 3], Math.round(tal(d.regel.streakBonus ?? 1)), async v => { await saetRegel(barn, 'streakBonus', v); tegnAlt(); },
-            v => (v === 0 ? 'Fra' : '+★ ' + v + ' pr. dag')),
-          el('p', 'hint', 'Gives automatisk (med flamme-animation), når alle hver-dag-pligter er klaret – fra dag 2 i træk. Milepæle giver ekstra: 7 dage +3, 14 +5, 21 +5, 30 +10, 50 +10, 75 +15, 100 +20. Sygedage bryder ikke rækken.'));
-        const jk = knap('🃏 Rednings-joker (1 pr. måned)', null, async () => { await saetRegel(barn, 'joker', !jokerTil(d)); tegnAlt(); });
-        jk.setAttribute('role', 'checkbox');
-        jk.setAttribute('aria-checked', jokerTil(d));
-        const jseg = el('div', 'seg wrap');
-        jseg.append(jk);
-        adele.push(jseg, el('p', 'hint', 'Glemmer barnet en dag, redder jokeren automatisk rækken, når næste dag klares – én gang pr. måned.'));
-        avanceret.append(...adele);
-        dele.push(avanceret);
-      }
-
-      const GENTAG = { dag: 'Hver dag', uge: 'Én gang om ugen', engang: 'Kun én gang', interval: '' };
-      dele.push(el('h3', 'lille-titel', erMig ? 'Mine pligter' : 'Pligter for ' + barn));
-      const ol = el('ul', 'ret-liste');
-      for (const o of d.opgaver) {
-        const li = el('li');
-        const b = knap('', 'ret-raekke', () => redigerOpgave(o, d.regel));
-        const under = [GENTAG[o.gentag] || 'Hver dag'];
-        if (o.gentag === 'dag' && o.dage && o.dage.length && o.dage.length < 7) under[0] = o.dage.map(i => DAGE[i]).join(', ');
-        if (o.gentag === 'interval') under[0] = intervalTekst(o) + ' · næste ' + kortDato(naesteForfald(o, d));
-        if (o.frivillig) under.push('Bonus');
-        if (d.regel.kr && tal(o.kr)) under.push(kr(tal(o.kr)));
-        if (d.regel.stjerner && tal(o.stjerner)) under.push('★ ' + tal(o.stjerner));
-        const oNavn = el('span', 'ret-navn');
-        oNavn.append(ikonBillede(o), o.navn);
-        b.append(oNavn, el('span', 'ret-under', under.join(' · ')), el('span', 'm-pil', '›'));
-        li.append(b);
-        ol.append(li);
-      }
-      if (!d.opgaver.length) ol.append(el('li', 'tom', 'Ingen pligter'));
-      dele.push(ol, knap('Ny pligt', 'lille-knap', () => redigerOpgave({ barn }, d.regel)));
-
-      if (d.regel.stjerner) {
-        dele.push(el('h3', 'lille-titel', 'Belønninger'));
-        const bl2 = el('ul', 'ret-liste');
-        for (const bel of d.beloenninger) {
-          const li = el('li');
-          const b = knap('', 'ret-raekke', () => redigerBeloenning(bel));
-          const under = ['★ ' + bel.stjerner, bel.barn === 'Begge' ? 'begge drenge' : bel.barn];
-          if (bel.engang) under.push(BOERN.includes(barn) && brugtOp(bel, d) ? 'kun én gang – ' + barn + ' har fået den ✓' : 'kun én gang');
-          b.append(el('span', 'ret-navn', bel.navn), el('span', 'ret-under', under.join(' · ')), el('span', 'm-pil', '›'));
-          li.append(b);
-          bl2.append(li);
-        }
-        if (!d.beloenninger.length) bl2.append(el('li', 'tom', 'Ingen belønninger'));
-        dele.push(bl2, knap('Ny belønning', 'lille-knap', () => redigerBeloenning({ barn: BOERN.includes(barn) ? 'Begge' : barn })));
-      }
-    }
+    dele.push(knap('✏️ ' + (erMig ? 'Ret mine pligter' : 'Ret pligter og belønninger'), 'ryd ret-start',
+      () => { pligtRet = true; tegnPligter(); window.scrollTo(0, 0); }));
   }
 
   if (d.opgaver.some(x => x.piktogram)) dele.push(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));
@@ -1029,7 +1065,9 @@ function beloenLi(barn, b, d, s) {
   });
   pin.setAttribute('aria-pressed', erMaal);
   pin.setAttribute('aria-label', erMaal ? 'Fjern som mit mål' : 'Gør ' + b.navn + ' til mit mål');
-  info.append(pin, el('span', 'beloen-navn', (autoEmoji(b.navn, barn) ? autoEmoji(b.navn, barn) + ' ' : '') + b.navn),
+  const bNavn = el('span', 'beloen-navn');
+  bNavn.append(ikonBillede({ ...b, barn }), b.navn);
+  info.append(pin, bNavn,
     el('span', 'beloen-pris', '★ ' + b.stjerner + (nok ? ' · du har nok!' : ' · mangler ' + (b.stjerner - s.stjerner)) + (b.engang ? ' · kun én gang' : '')),
     fremskridt(b.stjerner ? s.stjerner / b.stjerner : 1));
   const venter = d.indl.find(x => x.status === 'afventer' && x.navn === b.navn);
@@ -1556,12 +1594,13 @@ function redigerBeloenning(b) {
   engangKnap.setAttribute('aria-checked', engang);
   const engangBoks = el('div', 'seg wrap');
   engangBoks.append(engangKnap);
+  const ikon = ikonFelt(b);   // emoji eller billede, som på pligterne
   const gem = knap('Gem', 'knap', async () => {
     const n = navn.value.trim();
     const pris = Math.round(tal(stj.value));
     if (!n) { navn.focus(); return; }
     if (pris <= 0) { stj.focus(); return; }
-    const felter = { navn: n, barn: til, stjerner: pris, engang };
+    const felter = { navn: n, barn: til, stjerner: pris, engang, ...ikon.vaerdi() };
     if (ny) await Data.add('beloenninger', felter); else await Data.update('beloenninger', b.id, felter);
     lukArk(); tegnAlt();
   });
@@ -1569,7 +1608,7 @@ function redigerBeloenning(b) {
   if (!ny) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('beloenninger', b.id); lukArk(); tegnAlt(); }));
   knapper.append(gem);
   aabnArk(ny ? 'Ny belønning' : 'Ret belønning', felt('Belønning', navn), felt('Til', tilValg), felt('Koster (stjerner)', stj),
-    engangBoks, el('p', 'hint', 'Fx en ny LEGO-æske. Uden flueben kan belønningen ønskes igen og igen (fx vælge aftensmad).'), knapper);
+    engangBoks, el('p', 'hint', 'Fx en ny LEGO-æske. Uden flueben kan belønningen ønskes igen og igen (fx vælge aftensmad).'), ikon.element, knapper);
   if (ny) setTimeout(() => navn.focus(), 50);
 }
 

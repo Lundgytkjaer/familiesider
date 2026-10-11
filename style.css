@@ -1517,3 +1517,12 @@ body.cool .rutine-strip { display: none; }
 .lille-ikon.auto-emoji { display: inline-flex; align-items: center; justify-content: center; background: none; font-size: 20px; line-height: 1; overflow: hidden; }
 .punkt-knap .opg-ikon.auto-emoji { font-size: 24px; }
 .bonus-linje { line-height: 1.35; margin-bottom: 6px; }
+.emoji-valg .emoji-knap { font-size: 20px; min-width: 44px; padding: 6px 8px; }
+.ikon-felt summary .ikon-vis { margin-left: auto; display: inline-flex; }
+.ikon-felt summary .ikon-vis .lille-ikon { margin: 0; }
+/* Rette-tilstand på Pligter: gul ramme og bånd, så man ikke er i tvivl */
+#pligter.ret-tilstand { background: rgba(242, 183, 5, .10); outline: 3px dashed rgba(214, 160, 0, .55); outline-offset: -3px; border-radius: 18px; padding: 4px 12px 16px; }
+.ret-baand { position: sticky; top: 8px; z-index: 5; display: flex; align-items: center; gap: 12px; justify-content: space-between;
+  background: #f5c542; color: #2a2208; font-weight: 800; padding: 10px 10px 10px 16px; border-radius: 14px; margin: 4px 0 14px; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
+.ret-baand .ret-faerdig { background: #2a2208; color: #fff; border: 0; min-height: 44px; padding: 0 18px; flex: none; }
+.ret-start { border-style: dashed; }
