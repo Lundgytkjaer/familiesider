@@ -1582,3 +1582,42 @@ body.cool .rutine-strip { display: none; }
 .ret-gruppe-indhold .tag-var { grid-column: 1; min-width: 0; overflow-wrap: break-word; }
 .ret-gruppe-indhold .prikker { grid-column: 2; grid-row: 1 / span 2; }
 .ret-gruppe-boks, .ret-gruppe-indhold { max-width: 100%; min-width: 0; }
+
+/* ---------- Vores kort (kort.js) ---------- */
+.sted-kort-boks { position: relative; margin-bottom: 8px; }
+.sted-kort { height: min(58vh, 460px); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--linje); background: var(--accent-blod); isolation: isolate; z-index: 0; }
+.sted-kort.vaelger { outline: 3px solid var(--accent); outline-offset: 2px; cursor: crosshair; }
+.sted-kort-fejl { padding: 24px 16px; text-align: center; }
+.sted-vaelg-baand { position: absolute; left: 8px; right: 8px; top: 8px; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 6px 6px 6px 12px; border-radius: 999px; background: var(--fg); color: var(--bg); font-weight: 600; font-size: 14px; }
+.sted-vaelg-baand .lille-knap { min-height: 34px; }
+.sted-tal { margin: 4px 2px 10px; }
+.sted-overskrift { margin: 14px 2px 6px; font-size: 15px; }
+.sted-raekker { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.sted-raekke { width: 100%; display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 12px; border: 1px solid var(--linje); border-radius: 14px; background: var(--flade); text-align: left; }
+.sted-ikon { font-size: 20px; flex: none; }
+.sted-tekst { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.sted-tekst b { overflow-wrap: break-word; }
+.sted-under { font-size: 13px; color: var(--daempet); }
+.sted-prikker { display: flex; gap: 3px; flex: none; }
+.sted-prikker .prik { width: 10px; height: 10px; border-radius: 50%; background: var(--p, var(--daempet)); }
+.sted-pin { border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.sted-pin.vaeret { background: var(--accent); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.sted-pin.droem { font-size: 20px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+.sted-popup { font-family: var(--font); font-size: 14px; color: #16201c; display: grid; gap: 4px; }
+.sted-popup-navn { font-size: 15px; }
+.sted-hvem { display: flex; flex-wrap: wrap; gap: 4px; }
+.sted-hvem .hvem-tag { padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; color: #16201c !important; background: color-mix(in srgb, var(--p, #9aa5a0) 22%, #fff) !important; }
+.sted-note { margin: 2px 0; white-space: pre-wrap; }
+.sted-billede { display: block; width: 100%; max-height: 200px; object-fit: cover; border-radius: 10px; margin: 4px 0; }
+.sted-popup-knapper { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.sted-popup-knapper .lille-knap { min-height: 36px; background: #fff; color: #16201c; border-color: #dfe5e2; }
+.sted-andre { display: flex; flex-wrap: wrap; gap: 8px; }
+.sted-liste { list-style: none; padding: 0; margin: 6px 0; display: grid; gap: 6px; }
+.sted-billed-valg { display: grid; gap: 8px; justify-items: start; margin-top: 12px; }
+.sted-note-felt { width: 100%; font: inherit; padding: 10px 12px; border: 1.5px solid var(--linje); border-radius: 12px; background: var(--flade); color: var(--fg); resize: vertical; }
+.leaflet-container { font-family: var(--font); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .sted-kort .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9); } }
+:root[data-theme="dark"] .sted-kort .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9); }
+.sted-hvem-valg button[class*="c-"][aria-checked="true"] { background: var(--p); border-color: var(--p); color: #fff; }
+#sted-aar { max-width: 140px; }

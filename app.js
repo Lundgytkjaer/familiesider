@@ -88,8 +88,8 @@ function ugeSpan(man) {
 const kortDag = iso => { const d = new Date(iso + 'T00:00'); return d.getDate() + '. ' + MDR[d.getMonth()]; };
 
 // ---------- Faner ----------
-const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet'];
-const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet'];   // sider man når via "Mere"
+const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder'];
+const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder'];   // sider man når via "Mere"
 // Voksne: "Pligter" (pligter, belønninger, ønsker) er en fane i bundmenuen, og To do ligger under Mere. Børn: som før.
 const underMere = navn => (Data.bruger()?.rolle === 'voksen'
   ? (navn === 'todo' || (UNDER_MERE.includes(navn) && navn !== 'pligter')) : UNDER_MERE.includes(navn));
@@ -140,6 +140,8 @@ function visFane(navn, fraTilbage = false) {
   if (navn === 'vejr' && typeof tegnVejr === 'function') tegnVejr();   // fra vejr.js
   if (typeof holdSkaermTaendt === 'function') holdSkaermTaendt(navn === 'indkob' && handler);   // handletilstand holder skærmen tændt (handel.js)
   if (navn === 'familie' && typeof tegnFamilie === 'function') tegnFamilie();
+  if (typeof stopVaelg === 'function' && navn !== 'steder') stopVaelg();   // kort.js
+  if (navn === 'steder' && typeof tegnSteder === 'function') tegnSteder();
   if (navn === 'aktivitet' && fra !== 'aktivitet' && typeof aktHent === 'function') aktHent(true);   // fra aktivitet.js – hentes frisk hver gang   // fra familie.js (træet skal måles, når siden er synlig)
 }
 function opdaterTilbage() {
