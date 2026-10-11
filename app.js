@@ -122,6 +122,7 @@ const faneHistorik = [];
 function visFane(navn, fraTilbage = false) {
   if (typeof lukZoom === 'function') lukZoom();
   if (!FANER.includes(navn)) navn = 'idag';
+  if (erBarn() && typeof pauseHele === 'function' && pauseHele(Data.bruger()?.navn, isoDato(new Date()))) navn = 'idag';   // ⏸ hele tavlen holder pause
   if ((navn === 'kontakter' || navn === 'aktivitet') && erBarn()) navn = 'idag';   // kontakter og aktivitet er kun for voksne
   if (navn !== 'hjaelp' && tilladteFaner && !tilladteFaner.includes(underMere(navn) ? 'mere' : navn)) navn = 'idag';
   const fra = aktivFane;
@@ -1324,7 +1325,10 @@ async function tegnFastPlan() {
     el('h3', 'lille-titel', selv ? 'Min morgenmad og frokost' : 'Børnenes morgenmad og frokost – hver uge'),
     selv ? '' : el('p', 'hint', 'Går igen hver uge af sig selv – også når du skifter uge ovenfor. En enkelt dag ændres ved at trykke på maden på barnets tavle.'),
     selv ? '' : seg, hoved, ol,
-    selv ? '' : knap('🧒 Hvad må børnene selv vælge?', 'lille-knap boernevalg-knap', () => redigerBoernevalg()));
+    selv ? '' : knap('🧒 Hvad må børnene selv vælge?', 'lille-knap boernevalg-knap', () => redigerBoernevalg()),
+    selv ? '' : knap('⏸ Sæt maden på pause', 'lille-knap boernevalg-knap', () => redigerPause({}, null)),   // pause.js
+    selv && typeof pauseMad === 'function' && ['morgen', 'frokost', 'ret'].some(f => pauseMad(selv, isoDato(new Date()), f))
+      ? el('p', 'hint pause-hint', '⏸ Mor og far har ikke bestemt maden endnu – kig igen senere') : '');
 }
 
 // Terning: vælg tilfældigt fra listerne – undgå gentagelser i samme uge
@@ -2134,8 +2138,12 @@ function tegnTavleValg() {
 }
 
 async function tegnBoernetavle(barn) {
-  if (typeof svarTilBarn === 'function') svarTilBarn(barn);   // besked om svar fra en voksen (mere.js)
   const boks = document.getElementById('boernetavle');
+  // ⏸ Hele tavlen holder pause (pause.js): barnet ser kun sin makker
+  const helePause = erBarn() && typeof pauseHele === 'function' && pauseHele(barn, isoDato(new Date()));
+  document.body.classList.toggle('pause-hele', !!helePause);
+  if (helePause) { lukZoom(); boks.classList.remove('som-tavle'); boks.replaceChildren(await pauseSkaerm(barn)); return; }
+  if (typeof svarTilBarn === 'function') svarTilBarn(barn);   // besked om svar fra en voksen (mere.js)
   const auto = tavleAutoDato();
   const valgt = tavleValgt || auto;
   const iso = isoDato(valgt);
@@ -2242,10 +2250,14 @@ async function tegnBoernetavle(barn) {
 
   // Mad
   const plan = await madFor(valgt, barn);
+  // ⏸ Pause på maden (pause.js): de voksne har ikke bestemt endnu – barnet ser "Ikke bestemt endnu" og kan ikke ønske
+  for (const felt of ['morgen', 'frokost', 'ret']) if (typeof pauseMad === 'function' && pauseMad(barn, iso, felt)) {
+    plan[felt] = ''; plan.visning[felt] = 'Ikke bestemt endnu 🍽️'; if (plan.oenske) plan.oenske[felt] = null; if (plan.venter) plan.venter[felt] = null; plan.eget[felt] = false; (plan.pause ||= {})[felt] = true;
+  }
   const madKort = kort('Mad');
   for (const [felt, navn] of [['morgen', 'Morgen'], ['frokost', 'Frokost'], ['ret', 'Aften']]) {
     const ret = plan[felt];
-    const fremtid = iso >= idagIso;
+    const fremtid = iso >= idagIso && !plan.pause?.[felt];
     const r = erBarn() ? (fremtid ? knap('', 'maaltid', () => oenskMad(barn, valgt, felt)) : el('div', 'maaltid')) : knap('', 'maaltid', () => redigerMaaltid(barn, valgt, felt));
     if (!erBarn()) r.setAttribute('aria-label', navn + ': ' + (ret || 'ikke bestemt') + '. Tryk for at ændre');
     const retEl = el('span', 'm-ret' + (ret ? '' : ' tom-ret'), plan.visning[felt] || ret || 'Ikke bestemt');
@@ -2339,8 +2351,9 @@ async function tegnBoernetavle(barn) {
   // Efter 19.30 viser tavlen i morgen (skole, mad) – men aftenens rutiner (sengetid) hører til i aften og gemmes på i dag
   const autoImorgen = !tavleValgt && iso !== idagIso;
   const rutiner = await rutineKort(barn, autoImorgen ? new Date() : valgt);   // fra mere.js
-  const pligter = await pligtKort(barn, iso === idagIso ? 'Pligter i dag' : 'Pligter i dag (' + DAGE_LANG[idagNr()].toLowerCase() + ')');   // fra mere.js
-  const beloen = await beloenningKort(barn);   // fra mere.js
+  const pPause = typeof pausePligter === 'function' ? pausePligter(barn, idagIso) : null;   // ⏸ pause.js
+  const pligter = pPause ? pausePligtKort(pPause) : await pligtKort(barn, iso === idagIso ? 'Pligter i dag' : 'Pligter i dag (' + DAGE_LANG[idagNr()].toLowerCase() + ')');   // fra mere.js
+  const beloen = pPause ? null : await beloenningKort(barn);   // fra mere.js
   const nedtael = await nedtaellingKort(barn);   // fra sjov.js
   const raekke = [skerKort, pligter, beloen, rutiner, skemaKort, madKort, nedtael].filter(Boolean);
   gitter.append(...raekke.filter(k => !k.kunTavle));
@@ -2987,6 +3000,12 @@ async function tegnOverblik() {
   const ovLink = document.getElementById('ov-seddel-link');
   if (ovLink && typeof seddelSkrivLink === 'function') { const l = await seddelSkrivLink(null); ovLink.replaceChildren(...(l ? [l] : [])); }
 
+  // ⏸ Pauser for børnene (pause.js) – øverst, så man husker at slå dem fra
+  let ovPause = document.getElementById('ov-pause');
+  if (!ovPause) { ovPause = el('div'); ovPause.id = 'ov-pause'; document.getElementById('ov-oensker').before(ovPause); }
+  const pb = typeof pauseBaand === 'function' && !erBarn() ? pauseBaand() : null;
+  ovPause.replaceChildren(...(pb ? [pb] : [])); ovPause.hidden = !pb;
+
   // Mine egne pligter (kun for voksne – fra mere.js)
   // Børnenes ønsker om at indløse belønninger – venter på en voksen
   const oensker = document.getElementById('ov-oensker');
@@ -3314,6 +3333,10 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     }, v => (v === 'cool' ? '😎 Cool' : '🎉 Sjov'));
     dele.push(el('label', 'felt-label', 'Udseende på tavlen'), stilSeg,
       el('p', 'hint', 'Cool: ingen konfetti, ingen makker og ingen billeder ved rutinerne.'));
+    if (!erBarn() && typeof redigerPause === 'function') {   // ⏸ pause.js
+      const aktiv = pauseListe().find(p => (p.hvem === hvem || p.hvem === 'Begge') && (!p.til || p.til >= isoDato(new Date())));
+      dele.push(el('label', 'felt-label', 'Pause'), knap(aktiv ? '⏸ ' + pauseTekst(aktiv) + ' – ret' : '⏸ Sæt ' + hvem + ' på pause …', 'lille-knap', () => redigerPause(aktiv || {}, hvem)));
+    }
   }
   // Voksne vælger, hvilke faner et barn kan se (tavlen er der altid)
   if (!erBarn() && BOERN.includes(hvem)) {
@@ -3550,6 +3573,7 @@ function tegnAlt() {
   tegnVejr();   // fra vejr.js (tegner kun, når siden er åben)
   anvendFaner();
   opdaterVenter();
+  if (typeof pauseUdfyld === 'function') pauseUdfyld();   // ⏸ pause.js: pligter "tæller som klaret"
 }
 
 // Har appen ikke været brugt i et stykke tid, starter man forfra på I dag (voksne på "Familien").

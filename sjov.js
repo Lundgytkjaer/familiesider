@@ -97,7 +97,8 @@ const sygSimpel = (d, iso) => (d.kalender || []).some(a => a.type === 'syg' && !
   && (a.tilDato && a.tilDato > a.dato ? a.tilDato : a.dato) >= iso
   && [].concat(a.hvem || []).some(h => h === d.barn || h === 'Fælles'));
 const jokerDen = (d, iso) => (d.jokere || []).some(j => j.dato === iso);
-const springOverDag = (d, iso) => sygSimpel(d, iso) || jokerDen(d, iso);
+// ⏸ Pause (pause.js): en pausedag uden klarede pligter springes over – som i databasen (opdatering-pause.sql)
+const springOverDag = (d, iso) => sygSimpel(d, iso) || jokerDen(d, iso) || (typeof pauseSpring === 'function' && pauseSpring(d, iso) && dagKlaret(d, iso) !== true);
 const tidligstePligt = d => dagligePligter(d).map(oprettetIso).sort()[0] || '9999-99-99';
 
 function streak(d) {

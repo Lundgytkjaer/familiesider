@@ -1634,3 +1634,23 @@ body.cool .rutine-strip { display: none; }
 .ude-forslag .lille-knap { min-height: 32px; padding: 0 12px; font-size: 13px; }
 .dag-valg .seg-label { margin-top: 10px; }
 .byt-dage button { min-width: 64px; }
+
+/* ⏸ Pause for børnene (pause.js, 2026-10-11zc) */
+.pause-baand { border-left: 4px solid var(--p2); padding: 6px 10px 6px 14px; }
+.pause-linje { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.pause-linje + .pause-linje { border-top: 1px solid var(--linje); }
+.pause-tekst { flex: 1; min-width: 0; text-align: left; border: 0; background: none; padding: 6px 0; font-size: 14px; line-height: 1.3; }
+.pause-kort .stor { margin: 4px 0 0; }
+.pause-datoer { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.pause-datoer input { width: 100%; }
+.pause-hint { margin-top: 10px; }
+body.pause-hele .bundmenu, body.pause-hele #idag-valg, body.pause-hele .bruger-knap ~ * { display: none !important; }
+.pause-skaerm { min-height: 70vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; padding: 24px 8px; }
+.pause-makker { width: min(78vw, 320px); cursor: pointer; }
+.pause-makker svg { width: 100%; height: auto; display: block; }
+.pause-makker.vip { animation: pause-vip .6s ease-in-out; }
+@keyframes pause-vip { 25% { transform: rotate(-6deg); } 75% { transform: rotate(6deg); } }
+.pause-boble { position: relative; margin: 0 0 6px; padding: 14px 18px; max-width: 320px; background: var(--flade); border-radius: 20px; font-size: 19px; font-weight: 600; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.pause-boble::after { content: ""; position: absolute; left: 50%; bottom: -9px; margin-left: -9px; border: 9px solid transparent; border-bottom: 0; border-top-color: var(--flade); }
+.pause-navn { margin: 0; color: var(--daempet); font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { .pause-makker.vip { animation: none; } }

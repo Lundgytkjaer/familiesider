@@ -663,7 +663,8 @@ async function boernLinjerKort() {
     const dagens = dagensOpgaver(d).filter(r => !r.o.frivillig && !r.sprunget);
     const klaret = dagens.filter(r => r.f && !r.f.sprunget).length;
     const s = saldo(d);
-    const dele = [dagens.length ? klaret + '/' + dagens.length + ' pligter' : 'fri i dag'];
+    const pause = typeof pausePligter === 'function' && pausePligter(barn, isoDato(new Date()));   // ⏸ pause.js
+    const dele = [pause ? '⏸ pligter på pause' : dagens.length ? klaret + '/' + dagens.length + ' pligter' : 'fri i dag'];
     if (d.regel.stjerner) dele.push('★ ' + s.stjerner);
     if (d.regel.kr) dele.push(kr(s.tilGode));
     if (typeof ugeStatus === 'function') { const u = ugeStatus(d, isoDato(mandagDenneUge())); if (u.maal) dele.push('🏆 ' + u.n + '/' + u.maal); }
@@ -816,6 +817,9 @@ async function tegnPligter() {
   const d = await pligtData(barn);
   const s = saldo(d);
   const dele = [];
+  // ⏸ Barnet selv: pligterne holder pause (pause.js)
+  const pPause = erBarn() && typeof pausePligter === 'function' ? pausePligter(barn, isoDato(new Date())) : null;
+  if (pPause) { boks.replaceChildren(pausePligtKort(pPause)); return; }
 
   const sektion = document.getElementById('pligter');
   sektion.classList.toggle('ret-tilstand', !!(pligtRet && erVoksen()));
