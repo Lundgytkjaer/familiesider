@@ -232,6 +232,11 @@ async function tegnHandleliste(viste) {
     const ul = el('ul', 'handle-ul');
     for (const p of kurv) ul.append(handleLi(p, varensKategori(p, fav)));
     d.append(ul);
+    // Ryd kurven: alt det købte fjernes fra listen (som "Ryd det købte") – to tryk
+    if (!erBarn()) d.append(bekraeftKnap('🗑 Ryd kurven (' + kurv.length + ')', 'rydde kurven', 'ryd ryd-kurv', async () => {
+      for (const p of kurv) await Data.remove('indkob', p.id);
+      tegnAlt();
+    }));
     dele.push(d);
   }
   boks.replaceChildren(...dele);
