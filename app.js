@@ -921,7 +921,7 @@ async function tegnForslag(type) {
       if (typeof aabnAI === 'function') styr('✨ Ryd op med AI', () => aabnAI({ opgave: 'ryd_retter' }));
       styr('📋 Kopiér retterne', kopierRetter);   // til den store oprydning sammen med Claude   // ai.js – skriv evt. "kun kylling"
     }
-    styr('✎ Fyld, tilbehør og ekstra', redigerTilbehoerLister);
+    styr('✎ Fyld, tilbehør, sovs og ekstra', redigerTilbehoerLister);
   }
 }
 

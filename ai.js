@@ -66,7 +66,8 @@ async function aiKontekst(opgave = 'fri', uge = null) {
     k.retter = aiRetter().filter(f => f.type === 'ret' && !f.ikkeAuto).map(f => ({ tekst: f.tekst, maaltid: 'ret', gruppe: f.gruppe || '', sider: passerSider(f), kanLide: f.kanLide || [], brugt: f.brugt || 0 }));
   } else if (opgave === 'ryd_retter') {
     Object.assign(k, { tilbehoer: SIDER, ekstra: EKSTRA, fyld: FYLD,
-      retter: aiRetter().map(f => ({ tekst: f.tekst, maaltid: f.type, gruppe: f.gruppe || '', side: f.side || '', sider: passerSider(f), ekstra: passerEkstra(f), fyld: passerFyld(f), brugt: f.brugt || 0 })) });
+      sovse: SOVSE,
+      retter: aiRetter().map(f => ({ tekst: f.tekst, maaltid: f.type, gruppe: f.gruppe || '', side: f.side || '', sider: passerSider(f), sovs: f.sovs || '', sovse: passerSovse(f), ekstra: passerEkstra(f), fyld: passerFyld(f), brugt: f.brugt || 0 })) });
   }
   return k;
 }
@@ -110,10 +111,15 @@ function aiTjek(r) {
       if (felter.side && felter.sider && !felter.sider.includes(felter.side)) felter.sider.unshift(felter.side);
       if (Array.isArray(r.ekstra)) felter.ekstra = aiListe(r.ekstra, 12);
       if (Array.isArray(r.fyld)) felter.fyld = aiListe(r.fyld, 20);
+      if (Array.isArray(r.sovse)) felter.sovse = aiListe(r.sovse, 12);
+      if (r.sovs !== undefined) felter.sovs = lavt(aiT(r.sovs, 40)) || null;
+      if (felter.sovs && felter.sovse && !felter.sovse.includes(felter.sovs)) felter.sovse.unshift(felter.sovs);
       const beskriv = (f, gammel = {}) => [
         'gruppe' in f && f.gruppe !== gammel.gruppe ? (gammel.gruppe ? GRUPPE_NAVN[gammel.gruppe] + ' → ' : '') + GRUPPE_NAVN[f.gruppe] : '',
         f.side ? 'standard: ' + f.side : '',
         f.sider?.length && !(f.sider.length === 1 && f.sider[0] === f.side) ? 'tilbehør: ' + f.sider.join(', ') : '',
+        f.sovs ? 'sovs: ' + f.sovs : '',
+        f.sovse?.length && !(f.sovse.length === 1 && f.sovse[0] === f.sovs) ? 'sovse: ' + f.sovse.join(', ') : '',
         f.ekstra?.length ? 'ekstra: ' + f.ekstra.join(', ') : '',
         f.fyld?.length ? 'fyld: ' + f.fyld.join(', ') : ''].filter(Boolean).join(' · ');
       if (r.type === 'ret_ny') {
@@ -194,7 +200,7 @@ async function aiUdfoer(h) {
       // Nyt tilbehør/ekstra/fyld kommer også på de fælles lister
       const f = h.felter;
       let nyt = false;
-      for (const [liste, fra] of [['sider', f.sider], ['ekstra', f.ekstra], ['fyld', f.fyld]]) {
+      for (const [liste, fra] of [['sider', f.sider], ['ekstra', f.ekstra], ['fyld', f.fyld], ['sovse', f.sovse]]) {
         const mangler = (fra || []).filter(x => !hentListe(liste).map(lavt).includes(x));
         if (mangler.length) { saetListe(liste, [...hentListe(liste), ...mangler]); nyt = true; }
       }
