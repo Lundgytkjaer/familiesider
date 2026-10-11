@@ -261,7 +261,7 @@ function skrivSeddel(tilStandard, gl) {
   const visValg = chipValg(['nu', 'morgen'], s.vis, v => { s.vis = v; }, v => (v === 'nu' ? 'Med det samme' : '☀️ Næste morgen kl. 6'));
 
   const gem = knap(ny ? (barn ? 'Send sedlen' : 'Hæng den op') : 'Gem', 'knap', async () => {
-    if (!s.tekst.trim()) { tekst.focus(); return; }
+    if (!s.tekst.trim() && !s.sticker) { tekst.focus(); return; }   // kun et klistermærke er nok
     gem.disabled = true;
     const felter = { fra: s.fra, tekst: s.tekst.trim(), sticker: s.sticker, farve: s.farve, hemmelig: s.hemmelig };
     if (ny) {

@@ -24,7 +24,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-11e">
+  <link rel="stylesheet" href="style.css?v=2026-10-11f">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -44,6 +44,7 @@
         <div class="ov-sedler" id="ov-sedler" hidden></div>
         <div class="kort oensker-kort" id="ov-oensker" hidden></div>
         <div class="kort dagsdel-kort" id="ov-nu" hidden></div>
+        <div class="kort" id="ov-boern" hidden></div>
         <button type="button" class="kort" data-gaa="kalender">
           <div class="kort-top"><span class="kort-label">Kalender i dag</span><span class="kort-pil">Kalender ›</span></div>
           <ul class="mini" id="ov-kal"></ul>
@@ -132,7 +133,7 @@
         </button>
       </div>
       <ol class="uge" id="mad-uge"></ol>
-      <p class="hint kun-voksen">↻ = retten kommer igen samme dag hver uge.</p>
+      <p class="hint kun-voksen">📌 = retten kommer igen samme dag hver uge.</p>
       <div id="mad-indkob" class="mad-indkob"></div>
       <datalist id="retter-forslag"></datalist>
       <datalist id="morgen-forslag"></datalist>
@@ -458,18 +459,18 @@
 
 <p class="status" id="status" role="status" hidden></p>
 
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="data.js?v=2026-10-11e"></script>
-<script src="dage.js?v=2026-10-11e"></script>
-<script src="vejr.js?v=2026-10-11e"></script>
-<script src="app.js?v=2026-10-11e"></script>
-<script src="mere.js?v=2026-10-11e"></script>
-<script src="sjov.js?v=2026-10-11e"></script>
-<script src="seddel.js?v=2026-10-11e"></script>
-<script src="familie.js?v=2026-10-11e"></script>
-<script src="handel.js?v=2026-10-11e"></script>
-<script src="retter.js?v=2026-10-11e"></script>
-<script src="aktivitet.js?v=2026-10-11e"></script>
-<script src="push.js?v=2026-10-11e"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
+<script src="data.js?v=2026-10-11f"></script>
+<script src="dage.js?v=2026-10-11f"></script>
+<script src="vejr.js?v=2026-10-11f"></script>
+<script src="app.js?v=2026-10-11f"></script>
+<script src="mere.js?v=2026-10-11f"></script>
+<script src="sjov.js?v=2026-10-11f"></script>
+<script src="seddel.js?v=2026-10-11f"></script>
+<script src="familie.js?v=2026-10-11f"></script>
+<script src="handel.js?v=2026-10-11f"></script>
+<script src="retter.js?v=2026-10-11f"></script>
+<script src="aktivitet.js?v=2026-10-11f"></script>
+<script src="push.js?v=2026-10-11f"></script>
 </body>
 </html>

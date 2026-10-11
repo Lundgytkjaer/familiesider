@@ -296,8 +296,6 @@ function retChips(favs, felt, tekst, vaelg) {
   const fund = findRet(favs, felt, tekst);
   if (!fund || fund.fav.type !== felt) return null;
   const f = fund.fav;
-  const kanSide = passerSider(f).length > 0;
-  if (!aktiveVarianter(f).length && !kanSide && !passerEkstra(f).length && !passerFyld(f).length) return null;
   const boks = el('div', 'var-chips');
   const k = knap('✎ Tilpas', 'var-chip tilpas-chip', () => tilpasRet(favs, felt, tekst, vaelg));
   k.setAttribute('aria-label', 'Tilpas ' + f.tekst + ': fyld, tilbehør og ekstra');
@@ -357,9 +355,25 @@ function tilpasRet(favs, felt, tekst, vaelg) {
     }));
   };
   tegn();
+  // "+ fyld": nyt fyld/pålæg direkte herfra – gemmes på retten og vælges med det samme
+  const nyFyld = input('text', 'tilpas-fyld', '', f.type === 'ret' ? '+ fyld, fx skinke' : '+ pålæg, fx ost');
+  nyFyld.setAttribute('aria-label', f.type === 'ret' ? 'Nyt fyld' : 'Nyt pålæg');
+  const fyldForm = el('form', 'oenske-form tilpas-fyld-form');
+  fyldForm.append(nyFyld, el('button', 'knap', 'Tilføj'));
+  fyldForm.addEventListener('submit', async e => {
+    e.preventDefault();
+    const t = lavt(nyFyld.value);
+    nyFyld.value = '';
+    if (!t) return;
+    if (!fyldListe.includes(t)) fyldListe.push(t);
+    if (!passerFyld(f).map(lavt).includes(t)) { f.fyld = [...passerFyld(f), t]; await Data.update('favoritter', f.id, { fyld: f.fyld }); }
+    if (!nu.fyld.includes(t)) nu.fyld.push(t);
+    if (nu.variant?.tekst) nu.variant = null;
+    tegn(); await vaelg(tekstNu());
+  });
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Færdig', 'knap', lukArk));
-  aabnArk('Tilpas: ' + f.tekst, vis, indhold,
+  aabnArk('Tilpas: ' + f.tekst, vis, indhold, fyldForm,
     el('p', 'hint', 'Gemmes med det samme. Hvad der passer, rettes under "Vores lister" → tryk på retten.'), knapper);
 }
 

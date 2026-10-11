@@ -1492,3 +1492,24 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .makker-pynt { position: absolute; top: -10px; left: 50%; transform: translateX(-50%) rotate(-8deg); font-size: 30px; line-height: 1; pointer-events: none; filter: drop-shadow(0 2px 2px rgb(0 0 0 / .25)); }
 .fliser > .alfie-kort .makker-pynt { font-size: 24px; top: -8px; }
 .makker-niveau { margin: 4px 0 0; font-size: 13px; font-weight: 600; color: var(--daempet); }
+
+/* Familien: én linje pr. barn */
+.boern-linjer li { padding: 0; }
+.boern-linje-knap { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 4px; background: none; border: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.boern-linje-knap .prik { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.boern-linje-tal { flex: 1; color: var(--daempet); font-size: 14px; font-variant-numeric: tabular-nums; }
+.boern-linje-knap strong { min-width: 64px; }
+.boern-linje.klaret .boern-linje-tal { color: var(--accent); font-weight: 700; }
+.boern-linje-knap .kort-pil { color: var(--daempet); }
+/* "?"-tips i sidehovederne */
+.tips-knap { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--linje); background: var(--kort, transparent); color: var(--daempet); font-weight: 800; font-size: 15px; line-height: 1; cursor: pointer; flex: none; }
+.tips-liste { margin: 0 0 12px; padding-left: 20px; display: grid; gap: 8px; line-height: 1.4; }
+/* Avanceret (indstillinger der sjældent bruges) */
+details.avanceret { margin: 12px 0; border: 1px solid var(--linje); border-radius: 12px; padding: 8px 12px; }
+details.avanceret summary { cursor: pointer; font-weight: 700; color: var(--daempet); min-height: 32px; display: flex; align-items: center; }
+/* To do på barnets pligt-kort (kun at se) */
+.todo-linje { color: var(--daempet); }
+/* Tilpas: + fyld */
+.tilpas-fyld-form { margin-top: 12px; }
+/* Cool-tavle: roligere udtryk – ingen billeder ved rutinerne */
+body.cool .rutine-strip { display: none; }

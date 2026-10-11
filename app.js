@@ -952,7 +952,7 @@ async function tegnMadplan() {
     terning.addEventListener('click', () => rulDage([i]));
 
     // ↻ = retten kommer igen samme ugedag hver uge (kan stadig ændres for en enkelt uge)
-    const gentag = knap('↻', 'gentag-knap' + (fast ? ' aktiv' : ''), async () => {
+    const gentag = knap('📌', 'gentag-knap' + (fast ? ' aktiv' : ''), async () => {
       const dagNavn = DAGE_LANG[i].toLowerCase();
       if (fast) {
         await gemFast('Fælles', i, 'ret', '');
@@ -2475,6 +2475,14 @@ async function oenskMad(barn, dato, felt) {
     }
     andet.push(el('h3', 'lille-titel', 'Vælg selv'), grid);
   }
+  // Retter barnet kan lide (♥ under Vores lister) – ét tryk = et ønske, uden at skrive
+  const liker = [...new Set((await Data.list('favoritter')).filter(f => f.type === felt && !f.boernevalg && Array.isArray(f.kanLide) && f.kanLide.includes(barn))
+    .map(f => f.tekst))].sort((a, b) => a.localeCompare(b, 'da'));
+  if (liker.length) {
+    const grid = el('div', 'mad-valg');
+    for (const v of liker) grid.append(knap('♥ ' + v, 'mad-valg-knap' + (v === plan[felt] ? ' valgt' : ''), () => send(v, false)));
+    andet.push(el('h3', 'lille-titel', 'Ønsk noget du kan lide'), grid);
+  }
   const inp = input('text', 'mad-oenske', '', 'Skriv hvad du har lyst til');
   const form = el('form', 'oenske-form');   // ikke 'tilfoj' – de formularer er skjult for børn
   form.append(inp, el('button', 'knap', 'Ønsk'));
@@ -2710,6 +2718,7 @@ async function tegnOverblik() {
   document.getElementById('familie-overblik').hidden = erBoernetavle;
   document.getElementById('boernetavle').hidden = !erBoernetavle;
   if (!erBoernetavle) lukZoom();
+  document.body.classList.toggle('cool', erBoernetavle && (await valgFor(tavleVisning)).stil === 'cool');
   if (erBoernetavle) {
     return tegnBoernetavle(tavleVisning);
   }
@@ -2727,6 +2736,10 @@ async function tegnOverblik() {
   const oenskeIndhold = await oenskerIndhold();   // fra mere.js
   oensker.replaceChildren(...oenskeIndhold);
   oensker.hidden = !oenskeIndhold.length;
+
+  // Én linje pr. barn (mere.js)
+  const ovBoern = document.getElementById('ov-boern');
+  if (ovBoern) { const bk = await boernLinjerKort(); ovBoern.replaceChildren(...(bk ? [...bk.childNodes] : [])); ovBoern.hidden = !bk; }
 
   // Det vigtigste lige nu: morgen (møder, husk, madpakke), efter skole (fri), aften (i morgen)
   const ovNu = document.getElementById('ov-nu');
@@ -2938,6 +2951,12 @@ function barnMaa(handling, liste, felter, gammel) {
   if (handling === 'ret') {
     if (liste === 'personvalg') return gammel.navn === navn && (!('navn' in felter) || felter.navn === navn);
     if (liste === 'sedler') return gammel.til === navn && Object.keys(felter).every(k => ['aabnet', 'reaktion', 'svarTekst', 'svaret'].includes(k));   // åbne og svare på egne sedler
+    if (liste === 'jobs') {   // ekstra-job: tage et ledigt, melde det færdigt eller give det fra sig (databasen tjekker det samme)
+      if (Object.keys(felter).some(k => k !== 'status' && k !== 'barn')) return false;
+      if (gammel.status === 'ledig') return felter.status === 'taget' && felter.barn === navn && (!gammel.til || gammel.til === navn);
+      if (gammel.status === 'taget' && gammel.barn === navn) return (felter.status === 'klaret' && (!('barn' in felter) || felter.barn === navn)) || (felter.status === 'ledig' && !felter.barn);
+      return false;
+    }
     if (liste !== 'favoritter' || Object.keys(felter).some(k => k !== 'kanLide')) return false;
     const foer = new Set(gammel.kanLide || []), efter = new Set(felter.kanLide || []);
     return [...foer, ...efter].every(n => n === navn || (foer.has(n) && efter.has(n)));
@@ -3026,6 +3045,17 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     const kseg = chipValg(['Far', 'Mor', ''], valg.kaldes || '', async v => { await saetValg(mig, 'kaldes', v || null); tegnAlt(); }, v => v || 'Mit navn');
     dele.push(el('label', 'felt-label', 'Børnene kalder mig'), kseg);
   }
+  // Udseende på barnets tavle: Sjov (piktogrammer, makker, konfetti) eller Cool (roligere – fx til Oliver)
+  if (BOERN.includes(hvem)) {
+    if (!erBarn()) dele.push(el('h3', 'lille-titel indst-titel', '👧 Børnenes regler: ' + hvem));
+    const stilSeg = chipValg(['sjov', 'cool'], valg.stil === 'cool' ? 'cool' : 'sjov', async v => {
+      await saetValg(hvem, 'stil', v);
+      await saetValg(hvem, 'makker', v !== 'cool');   // Cool: ingen makker (kan slås til igen ovenfor)
+      tegnAlt(); aabnIndstillinger(hvem);
+    }, v => (v === 'cool' ? '😎 Cool' : '🎉 Sjov'));
+    dele.push(el('label', 'felt-label', 'Udseende på tavlen'), stilSeg,
+      el('p', 'hint', 'Cool: ingen konfetti, ingen makker og ingen billeder ved rutinerne.'));
+  }
   // Voksne vælger, hvilke faner et barn kan se (tavlen er der altid)
   if (!erBarn() && BOERN.includes(hvem)) {
     const faner = new Set(Array.isArray(valg.faner) ? valg.faner : BOERNE_FANER);
@@ -3092,6 +3122,36 @@ function visAftale(a, forekomst) {
   knapper.append(knap('Luk', 'knap', () => lukArk()));
   aabnArk(a.titel, ...linjer, knapper);
 }
+
+// ---------- Korte "?"-tips pr. skærm (i stedet for den lange hjælpeside) ----------
+const TIPS = {
+  kalender: { voksen: ['Tryk på en dag for at se den – og på en aftale for at rette den.', '"Tilpas" vælger, hvad der vises (helligdage, vejr …) og liste eller uge.', 'En aftale kan gælde én, flere eller Fælles. Fælles = hele familien.', '↻ betyder, at aftalen gentages.'],
+    barn: ['Tryk på en dag for at se, hvad der sker.', 'Din farve viser dine aftaler.'] },
+  madplan: { voksen: ['Skriv eller vælg en ret pr. dag. 🎲 vælger en tilfældig.', '📌 = retten kommer igen samme dag hver uge.', '"✎ Tilpas" under en ret vælger fyld, tilbehør og ekstra.', 'Børnenes ønsker skal I sige ja/nej til på I dag.'],
+    barn: ['Tryk på en dag for at ønske mad.', 'Det mor og far har sagt "må vælges", gælder med det samme.'] },
+  indkob: { voksen: ['Skriv en vare og tryk Tilføj.', '🛒 Handle gør listen stor og nem i butikken.', 'Tryk på en vare for at krydse den af.'],
+    barn: ['Skriv en vare, så kommer den på listen.'] },
+  todo: { voksen: ['Små opgaver til de voksne. Sæt en person på, så står den på personens I dag.', 'Opgaver til et barn vises på barnets tavle.'],
+    barn: ['Her står ting, der skal gøres.'] },
+  pligter: { voksen: ['Vælg barnet øverst.', 'Ønsker om belønninger, 👍-pligter og ekstra-job godkendes på I dag.', '"Ret pligter og belønninger" ligger nederst. 👍-reglen på en pligt betyder, at I skal godkende, før der gives ★/kr.', 'Ekstra-job: den første der tager jobbet, får det.'],
+    barn: ['Sæt flueben, når du har gjort noget.', '⏳ = mor eller far skal give 👍 først.', 'Ekstra-job: tryk "Jeg tager den!" – og "Færdig ✓", når du er færdig.'] },
+};
+function tipsKnapper() {
+  for (const [fane, tips] of Object.entries(TIPS)) {
+    const hoved = document.querySelector('#' + fane + ' .sek-hoved');
+    if (!hoved || hoved.querySelector('.tips-knap')) continue;
+    const k = knap('?', 'tips-knap', () => {
+      const liste = el('ul', 'tips-liste');
+      for (const t of (erBarn() ? tips.barn : tips.voksen)) liste.append(el('li', null, t));
+      const knapper = el('div', 'ark-knapper');
+      knapper.append(knap('Hele hjælpen ›', 'lille-knap', () => { lukArk(); visFane('hjaelp'); window.scrollTo(0, 0); }), knap('OK', 'knap', lukArk));
+      aabnArk('Tips: ' + (FANE_NAVN[fane] && !(fane === 'pligter' && erBarn()) ? FANE_NAVN[fane] : 'Pligter'), liste, knapper);
+    });
+    k.setAttribute('aria-label', 'Tips til ' + (FANE_NAVN[fane] || fane));
+    hoved.querySelector('h2').after(k);
+  }
+}
+tipsKnapper();
 
 // ---------- Login ----------
 const LOGIN_NAVNE = ['Timmo', 'Winnie', 'Oliver', 'Villads'];
@@ -3203,7 +3263,9 @@ async function opdaterVenter() {
   const n = (await Data.list('indloesninger')).filter(x => x.status === 'afventer').length
     + (await Data.list('ekstra')).filter(x => x.status === 'afventer').length
     + (typeof madOenskeLinjer === 'function' ? (await madOenskeLinjer()).length : 0)
-    + (typeof sedlerTilMig === 'function' ? await sedlerTilMig() : 0);   // sedler til mig (seddel.js)
+    + (typeof sedlerTilMig === 'function' ? await sedlerTilMig() : 0)   // sedler til mig (seddel.js)
+    + (await Data.list('flueben')).filter(x => x.venter).length          // 👍-pligter der venter
+    + (await Data.list('jobs')).filter(x => x.status === 'klaret').length; // ekstra-job der er klaret
   const badge = document.querySelector('[data-badge="idag"]');
   badge.textContent = n; badge.hidden = !n;
   const bBadge = document.querySelector('[data-badge="pligter"]');   // Børn-fanen

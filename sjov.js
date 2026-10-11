@@ -27,7 +27,7 @@ function fejr(tekst) {
   setTimeout(() => besked.classList.add('vaek'), 2000);
   setTimeout(() => besked.remove(), 2600);
 
-  if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || document.body.classList.contains('cool')) return;   // Cool-tavle: ingen konfetti
   konfetti();
 }
 function konfetti() {
@@ -245,8 +245,8 @@ function flammeStjerne({ n, ekstra = 0, dage, jokerBrugt = false }) {
   const flamme = el('div', 'ff-flamme', ekstra ? '🏅' : jokerBrugt && !n ? '🃏' : '🔥');
   const tekst = el('div', 'ff-tekst');
   if (ekstra) tekst.append(el('b', null, dage + ' dage i træk!'), el('span', 'ff-ekstra', '+' + (n + ekstra) + ' ★ (heraf ' + ekstra + ' ekstra)'));
-  else if (n) tekst.append(el('b', null, 'Streak-bonus! +' + n + ' ★'), el('span', null, streakTekst(dage)));
-  else tekst.append(el('b', null, 'Jokeren reddede din streak!'), el('span', null, streakTekst(dage)));
+  else if (n) tekst.append(el('b', null, 'Dage i træk! +' + n + ' ★'), el('span', null, streakTekst(dage)));
+  else tekst.append(el('b', null, 'Jokeren reddede dine dage i træk!'), el('span', null, streakTekst(dage)));
   if (jokerBrugt && n) tekst.append(el('span', 'ff-joker', '🃏 Jokeren reddede den glemte dag'));
   boks.append(flamme, tekst);
   document.body.append(boks);
