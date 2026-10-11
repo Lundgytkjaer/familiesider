@@ -4,7 +4,7 @@
 // "Udfør", gemmes det – med de samme funktioner og regler, som når man selv trykker. AI'en sletter aldrig noget.
 // Data der sendes: dato, fornavne, kategorier, lister over tilbehør/ekstra/fyld og retternes navne/kategori. Intet andet.
 
-const AI_IKON = { kalender_ny: '📅', indkob_ny: '🛒', todo_ny: '☑️', ret_ny: '🍽️', ret_ret: '✏️', madplan: '🗓️' };
+const AI_IKON = { kalender_ny: '📅', indkob_ny: '🛒', todo_ny: '☑️', ret_ny: '🍽️', ret_ret: '✏️', ret_saml: '🔗', madplan: '🗓️' };
 const AI_EKSEMPLER = ['Oliver tandlæge torsdag kl. 14', 'Mælk, æg og noget til tacos', 'Tilføj butter chicken med ris og naan',
   'Pizza på fredag', 'Ryd op i kategorierne på retterne'];
 const aiIso = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '') && !isNaN(new Date(v + 'T00:00'));
@@ -53,7 +53,7 @@ function aiTjek(r) {
       const frist = aiIso(r.frist) ? r.frist : null;
       return { h: { type: r.type, tekst, hvem, frist }, tekst: tekst + (hvem ? ' · ' + hvem : '') + (frist ? ' · ' + aiDag(frist) : '') };
     }
-    case 'ret_ny': case 'ret_ret': {
+    case 'ret_ny': case 'ret_ret': case 'ret_saml': {
       const maaltid = MAAL_TYPER.includes(r.maaltid) ? r.maaltid : 'ret';
       const felter = {};
       if (r.gruppe !== undefined && maaltid === 'ret') { const g = RET_GRUPPER.find(x => x[0] === r.gruppe); if (g) felter.gruppe = g[0]; }
@@ -74,6 +74,40 @@ function aiTjek(r) {
         const findes = aiRetter().find(f => f.type === maaltid && lavt(f.tekst) === lavt(tekst));
         if (findes) return fejl(tekst + ' findes allerede');
         return { h: { type: r.type, maaltid, tekst: tekst[0].toUpperCase() + tekst.slice(1), felter }, tekst: MAALTIDER[maaltid] + ': ' + tekst + (beskriv(felter) ? ' · ' + beskriv(felter) : '') };
+      }
+      if (r.type === 'ret_saml') {
+        // Læg sammen: "ind" forsvinder i "navn" (findes navn ikke, bliver den første af "ind" omdøbt til navn)
+        const navn = aiT(r.navn || r.tekst, 60);
+        if (!navn) return fejl('Sammenlægning uden navn');
+        const alle = aiRetter().filter(x => x.type === maaltid);
+        const maal = alle.find(x => lavt(x.tekst) === lavt(navn)) || null;
+        const ind = [], brugt = new Set(maal ? [maal.id] : []);
+        for (const x of (Array.isArray(r.ind) ? r.ind : []).slice(0, 20)) {
+          const n = aiT(typeof x === 'string' ? x : x?.navn, 60);
+          const fx = alle.find(y => lavt(y.tekst) === lavt(n) && !brugt.has(y.id));
+          if (!fx) continue;
+          brugt.add(fx.id);
+          ind.push({ id: fx.id, tekst: fx.tekst, som: aiT(x?.som, 80) || null });
+        }
+        if (ind.length < (maal ? 1 : 2)) return fejl('Kan ikke lægge sammen til "' + navn + '" – fandt ikke retterne');
+        // Tilbehør/ekstra/fyld fra de gamle retter kommer med
+        const gamle = ind.map(x => alle.find(y => y.id === x.id)).concat(maal ? [maal] : []);
+        for (const [k, hent] of [['sider', passerSider], ['ekstra', passerEkstra], ['fyld', passerFyld]]) {
+          felter[k] = [...new Set([...(felter[k] || []), ...gamle.flatMap(g => hent(g).map(lavt))])].slice(0, 20);
+          if (!felter[k].length) delete felter[k];
+        }
+        if (!felter.gruppe && !maal) { const g = gamle.find(x => x.gruppe)?.gruppe; if (g) felter.gruppe = g; }
+        // "Stegt kylling med nudler" → nudler er tilbehør der passer
+        const kendteSider = alleSider(aiRetter());
+        for (const x of ind) {
+          const som = lavt(x.som), start = lavt(navn) + ' med ';
+          if (!som.startsWith(start)) continue;
+          for (const d of som.slice(start.length).split(/\s*(?:,| og )\s*/)) if (kendteSider.includes(d)) felter.sider = [...new Set([...(felter.sider || []), d])];
+        }
+        if (felter.side) felter.sider = [...new Set([felter.side, ...(felter.sider || [])])];
+        const tekst = (maal ? maal.tekst : navn[0].toUpperCase() + navn.slice(1));
+        return { h: { type: r.type, maaltid, navn: tekst, maalId: maal?.id || null, ind, felter },
+          tekst: tekst + (maal ? '' : ' (nyt navn)') + ' ← ' + ind.map(x => x.tekst).join(' · ') + (beskriv(felter) ? ' · ' + beskriv(felter) : '') };
       }
       const navn = aiT(r.navn || r.tekst, 60);
       const f = aiRetter().filter(x => lavt(x.tekst) === lavt(navn)).sort((a, b) => (b.type === maaltid) - (a.type === maaltid))[0];
@@ -106,7 +140,7 @@ async function aiUdfoer(h) {
     case 'todo_ny':
       await tilfoejUdenDublet('todo', { tekst: h.tekst, klaret: false, prio: 2, ...(h.hvem ? { hvem: h.hvem } : {}), ...(h.frist ? { frist: h.frist } : {}) });
       return;
-    case 'ret_ny': case 'ret_ret': {
+    case 'ret_ny': case 'ret_ret': case 'ret_saml': {
       // Nyt tilbehør/ekstra/fyld kommer også på de fælles lister
       const f = h.felter;
       let nyt = false;
@@ -116,7 +150,26 @@ async function aiUdfoer(h) {
       }
       if (nyt) await gemTilbehoer();
       if (h.type === 'ret_ny') await Data.add('favoritter', { type: h.maaltid, tekst: h.tekst, brugt: 0, ...f });
-      else await Data.update('favoritter', h.id, f);
+      else if (h.type === 'ret_ret') await Data.update('favoritter', h.id, f);
+      else {
+        // Læg sammen med retter.js' egen funktion (madplaner, hjerter, brugt og børnevalg flyttes)
+        const find = id => Data.listNu('favoritter').find(x => x.id === id);
+        let ind = [...h.ind];
+        let maal = h.maalId ? find(h.maalId) : null;
+        if (!maal) {   // nyt navn: den første bliver til den samlede ret
+          const forste = ind.shift();
+          const fx = find(forste.id);
+          if (!fx) throw new Error('Retten findes ikke længere');
+          await omdoebIPlaner(fx, fx.tekst, forste.som || h.navn);
+          await Data.update('favoritter', fx.id, { tekst: h.navn });
+          maal = find(fx.id);
+        }
+        for (const x of ind) {
+          const dub = find(x.id);
+          if (dub) { await slaaSammen(dub, find(maal.id), x.som || maal.tekst); }
+        }
+        await Data.update('favoritter', maal.id, f);
+      }
       return;
     }
     case 'madplan': {
@@ -235,7 +288,7 @@ function aabnAI(start = '') {
 
   tegn();
   aabnArk('✨ Hjælper', log, eksempler, inputRaekke,
-    el('p', 'hint', 'Den foreslår – du trykker "Udfør". Du kan skrive videre for at præcisere. Den sletter aldrig noget.'), knapper);
+    el('p', 'hint', 'Den foreslår – du trykker "Udfør". Du kan skrive videre for at præcisere. Den kan lægge retter sammen, men sletter aldrig noget.'), knapper);
   setTimeout(() => felt.focus(), 50);
 }
 
