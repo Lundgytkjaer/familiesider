@@ -1528,3 +1528,6 @@ body.cool .rutine-strip { display: none; }
 .ret-start { border-style: dashed; }
 .kl-uge { margin: 14px 2px 2px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--daempet); }
 .kl-mere { display: block; width: 100%; margin: 8px 0; min-height: 44px; }
+.punkt-panel { border: 2px solid var(--accent); border-radius: 14px; padding: 10px 12px; margin: 6px 0 10px; background: var(--flade); }
+.punkt-panel-tekst { margin: 0 0 8px; font-weight: 600; }
+.punkt-panel-knapper { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }

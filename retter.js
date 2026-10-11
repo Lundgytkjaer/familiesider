@@ -45,6 +45,62 @@ const alleFyld = favs => [...new Set([...FYLD, ...favs.flatMap(passerFyld)].map(
 const alleSider = favs => [...new Set([...SIDER, ...favs.flatMap(passerSider)].map(lavt))];
 // "a", "a og b", "a, b og c"
 const oprems = d => d.length < 2 ? (d[0] || '') : d.slice(0, -1).join(', ') + ' og ' + d[d.length - 1];
+
+// ---------- Omdøb / slet et punkt på listerne over fyld, tilbehør og ekstra ----------
+const LISTE_NAVN = { fyld: 'fyld', sider: 'tilbehør', ekstra: 'ekstra' };
+const hentListe = type => (type === 'fyld' ? FYLD : type === 'sider' ? SIDER : EKSTRA);
+const saetListe = (type, v) => { if (type === 'fyld') FYLD = v; else if (type === 'sider') SIDER = v; else EKSTRA = v; };
+const passerListe = (f, type) => (type === 'fyld' ? passerFyld(f) : type === 'sider' ? passerSider(f) : passerEkstra(f));
+const retterMed = (type, navn) => Data.listNu('favoritter')
+  .filter(f => ['ret', 'morgen', 'frokost'].includes(f.type) && passerListe(f, type).map(lavt).includes(lavt(navn)));
+// Lille boks i stedet for knapperne: hvor bruges den, Omdøb, Slet (med advarsel), Annullér.
+// lokalt(gammel, ny|null) retter også den ret, man er i gang med (ikke gemt endnu). efter() tegner knapperne igen.
+function punktPanel(type, navn, efter, lokalt = () => {}) {
+  const brugt = retterMed(type, navn);
+  const boks = el('div', 'punkt-panel');
+  const navne = brugt.map(f => f.tekst);
+  boks.append(el('p', 'punkt-panel-tekst', '"' + navn + '" ' + (brugt.length
+    ? 'bruges af ' + brugt.length + (brugt.length === 1 ? ' ret: ' : ' retter: ') + oprems(navne.slice(0, 8)) + (navne.length > 8 ? ' …' : '')
+    : 'bruges ikke af nogen ret.')));
+  // Ret hver ret, der har punktet (fyld/sider/ekstra – og standardtilbehøret)
+  const retAlle = async ny => {
+    for (const f of brugt) {
+      const liste = passerListe(f, type).filter(x => lavt(x) !== lavt(navn));
+      if (ny && !liste.map(lavt).includes(ny)) liste.push(ny);
+      const felter = { [type]: liste };
+      if (type === 'sider' && lavt(f.side) === lavt(navn)) felter.side = ny || null;
+      await Data.update('favoritter', f.id, felter);
+    }
+  };
+  const nyNavn = input('text', 'punkt-nyt-navn', navn);
+  nyNavn.setAttribute('aria-label', 'Nyt navn');
+  const form = el('form', 'oenske-form');
+  form.append(nyNavn, el('button', 'knap', 'Omdøb'));
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const ny = lavt(nyNavn.value);
+    if (!ny || ny === lavt(navn)) { efter(); return; }
+    const l = hentListe(type).map(x => (lavt(x) === lavt(navn) ? ny : x));
+    saetListe(type, [...new Set(l.map(lavt))]);
+    await gemTilbehoer(); await retAlle(ny); lokalt(navn, ny);
+    visStatus('Omdøbt til "' + ny + '"' + (brugt.length ? ' på ' + brugt.length + (brugt.length === 1 ? ' ret' : ' retter') : ''));
+    efter();
+  });
+  const slet = async () => {
+    saetListe(type, hentListe(type).filter(x => lavt(x) !== lavt(navn)));
+    await gemTilbehoer(); await retAlle(null); lokalt(navn, null);
+    visStatus('"' + navn + '" er slettet' + (brugt.length ? ' – også fra ' + brugt.length + (brugt.length === 1 ? ' ret' : ' retter') : ''));
+    efter();
+  };
+  const knapper = el('div', 'punkt-panel-knapper');
+  knapper.append(brugt.length
+    ? bekraeftKnap('🗑 Slet – også fra ' + brugt.length + (brugt.length === 1 ? ' ret' : ' retter'), 'slette', 'lille-knap fare', slet)
+    : knap('🗑 Slet', 'lille-knap fare', slet),
+    knap('Annullér', 'lille-knap', efter));
+  boks.append(form, knapper, el('p', 'hint', 'Madplaner, hvor det allerede står, ændres ikke.'));
+  setTimeout(() => boks.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30);
+  return boks;
+}
 // Hele teksten: ret (evt. variant) + fyld + tilbehør + ekstra – "Pita med kebab, pommes og salat"
 function komponer(f, v, side, ekstra = [], fyld = []) {
   const base = v ? variantTekst(f, v) : f.tekst;
@@ -158,7 +214,8 @@ function redigerRet(f) {
 
   // Tilbehør der passer (flere) + hvilket der står på tavlen
   const siderBoks = el('div'), standardBoks = el('div'), ekstraBoks = el('div'), fyldBoks = el('div'), hint = el('p', 'hint');
-  const flereValg = (muligheder, liste, tegnIgen) => {
+  // Hold fingeren på et punkt → omdøb eller slet det på den fælles liste (og på alle retter)
+  const flereValg = (muligheder, liste, tegnIgen, type) => {
     const seg = el('div', 'seg wrap flere-valg');
     seg.append(...muligheder.map(m => {
       const valgt = liste.map(lavt).includes(lavt(m));
@@ -169,6 +226,11 @@ function redigerRet(f) {
       });
       k.setAttribute('role', 'checkbox');
       k.setAttribute('aria-checked', valgt);
+      if (type) langtTryk(k, () => seg.replaceWith(punktPanel(type, m, tegnIgen, (gl, ny) => {
+        const i = liste.map(lavt).indexOf(lavt(gl));
+        if (i >= 0) { if (ny && !liste.map(lavt).includes(ny)) liste[i] = ny; else liste.splice(i, 1); }
+        if (type === 'sider' && lavt(s.side) === lavt(gl)) s.side = ny || '';
+      })));
       return k;
     }));
     return seg;
@@ -179,7 +241,7 @@ function redigerRet(f) {
     if (s.side && !s.sider.includes(s.side)) s.side = '';
     if (!forrigeAntal && s.sider.length === 1 && !s.side) s.side = s.sider[0];   // første tilbehør bliver standard (kan sættes til "Intet")
     forrigeAntal = s.sider.length;
-    siderBoks.replaceChildren(flereValg([...new Set([...SIDER, ...s.sider])], s.sider, tegnSider));
+    siderBoks.replaceChildren(flereValg([...new Set([...SIDER, ...s.sider])], s.sider, tegnSider, 'sider'));
     standardBoks.replaceChildren();
     if (s.sider.length) standardBoks.append(el('label', 'felt-label lille-label', 'Står på tavlen, hvis I ikke vælger andet'),
       chipValg(['', ...s.sider], s.side, v => { s.side = v; tegnHint(); }, v => v || 'Intet'));
@@ -188,10 +250,10 @@ function redigerRet(f) {
   tegnSider();
   const tegnEkstra = () => {
     const muligheder = [...new Set([...EKSTRA, ...s.ekstra.map(lavt)])];
-    ekstraBoks.replaceChildren(flereValg(muligheder, s.ekstra, tegnEkstra));
+    ekstraBoks.replaceChildren(flereValg(muligheder, s.ekstra, tegnEkstra, 'ekstra'));
   };
   tegnEkstra();
-  const tegnFyld = () => fyldBoks.replaceChildren(flereValg([...new Set([...FYLD, ...s.fyld.map(lavt)])], s.fyld, tegnFyld));
+  const tegnFyld = () => fyldBoks.replaceChildren(flereValg([...new Set([...FYLD, ...s.fyld.map(lavt)])], s.fyld, tegnFyld, 'fyld'));
   tegnFyld();
   const nyFyld = input('text', 'fyld-ny', '', erAften ? 'Andet fyld, fx tun' : 'Andet pålæg, fx rullepølse');
   const fyldForm = el('form', 'oenske-form');
@@ -276,7 +338,7 @@ function redigerRet(f) {
     lukArk(); tegnAlt();
   });
   const knapper = el('div', 'ark-knapper');
-  knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('favoritter', f.id); lukArk(); tegnAlt(); }), gem);
+  knapper.append(bekraeftKnap('Slet', 'slette retten', 'knap fare', async () => { await Data.remove('favoritter', f.id); lukArk(); tegnAlt(); }), gem);   // to tryk
   const dele = [felt('Navn', navn)];
   if (erAften) dele.push(el('label', 'felt-label', 'Kategori'), gruppeValg);
   dele.push(el('label', 'felt-label', erAften ? 'Fyld der passer (fx i burgeren, på pizzaen)' : 'Pålæg der passer'), fyldBoks, fyldForm);
@@ -287,7 +349,7 @@ function redigerRet(f) {
   const det = dele[dele.length - 1];
   det.open = s.varianter.length > 0;
   det.append(el('summary', null, 'Varianter med eget navn (fx Franske hotdogs)'), varBoks, form);
-  dele.push(el('p', 'hint', 'Fyld, tilbehør og ekstra vælges under dagen med "✎ Tilpas". Terningen vælger selv ét fyld og et tilbehør.'), flag1, knapper);
+  dele.push(el('p', 'hint', 'Fyld, tilbehør og ekstra vælges under dagen med "✎ Tilpas". Terningen vælger selv ét fyld og et tilbehør. Hold fingeren på et punkt for at omdøbe eller slette det.'), flag1, knapper);
   aabnArk(MAALTIDER[f.type] + ': ' + f.tekst, ...dele);
 }
 
@@ -380,13 +442,17 @@ function tilpasRet(favs, felt, tekst, vaelg) {
 // ---------- De fælles lister over tilbehør og ekstra (voksne) ----------
 function redigerTilbehoerLister() {
   const boks = el('div');
-  const sektion = (titel, hent, saet, pladsholder) => {
-    const ul = el('div', 'seg wrap flere-valg');
-    const tegn = () => ul.replaceChildren(...hent().map(t => {
-      const k = knap(t + '  ✕', 'fjern-chip', async () => { saet(hent().filter(x => x !== t)); await gemTilbehoer(); tegn(); });
-      k.setAttribute('aria-label', 'Fjern ' + t);
-      return k;
-    }));
+  const sektion = (titel, hent, saet, pladsholder, type) => {
+    const ul = el('div');
+    const tegn = () => {
+      const seg = el('div', 'seg wrap flere-valg');
+      seg.append(...hent().map(t => {
+        const k = knap(t, null, () => seg.replaceWith(punktPanel(type, t, tegn)));
+        k.setAttribute('aria-label', 'Omdøb eller slet ' + t);
+        return k;
+      }));
+      ul.replaceChildren(seg);
+    };
     tegn();
     const inp = input('text', null, '', pladsholder);
     const form = el('form', 'oenske-form');
@@ -399,12 +465,12 @@ function redigerTilbehoerLister() {
     });
     boks.append(el('label', 'felt-label', titel), ul, form);
   };
-  sektion('Fyld og pålæg', () => FYLD, v => { FYLD = v; }, 'Fx tun');
-  sektion('Tilbehør', () => SIDER, v => { SIDER = v; }, 'Fx couscous');
-  sektion('Ekstra', () => EKSTRA, v => { EKSTRA = v; }, 'Fx tzatziki');
+  sektion('Fyld og pålæg', () => FYLD, v => { FYLD = v; }, 'Fx tun', 'fyld');
+  sektion('Tilbehør', () => SIDER, v => { SIDER = v; }, 'Fx couscous', 'sider');
+  sektion('Ekstra', () => EKSTRA, v => { EKSTRA = v; }, 'Fx tzatziki', 'ekstra');
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Færdig', 'knap', () => { lukArk(); tegnAlt(); }));
-  aabnArk('Fyld, tilbehør og ekstra', el('p', 'hint', 'Det I kan vælge imellem, når I retter en ret. Fjerner I noget her, bliver det stadig på de retter og dage, der allerede har det.'), boks, knapper);
+  aabnArk('Fyld, tilbehør og ekstra', el('p', 'hint', 'Det I kan vælge imellem, når I retter en ret. Tryk på et punkt for at se, hvor det bruges, og omdøbe eller slette det.'), boks, knapper);
 }
 
 // ---------- Til indkøbslisten: ekstra og tilbehør fra ugens madplan ----------

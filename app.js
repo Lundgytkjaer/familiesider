@@ -961,6 +961,7 @@ async function tegnMadplan() {
       const dagNavn = DAGE_LANG[i].toLowerCase();
       if (fast) {
         await gemFast('Fælles', i, 'ret', '');
+        if (!egen) await gemRet(i, fast);   // retten bliver stående denne uge – den kommer bare ikke igen
         visStatus(fast + ' er ikke længere fast hver ' + dagNavn);
       } else {
         const ret = felt.value.trim();
