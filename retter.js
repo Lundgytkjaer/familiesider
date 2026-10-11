@@ -10,10 +10,12 @@
 // genkendes det som Kyllingespyd + nudler. Børnene vælger IKKE tilbehør/varianter i appen (Timmos valg: det aftales ved
 // bordet) – de kan kun ønske en anden ret, som før. Opsætningen: opdatering-retter.sql + opdatering-retter-2.sql.
 
+// Kategorier (aftalt okt. 2026): gryde/pasta/asiatisk/mexicansk går forud for kødet – ellers bestemmer kødet
 const RET_GRUPPER = [
   ['kylling', '🐔', 'Kylling'], ['gris', '🐷', 'Gris'], ['okse', '🐮', 'Okse'], ['poelser', '🌭', 'Pølser'], ['fisk', '🐟', 'Fisk'],
-  ['burger', '🍔', 'Burger, pita og wraps'], ['pizza', '🍕', 'Hjemmelavet pizza og bagværk'], ['takeaway', '🥡', 'Takeaway'],
-  ['supper', '🍲', 'Supper og klassikere'], ['soedt', '🥞', 'Det søde']
+  ['gryde', '🫕', 'Gryderetter'], ['pasta', '🍝', 'Pasta og risotto'], ['asiatisk', '🥢', 'Asiatisk'], ['mex', '🌮', 'Mexicansk'],
+  ['burger', '🍔', 'Burger, pita og wraps'], ['pizza', '🍕', 'Pizza, toast og bagværk'], ['supper', '🍲', 'Supper'],
+  ['vegetar', '🥦', 'Vegetar'], ['takeaway', '🥡', 'Takeaway'], ['soedt', '🥞', 'Det søde']
 ];
 const GRUPPE_NAVN = Object.fromEntries(RET_GRUPPER.map(([k, i, n]) => [k, i + ' ' + n]));
 const MAAL_TYPER = ['ret', 'morgen', 'frokost'];
