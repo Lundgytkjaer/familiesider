@@ -1551,3 +1551,13 @@ body.cool .rutine-strip { display: none; }
 .ai-valg[aria-checked="false"] .ai-tekst { opacity: .5; text-decoration: line-through; }
 .ai-ikon { font-size: 20px; flex: none; }
 .ai-tekst { line-height: 1.35; }
+.ai-input { display: flex; gap: 8px; align-items: flex-end; }
+.ai-input .ai-felt { flex: 1; }
+.ai-send { flex: none; width: 52px; min-height: 52px; padding: 0; font-size: 20px; }
+.ai-log { display: grid; gap: 8px; margin-bottom: 10px; }
+.ai-boble { margin: 0; padding: 10px 12px; border-radius: 16px; max-width: 92%; }
+.ai-boble.mig { justify-self: end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+.ai-boble.ai { justify-self: start; background: var(--flade); border: 1px solid var(--linje); border-bottom-left-radius: 4px; width: 92%; }
+.ai-boble .ai-besked { margin: 0 0 6px; }
+.ai-boble .hint { margin: 0; }
+.ai-input + .hint { margin-top: 8px; }

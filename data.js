@@ -185,8 +185,8 @@ const Data = (() => {
     },
 
     // ✨ AI-hjælperen: Edge Function'en "ai" svarer {svar, handlinger} – den gemmer aldrig selv noget
-    async ai(tekst, kontekst) {
-      const { data, error } = await db.functions.invoke('ai', { body: { tekst, kontekst } });
+    async ai(tekst, kontekst, historik = []) {
+      const { data, error } = await db.functions.invoke('ai', { body: { tekst, kontekst, historik } });
       if (error) {
         let besked = error.message;
         try { const j = await error.context?.json(); if (j?.fejl) besked = j.fejl; } catch (e) { /* ingen detaljer */ }

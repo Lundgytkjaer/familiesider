@@ -127,43 +127,54 @@ async function aiUdfoer(h) {
   }
 }
 
-// ---------- Arket ----------
+// ---------- Arket: en lille samtale ----------
+// Samtalen huskes, til man trykker "Ny samtale" (også hvis arket lukkes og åbnes igen). Kun de seneste 12 beskeder sendes med.
+let aiSamtale = [];   // [{rolle: 'user'|'assistant', tekst, forslag?: [{tekst, udfoert}]}]
+const aiHistorik = () => aiSamtale.slice(-12).map(b => ({
+  rolle: b.rolle,
+  tekst: b.rolle === 'user' ? b.tekst : [b.tekst, ...(b.forslag || []).map(f => '- ' + f.tekst + (f.udfoert ? ' (udført)' : f.fejl ? ' (afvist af appen)' : ' (ikke udført)'))].join('\n')
+}));
+
 function aabnAI(start = '') {
   const felt = el('textarea', 'ai-felt');
-  felt.rows = 3; felt.maxLength = 1500; felt.value = start;
-  felt.placeholder = 'Skriv eller tal (🎤 på tastaturet) – fx "Villads fodbold hver tirsdag 16.30–17.45"';
-  const send = knap('✨ Send', 'knap', () => spoerg());
+  felt.rows = 2; felt.maxLength = 1500; felt.value = start;
+  const log = el('div', 'ai-log');
   const eksempler = el('div', 'seg wrap ai-eksempler');
   eksempler.append(...AI_EKSEMPLER.map(t => knap(t, null, () => { felt.value = t; felt.focus(); })));
-  const svarBoks = el('div', 'ai-svar');
   const knapper = el('div', 'ark-knapper');
-  knapper.append(knap('Luk', 'knap sekundaer', lukArk), send);
+  const send = knap('➤', 'knap ai-send', () => spoerg());
+  send.setAttribute('aria-label', 'Send');
+  const inputRaekke = el('div', 'ai-input');
+  inputRaekke.append(felt, send);
   felt.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); spoerg(); } });
+  let aktuelle = null;   // forslagene i det seneste svar
 
-  async function spoerg() {
-    const tekst = felt.value.trim();
-    if (!tekst) { felt.focus(); return; }
-    svarBoks.replaceChildren(el('p', 'ai-taenker', '✨ Tænker …'));
-    knapper.replaceChildren(knap('Luk', 'knap sekundaer', lukArk));
-    eksempler.hidden = true;
-    let res;
-    try { res = await Data.ai(tekst, aiKontekst()); }
-    catch (e) {
-      svarBoks.replaceChildren(el('p', 'ai-fejl', 'Det gik ikke: ' + e.message));
-      knapper.replaceChildren(knap('Luk', 'knap sekundaer', lukArk), knap('Prøv igen', 'knap', () => spoerg()));
-      return;
-    }
-    visForslag(res);
+  function tegn() {
+    log.replaceChildren();
+    aiSamtale.forEach((b, nr) => {
+      if (b.rolle === 'user') { log.append(el('p', 'ai-boble mig', b.tekst)); return; }
+      const boks = el('div', 'ai-boble ai');
+      if (b.tekst) boks.append(el('p', 'ai-besked', b.tekst));
+      const sidst = nr === aiSamtale.length - 1;
+      if (b.forslag?.length && !(sidst && aktuelle)) {   // ældre forslag: kort opsummering
+        const n = b.forslag.filter(f => f.udfoert).length;
+        boks.append(el('p', 'hint', b.forslag.length + ' forslag' + (n ? ' · ' + n + ' udført ✓' : ' · ikke udført')));
+      }
+      if (sidst && aktuelle) boks.append(forslagKort(b));
+      log.append(boks);
+    });
+    eksempler.hidden = aiSamtale.length > 0;
+    felt.placeholder = aiSamtale.length ? 'Skriv videre …' : 'Skriv eller tal (🎤 på tastaturet) – fx "Villads fodbold hver tirsdag 16.30–17.45"';
+    knapper.replaceChildren(...(aiSamtale.length ? [knap('Ny samtale', 'knap sekundaer', () => { aiSamtale = []; aktuelle = null; tegn(); felt.focus(); })] : [knap('Luk', 'knap sekundaer', lukArk)]),
+      ...(aktuelle?.udfoer ? [aktuelle.udfoer] : []));
+    setTimeout(() => log.lastElementChild?.scrollIntoView({ block: 'nearest' }), 30);
   }
 
-  function visForslag(res) {
-    const forslag = (res.handlinger || []).map(aiTjek);
-    const gode = forslag.filter(x => x.h);
-    const valgt = new Set(gode);
-    const dele = [];
-    if (res.svar) dele.push(el('p', 'ai-besked', res.svar));
+  function forslagKort(b) {
     const ul = el('ul', 'ai-forslag');
-    for (const f of forslag) {
+    const gode = b.forslag.filter(f => f.h);
+    const valgt = new Set(gode);
+    for (const f of b.forslag) {
       const li = el('li', 'ai-kort' + (f.fejl ? ' fejl' : ''));
       if (f.fejl) { li.append(el('span', 'ai-ikon', '⚠️'), el('span', 'ai-tekst', f.tekst)); ul.append(li); continue; }
       const k = knap('', 'ai-valg', () => {
@@ -178,26 +189,53 @@ function aabnAI(start = '') {
       }
       ul.append(li);
     }
-    if (forslag.length) dele.push(ul);
-    if (typeof res.tilbage === 'number' && res.tilbage < 10) dele.push(el('p', 'hint', res.tilbage + ' beskeder tilbage i dag.'));
-    svarBoks.replaceChildren(...dele);
+    if (!gode.length) { aktuelle = null; return ul; }
     const udfoer = knap('', 'knap', async () => {
       let n = 0;
       for (const f of gode) {
         if (!valgt.has(f)) continue;
-        try { await aiUdfoer(f.h); n++; } catch (e) { console.error(e); visStatus('Kunne ikke gemme: ' + f.tekst, true); }
+        try { await aiUdfoer(f.h); f.udfoert = true; n++; } catch (e) { console.error(e); visStatus('Kunne ikke gemme: ' + f.tekst, true); }
       }
-      lukArk(); tegnAlt();
+      aktuelle = null;
+      tegnAlt(); tegn();
       if (n) visStatus('✨ ' + (n === 1 ? 'Det er gjort' : n + ' ting er gjort') + ' – kan fortrydes under Mere → Aktivitet');
+      felt.focus();
     });
     const opdater = () => { udfoer.textContent = 'Udfør' + (valgt.size > 1 ? ' (' + valgt.size + ')' : ''); udfoer.disabled = !valgt.size; };
     opdater();
-    const igen = knap('Ny besked', 'knap sekundaer', () => { felt.value = ''; svarBoks.replaceChildren(); eksempler.hidden = false; knapper.replaceChildren(knap('Luk', 'knap sekundaer', lukArk), send); felt.focus(); });
-    knapper.replaceChildren(igen, ...(gode.length ? [udfoer] : []));
+    aktuelle = { udfoer };
+    return ul;
   }
 
-  aabnArk('✨ Hjælper', felt, eksempler, svarBoks,
-    el('p', 'hint', 'Den foreslår – du trykker "Udfør". Den kan oprette og rette aftaler, indkøb, to do, retter og madplan, men aldrig slette.'), knapper);
+  async function spoerg() {
+    const tekst = felt.value.trim();
+    if (!tekst) { felt.focus(); return; }
+    const historik = aiHistorik();
+    aiSamtale.push({ rolle: 'user', tekst });
+    felt.value = '';
+    aktuelle = null;
+    tegn();
+    const vent = el('p', 'ai-taenker', '✨ Tænker …');
+    log.append(vent);
+    knapper.replaceChildren(knap('Luk', 'knap sekundaer', lukArk));
+    let res;
+    try { res = await Data.ai(tekst, aiKontekst(), historik); }
+    catch (e) {
+      aiSamtale.pop(); felt.value = tekst;
+      tegn();
+      log.append(el('p', 'ai-fejl', 'Det gik ikke: ' + e.message));
+      return;
+    }
+    const forslag = (res.handlinger || []).map(aiTjek);
+    aiSamtale.push({ rolle: 'assistant', tekst: res.svar || '', forslag });
+    aktuelle = forslag.some(f => f.h) ? {} : null;
+    tegn();
+    if (typeof res.tilbage === 'number' && res.tilbage < 10) log.append(el('p', 'hint', res.tilbage + ' beskeder tilbage i dag.'));
+  }
+
+  tegn();
+  aabnArk('✨ Hjælper', log, eksempler, inputRaekke,
+    el('p', 'hint', 'Den foreslår – du trykker "Udfør". Du kan skrive videre for at præcisere. Den sletter aldrig noget.'), knapper);
   setTimeout(() => felt.focus(), 50);
 }
 
