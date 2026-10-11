@@ -133,6 +133,7 @@ function visFane(navn, fraTilbage = false) {
   document.querySelectorAll('.fane').forEach(s => (s.hidden = s.id !== navn));
   const iMenu = underMere(navn) ? 'mere' : navn;
   if (navn === 'pligter' && typeof tegnPligter === 'function') tegnPligter();
+  if (navn === 'kalender' && fra !== 'kalender' && kalVisning === 'liste' && (kalListeStart || kalListeAntal !== 21)) { kalListeStart = 0; kalListeAntal = 21; tegnKalender(); }   // listen starter i dag
   document.querySelectorAll('[data-fane]').forEach(b => b.setAttribute('aria-selected', b.dataset.fane === iMenu));
   lokal.set('fane', navn);
   opdaterTilbage();
@@ -1573,15 +1574,23 @@ async function tegnMaaned() {
 }
 
 // Liste: ugen dag for dag – én linje pr. aftale med farvede prikker (let at læse på en telefon)
-function tegnKalListe(man, aftaler, alleFoed, mineValg, idagIso) {
+// Liste: en rullende liste, der altid starter i dag (eller tidligere, hvis man har trykket "Vis tidligere dage")
+let kalListeStart = 0, kalListeAntal = 21;   // start = dage fra i dag (0 eller negativ)
+function tegnKalListe(aftaler, alleFoed, mineValg, idagIso) {
   const boks = document.getElementById('kal-liste');
   boks.replaceChildren();
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(man); d.setDate(man.getDate() + i);
-    const iso = isoDato(d);
+  boks.append(knap('‹ Vis tidligere dage', 'lille-knap kl-mere', () => { kalListeStart -= 7; kalListeAntal += 7; tegnKalender(); }));
+  const start = new Date(idagIso + 'T00:00'); start.setDate(start.getDate() + kalListeStart);
+  for (let n = 0; n < kalListeAntal; n++) {
+    const d = new Date(start); d.setDate(start.getDate() + n);
+    const iso = isoDato(d), i = (d.getDay() + 6) % 7;
+    if (n === 0 || i === 0) {   // uge-overskrift ved hver mandag
+      const man = new Date(d); man.setDate(d.getDate() - i);
+      boks.append(el('h3', 'kl-uge', 'Uge ' + ugenummer(man) + ' · ' + ugeSpan(man)));
+    }
     const dag = el('div', 'kl-dag' + (iso === idagIso ? ' idag' : '') + (iso < idagIso ? ' forbi' : ''));
     const hoved = el('div', 'kl-hoved');
-    hoved.append(el('span', 'kl-navn', DAGE_LANG[i] + ' ' + d.getDate() + '. ' + MDR_LANG[d.getMonth()].slice(0, 3) + '.'));
+    hoved.append(el('span', 'kl-navn', DAGE_LANG[i] + ' ' + d.getDate() + '. ' + MDR_LANG[d.getMonth()].slice(0, 3) + '.' + (d.getFullYear() !== new Date().getFullYear() ? ' ' + d.getFullYear() : '')));
     if (iso === idagIso) hoved.append(el('span', 'bt-idag', 'I dag'));
     if (!erBarn()) hoved.append(knap('+', 'kl-ny', () => redigerAftale({ dato: iso, hvem: 'Fælles' })));
     dag.append(hoved);
@@ -1612,10 +1621,12 @@ function tegnKalListe(man, aftaler, alleFoed, mineValg, idagIso) {
     dag.append(ul);
     boks.append(dag);
   }
+  boks.append(knap('Vis flere dage ›', 'lille-knap kl-mere', () => { kalListeAntal += 21; tegnKalender(); }));
 }
 
 async function tegnKalender() {
   tegnKalVisningValg();
+  document.getElementById('kal-nav').hidden = kalVisning === 'liste';   // listen har ingen ‹ ›
   if (kalVisning === 'maaned') return tegnMaaned();
   document.getElementById('kal-idag').textContent = 'Til denne uge';
   const man = mandagDenneUge();
@@ -1629,7 +1640,7 @@ async function tegnKalender() {
   const alleFoed = await foedselsListe();   // fra familie.js (personer + gamle rækker)
   const mineValg = await valgFor(Data.bruger()?.navn);
   const idagIso = isoDato(new Date());
-  if (kalVisning === 'liste') return tegnKalListe(man, aftaler, alleFoed, mineValg, idagIso);
+  if (kalVisning === 'liste') { document.getElementById('kal-dato').textContent = ''; return tegnKalListe(aftaler, alleFoed, mineValg, idagIso); }
   const g = document.getElementById('kal');
   g.replaceChildren(el('div'));
 
@@ -3016,7 +3027,7 @@ function redigerFravaer(barn, iso, x) {
 
 // "Tilpas": hvad hver person vil se (helligdage, mærkedage, sol, vejr). Børn retter kun deres egne.
 // ---------- Indstillinger: ét sted for alt det, man kan tilpasse ----------
-// Åbnes fra forbogstav-knappen øverst til højre og fra "Tilpas" i Kalender.
+// Åbnes fra forbogstav-knappen øverst til højre.
 //  1) Hvad der vises (for mig – og for børnene, hvis man er voksen): helligdage, mærkedage, sol, vejr, nedtælling, faner
 //  2) Udseende (kun denne enhed)   3) By til vejr og sol (voksne)   4) Hjælp   5) Log ud
 async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
@@ -3115,7 +3126,6 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
   aabnArk('Indstillinger', ...dele,
     el('p', 'hint indst-bund', 'Logget ind som ' + mig + '. Du forbliver logget ind på denne enhed, indtil du logger ud.'), knapper);
 }
-document.getElementById('kal-tilpas').addEventListener('click', () => aabnIndstillinger());
 
 // Visning af en aftale for børn (kun læse)
 function visAftale(a, forekomst) {
@@ -3131,7 +3141,7 @@ function visAftale(a, forekomst) {
 
 // ---------- Korte "?"-tips pr. skærm (i stedet for den lange hjælpeside) ----------
 const TIPS = {
-  kalender: { voksen: ['Tryk på en dag for at se den – og på en aftale for at rette den.', '"Tilpas" vælger, hvad der vises (helligdage, vejr …) og liste eller uge.', 'En aftale kan gælde én, flere eller Fælles. Fælles = hele familien.', '↻ betyder, at aftalen gentages.'],
+  kalender: { voksen: ['Tryk på en dag for at se den – og på en aftale for at rette den.', 'Liste starter altid i dag – "Vis flere dage" nederst. Uge og Måned har ‹ ›.', 'Hvad der vises (helligdage, vejr …), vælges under forbogstav-knappen øverst til højre.', 'En aftale kan gælde én, flere eller Fælles. Fælles = hele familien.', '↻ betyder, at aftalen gentages.'],
     barn: ['Tryk på en dag for at se, hvad der sker.', 'Din farve viser dine aftaler.'] },
   madplan: { voksen: ['Skriv eller vælg en ret pr. dag. 🎲 vælger en tilfældig.', '📌 = retten kommer igen samme dag hver uge.', '"✎ Tilpas" under en ret vælger fyld, tilbehør og ekstra.', 'Børnenes ønsker skal I sige ja/nej til på I dag.'],
     barn: ['Tryk på en dag for at ønske mad.', 'Det mor og far har sagt "må vælges", gælder med det samme.'] },

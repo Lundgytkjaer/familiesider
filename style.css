@@ -1526,3 +1526,5 @@ body.cool .rutine-strip { display: none; }
   background: #f5c542; color: #2a2208; font-weight: 800; padding: 10px 10px 10px 16px; border-radius: 14px; margin: 4px 0 14px; box-shadow: 0 4px 14px rgba(0,0,0,.12); }
 .ret-baand .ret-faerdig { background: #2a2208; color: #fff; border: 0; min-height: 44px; padding: 0 18px; flex: none; }
 .ret-start { border-style: dashed; }
+.kl-uge { margin: 14px 2px 2px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--daempet); }
+.kl-mere { display: block; width: 100%; margin: 8px 0; min-height: 44px; }
