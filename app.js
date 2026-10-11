@@ -3025,7 +3025,7 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
   }
   const MULIGHEDER = [['helligdage', '🎄 Helligdage'], ['maerkedage', '🎃 Mærkedage (halloween, mors dag …)'],
     ['sol', '🌅 Solopgang og solnedgang'], ['vejr', '🌦️ Vejret'], ['relationer', '👪 Familierelation ved fødselsdage – fx "Bente (mormor)"'],
-    ...(BOERN.includes(hvem) ? [['nedtaelling', '⏳ Nedtælling på tavlen'], ['makker', '🐰 Makker på tavlen']] : [])];
+    ...(BOERN.includes(hvem) ? [['nedtaelling', '⏳ Nedtælling på tavlen'], ['makker', '🐰 Makker på tavlen'], ['emoji', '😀 Emoji ved pligter og belønninger']] : [])];
   const seg = el('div', 'seg wrap tilpas-valg');
   for (const [felt, tekst] of MULIGHEDER) {
     const k = knap(tekst, null, async () => {

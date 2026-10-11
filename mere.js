@@ -136,10 +136,16 @@ const AUTO_EMOJI = [[/\bbil/i, '🚗'], [/græs|have|blade/i, '🌿'], [/opvask/
   [/støvsug|ryd|rydde|værelse/i, '🧹'], [/tøj|vask/i, '👕'], [/alfie|kanin|hø/i, '🐰'], [/skærm|ipad|spil/i, '📱'], [/lego/i, '🧱'],
   [/biograf|film/i, '🎬'], [/\bis\b|slik|kage/i, '🍦'], [/penge|kr\b/i, '💰'], [/bord/i, '🍴'], [/hund|gå tur/i, '🚶'], [/bad|brus/i, '🚿'],
   [/smag|mad|aftensmad/i, '🍲'], [/skole|taske/i, '🎒'], [/træn|fodbold|sport/i, '⚽'], [/legetøj/i, '🧸'], [/sko/i, '👟']];
-const autoEmoji = navn => (AUTO_EMOJI.find(([r]) => r.test(navn || '')) || [])[1] || '';
-function ikonBillede(x, klasse = 'lille-ikon') {
+// Emoji kan slås fra pr. person (Indstillinger → "😀 Emoji ved pligter og belønninger" = personvalg.emoji)
+const emojiTil = barn => !barn || Data.listNu('personvalg').find(x => x.navn === barn)?.emoji !== false;
+const autoEmoji = (navn, barn) => (emojiTil(barn) && (AUTO_EMOJI.find(([r]) => r.test(navn || '')) || [])[1]) || '';
+function ikonBillede(x, klasse = 'lille-ikon', auto = true) {
   const url = x.piktogram ? PIKTO_URL(x.piktogram) : x.billede || '';
-  if (!url) { const e = autoEmoji(x.navn); return e ? el('span', klasse + ' auto-emoji', e) : ''; }
+  if (!url) {
+    const barn = BOERN.includes(x.barn) ? x.barn : typeof pligtBarn !== 'undefined' ? pligtBarn : null;
+    const e = auto ? autoEmoji(x.navn, barn) : '';
+    return e ? el('span', klasse + ' auto-emoji', e) : '';
+  }
   const img = el('img', klasse);
   img.src = url; img.alt = ''; img.loading = 'lazy';
   return img;
@@ -150,7 +156,7 @@ function ikonFelt(start) {
   const boks = el('details', 'ikon-felt');
   const titel = el('summary');
   titel.append(el('span', null, 'Lille billede (valgfrit)'));
-  const vis = ikonBillede(start);
+  const vis = ikonBillede(start, 'lille-ikon', false);   // kun et rigtigt billede – ikke den automatiske emoji
   if (vis) titel.append(vis);
   boks.append(titel, ...vaelger.dele);
   return { element: boks, vaerdi: vaelger.vaerdi };
@@ -1023,7 +1029,7 @@ function beloenLi(barn, b, d, s) {
   });
   pin.setAttribute('aria-pressed', erMaal);
   pin.setAttribute('aria-label', erMaal ? 'Fjern som mit mål' : 'Gør ' + b.navn + ' til mit mål');
-  info.append(pin, el('span', 'beloen-navn', (autoEmoji(b.navn) ? autoEmoji(b.navn) + ' ' : '') + b.navn),
+  info.append(pin, el('span', 'beloen-navn', (autoEmoji(b.navn, barn) ? autoEmoji(b.navn, barn) + ' ' : '') + b.navn),
     el('span', 'beloen-pris', '★ ' + b.stjerner + (nok ? ' · du har nok!' : ' · mangler ' + (b.stjerner - s.stjerner)) + (b.engang ? ' · kun én gang' : '')),
     fremskridt(b.stjerner ? s.stjerner / b.stjerner : 1));
   const venter = d.indl.find(x => x.status === 'afventer' && x.navn === b.navn);
@@ -1371,7 +1377,7 @@ function jobsKort(barn, d) {
   for (const j of mine) {
     const li = el('li', 'beloen');
     const info = el('div', 'beloen-info');
-    info.append(el('span', 'beloen-navn', (autoEmoji(j.navn) || '💼') + ' ' + j.navn), el('span', 'beloen-pris', pris(j) + (j.status === 'klaret' ? ' · venter på 👍' : ' · dit job')));
+    info.append(el('span', 'beloen-navn', ((autoEmoji(j.navn, j.barn) || (emojiTil(j.barn) ? '💼' : '')) + ' ' + j.navn).trim()), el('span', 'beloen-pris', pris(j) + (j.status === 'klaret' ? ' · venter på 👍' : ' · dit job')));
     const kn = el('div', 'oenske-knapper');
     if (j.status === 'taget' && loggetIndBarn() === barn) kn.append(
       knap('Giv fra mig', 'lille-knap', async () => { await Data.update('jobs', j.id, { status: 'ledig', barn: null }); tegnAlt(); }),
@@ -1381,7 +1387,7 @@ function jobsKort(barn, d) {
   for (const j of ledige) {
     const li = el('li', 'beloen');
     const info = el('div', 'beloen-info');
-    info.append(el('span', 'beloen-navn', (autoEmoji(j.navn) || '💼') + ' ' + j.navn), el('span', 'beloen-pris', pris(j) + ' · ledigt'));
+    info.append(el('span', 'beloen-navn', ((autoEmoji(j.navn, barn) || (emojiTil(barn) ? '💼' : '')) + ' ' + j.navn).trim()), el('span', 'beloen-pris', pris(j) + ' · ledigt'));
     const kn = el('div', 'oenske-knapper');
     if (loggetIndBarn() === barn) kn.append(knap('Jeg tager den!', 'lille-knap godkend', async () => {
       await Data.update('jobs', j.id, { status: 'taget', barn });
