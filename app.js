@@ -867,11 +867,16 @@ async function tegnForslag(type) {
       }
       const voksenRet = !erBarn();
       const tag = voksenRet ? knap('', 'tag ret-tag', () => redigerRet(f)) : el('span', 'tag');   // retter.js
-      tag.append(f.tekst);
+      // Linje 1: retten + fyld/varianter. Linje 2 (lille): tilbehør · sovs · + ekstra – så det kan ombrydes på telefonen
       const vs = aktiveVarianter(f);
-      const sd = passerSider(f), ek = passerEkstra(f), fy = passerFyld(f);
-      const ekstra = [[...fy, ...vs.map(v => v.navn)].join(' · '), sd.length ? 'med ' + sd.join('/') : '', ek.length ? '+ ' + ek.join(', ') : ''].filter(Boolean).join(' – ');
-      if (ekstra) tag.append(el('span', 'tag-var', ekstra));
+      const sd = passerSider(f), ek = passerEkstra(f), fy = passerFyld(f), sv = typeof passerSovse === 'function' ? passerSovse(f) : [];
+      const linje1 = el('span', 'tag-navn');
+      linje1.append(el('b', null, f.tekst));
+      const fyldVar = [...vs.map(v => v.navn), ...fy];
+      if (fyldVar.length) linje1.append(el('span', 'tag-fyld', ' · ' + fyldVar.join(' · ')));
+      tag.append(linje1);
+      const linje2 = [sd.join(' / '), sv.join(' / '), ek.length ? '+ ' + ek.join(', ') : ''].filter(Boolean).join(' · ');
+      if (linje2) tag.append(el('span', 'tag-var', linje2));
       const hvem = PERSONER.filter(p => kanLide(f).includes(p));
       if (hvem.length) {
         const prikker = el('span', 'prikker');

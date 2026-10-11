@@ -1573,3 +1573,12 @@ body.cool .rutine-strip { display: none; }
 .antal-valg .seg button { min-width: 48px; }
 .ai-side-knap { white-space: nowrap; }
 .kopi-felt { width: 100%; box-sizing: border-box; font: 12px/1.4 ui-monospace, monospace; padding: 10px; border-radius: 12px; border: 1px solid var(--linje); background: var(--bg); color: inherit; }
+/* Vores lister: hver ret som en række, der kan ombrydes (ingen vandret scroll på telefonen) */
+.ret-gruppe-indhold .ret-tag, .ret-gruppe-indhold .tag { display: grid; grid-template-columns: 1fr auto; align-items: center; column-gap: 8px;
+  width: 100%; max-width: 100%; box-sizing: border-box; min-height: 0; padding: 8px 12px; border-radius: 14px; text-align: left; white-space: normal; }
+.ret-gruppe-indhold .tag-navn { grid-column: 1; min-width: 0; overflow-wrap: break-word; font-size: 15px; }
+.ret-gruppe-indhold .tag-navn b { font-weight: 700; }
+.ret-gruppe-indhold .tag-fyld { font-weight: 500; color: var(--daempet); }
+.ret-gruppe-indhold .tag-var { grid-column: 1; min-width: 0; overflow-wrap: break-word; }
+.ret-gruppe-indhold .prikker { grid-column: 2; grid-row: 1 / span 2; }
+.ret-gruppe-boks, .ret-gruppe-indhold { max-width: 100%; min-width: 0; }
