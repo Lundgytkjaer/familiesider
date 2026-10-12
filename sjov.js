@@ -82,7 +82,7 @@ const oprettetIso = o => (o.oprettet ? isoDato(new Date(o.oprettet)) : '0000-00-
 const dagligePligter = d => d.opgaver.filter(o => !o.frivillig && !['uge', 'engang', 'interval'].includes(o.gentag));
 function dagligeDen(d, iso) {
   const dag = (new Date(iso + 'T00:00').getDay() + 6) % 7;
-  return dagligePligter(d).filter(o => (!Array.isArray(o.dage) || !o.dage.length || o.dage.includes(dag)) && oprettetIso(o) <= iso);
+  return dagligePligter(d).filter(o => (typeof pligtIDag === 'function' ? pligtIDag(o, iso) : (!Array.isArray(o.dage) || !o.dage.length || o.dage.includes(dag))) && oprettetIso(o) <= iso);   // mere.js: også skoledage/fridage
 }
 // null = ingen hver-dag-pligter den dag, true = alle klaret, false = ikke alle
 function dagKlaret(d, iso) {

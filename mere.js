@@ -90,6 +90,24 @@ async function erSkoleFri(barn, dato) {
   if (friDen(await Data.list('kalender'), iso, barn)) return true;   // ferie, fri, syg (app.js)
   return fastFri(barn, dag);   // fast fridag hver uge (app.js)
 }
+// Pligter med dagtype (skoledage, fridage, før skoledag, før fridag) – synkron udgave med de SAMME regler som
+// databasen (opdatering-pligter-dagtype.sql: skole_fri/pligt_i_dag): weekend, helligdag, ferie/fri/syg i kalenderen
+// (aftaler uden gentagelse for barnet eller Fælles) og fast fridag i skemaet.
+function skoleFriNu(barn, iso) {
+  const dag = (tilDag(iso).getDay() + 6) % 7;
+  if (dag >= 5 || helligdagDen(iso)) return true;
+  const fri = Data.listNu('kalender').some(a => a.fri && !a.gentag && a.dato <= iso && (a.tilDato && a.tilDato > a.dato ? a.tilDato : a.dato) >= iso
+    && [].concat(a.hvem || 'Fælles').some(h => h === barn || h === 'Fælles'));
+  return fri || Data.listNu('skemadag').some(x => x.barn === barn && x.dag === dag && x.fri);
+}
+function pligtIDag(o, iso) {
+  if (DAGTYPER[o.dagtype]) {
+    if (o.dagtype === 'foerSkole' || o.dagtype === 'foerFri') return skoleFriNu(o.barn, plusDage(iso, 1)) === (o.dagtype === 'foerFri');
+    return skoleFriNu(o.barn, iso) === (o.dagtype === 'fri');
+  }
+  const dag = (tilDag(iso).getDay() + 6) % 7;
+  return !Array.isArray(o.dage) || !o.dage.length || o.dage.includes(dag);
+}
 async function rutineIDag(r, dato) {
   if (!DAGTYPER[r.dagtype]) return rutineAktiv(r, (dato.getDay() + 6) % 7);
   if (r.dagtype === 'foerSkole' || r.dagtype === 'foerFri') {
@@ -553,7 +571,7 @@ function dagensOpgaver(d) {
     if (o.gentag === 'uge') periode = man;
     else if (o.gentag === 'engang') periode = 'engang';
     else {
-      if (o.dage && o.dage.length && !o.dage.includes(dag)) continue;
+      if (!pligtIDag(o, iso)) continue;   // bestemte ugedage eller skoledage/fridage
       periode = iso;
     }
     const f = d.flueben.find(x => x.opgave === o.id && x.periode === periode);
@@ -746,6 +764,7 @@ function retPligterDele(barn, d, erMig) {
     const b = knap('', 'ret-raekke', () => redigerOpgave(o, d.regel));
     const under = [GENTAG[o.gentag] || 'Hver dag'];
     if (o.gentag === 'dag' && o.dage && o.dage.length && o.dage.length < 7) under[0] = o.dage.map(i => DAGE[i]).join(', ');
+    if (o.gentag === 'dag' && DAGTYPER[o.dagtype]) under[0] = DAGTYPER[o.dagtype].ikon + ' ' + DAGTYPER[o.dagtype].navn;
     if (o.gentag === 'interval') under[0] = intervalTekst(o) + ' · næste ' + kortDato(naesteForfald(o, d));
     if (o.frivillig) under.push('Bonus');
     if (d.regel.kr && tal(o.kr)) under.push(kr(tal(o.kr)));
@@ -1471,9 +1490,19 @@ function redigerOpgave(o, regel) {
 
   let gentag = o.gentag || 'dag';
   const dage = new Set(o.dage && o.dage.length ? o.dage : [0, 1, 2, 3, 4, 5, 6]);
+  // Som rutiner: bestemte ugedage – eller skoledage/fridage, der følger kalenderen (ferie, helligdage …)
+  let dagtype = DAGTYPER[o.dagtype] ? o.dagtype : 'dage';
+  const typeHint = el('p', 'hint');
+  const dagtypeBoks = el('div');
+  const dagtypeValg = chipValg(['dage', ...Object.keys(DAGTYPER)], dagtype, v => { dagtype = v; tegnDage(); },
+    v => (v === 'dage' ? '📅 Vælg dage' : DAGTYPER[v].ikon + ' ' + DAGTYPER[v].navn));
+  dagtypeBoks.append(dagtypeValg, typeHint);
   const dageBoks = el('div', 'seg wrap dage-valg');
   const tegnDage = () => {
-    dageBoks.hidden = gentag !== 'dag';
+    dagtypeBoks.hidden = gentag !== 'dag';
+    typeHint.hidden = dagtype === 'dage';
+    typeHint.textContent = DAGTYPER[dagtype]?.hint || '';
+    dageBoks.hidden = gentag !== 'dag' || dagtype !== 'dage';
     dageBoks.replaceChildren(...DAGE.map((d, i) => {
       const k = knap(d, null, () => { if (dage.has(i)) dage.delete(i); else dage.add(i); tegnDage(); });
       k.setAttribute('role', 'checkbox');
@@ -1560,7 +1589,8 @@ function redigerOpgave(o, regel) {
     if (!n) { navn.focus(); return; }
     const felter = {
       navn: n, gentag,
-      dage: gentag === 'dag' ? [...dage].sort((a, b) => a - b) : [],
+      dage: gentag === 'dag' && dagtype === 'dage' ? [...dage].sort((a, b) => a - b) : [],
+      dagtype: gentag === 'dag' && DAGTYPER[dagtype] ? dagtype : null,
       interval: gentag === 'interval' ? interval : null,
       start: gentag === 'interval' ? (startInp.value || isoDato(new Date())) : null,
       regnFra: gentag === 'interval' ? regnFra : null,
@@ -1577,7 +1607,7 @@ function redigerOpgave(o, regel) {
   if (!ny) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('opgaver', o.id); lukArk(); tegnAlt(); }));
   knapper.append(gem);
   aabnArk(ny ? 'Ny pligt' : 'Ret pligt', felt('Pligt', navn), tilMuligheder.length > 1 ? felt('Til', tilValg) : '',
-    felt('Hvor tit', gentagValg), dageBoks, intervalBoks, bonusBoks,
+    felt('Hvor tit', gentagValg), dagtypeBoks, dageBoks, intervalBoks, bonusBoks,
     el('p', 'hint', 'Bonus vises som en opfordring. Den kan give stjerner, men Alfie og streak kræver den ikke.'),
     typeValg, beloebRaekke, ikon.element, knapper);
   if (ny) setTimeout(() => navn.focus(), 50);
