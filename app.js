@@ -973,6 +973,7 @@ async function madplanForUge(ugeIso, barn = null) {
 }
 // Drengenes faste morgenmad og frokost – samme hver uge, til den ændres
 // Data: 'fastplan' {barn, dag 0-6, morgen, frokost}
+const FRIDAG = 7;   // fastplan-rækken "Fridage": morgen/frokost på dage uden skole (ferie, helligdage, fast fridag)
 async function fastFor(barn, dag) {
   return (await Data.list('fastplan')).find(r => r.barn === barn && r.dag === dag) || {};
 }
@@ -1002,7 +1003,14 @@ async function madFor(dato, barn = null) {
   const dag = (dato.getDay() + 6) % 7;
   const faelles = { ...((await madplanForUge(ugeIso)).find(r => r.dag === dag) || {}) };
   if (!faelles.ret) { const fa = (await fastAftensmad())[dag]; if (fa) faelles.ret = fa; }   // fast aftensmad
-  const fast = barn ? await fastFor(barn, dag) : {};
+  let fast = barn ? await fastFor(barn, dag) : {};
+  // 🏖 Fridag (ferie, helligdag, fast fridag, syg): rækken "Fridage" (dag 7) bruges i stedet for hverdagens faste plan –
+  // så skolemadpakken ikke står på tavlen i ferien. I weekenden gælder lørdag/søndag først, ellers Fridage.
+  if (barn && typeof skoleFriNu === 'function' && skoleFriNu(barn, isoDato(dato))) {
+    const fri = await fastFor(barn, FRIDAG);
+    fast = dag >= 5 ? { ...fri, ...Object.fromEntries(Object.entries(fast).filter(([, v]) => v)) }
+      : { ...fast, ...Object.fromEntries(Object.entries(fri).filter(([k, v]) => v && (k === 'morgen' || k === 'frokost'))) };
+  }
   const res = { eget: {}, kilde: {}, faelles, fast, visning: {} };
   for (const f of ['morgen', 'frokost', 'ret']) {
     if (fast[f]) { res[f] = fast[f]; res.kilde[f] = 'fast'; }
@@ -1282,9 +1290,10 @@ async function tegnFastPlan() {
     return k;
   }));
   const ol = el('ol', 'uge fast-uge');
-  DAGE.forEach((dagNavn, i) => {
+  const idagFri = typeof skoleFriNu === 'function' && skoleFriNu(fastBarn, isoDato(new Date())) && idagNr() < 5;
+  [...DAGE, '🏖 Fri'].forEach((dagNavn, i) => {
     const raekke = plan.find(r => r.dag === i) || {};
-    const li = el('li', 'fast-dag' + (i === idagNr() ? ' idag' : ''));
+    const li = el('li', 'fast-dag' + ((idagFri ? i === FRIDAG : i === idagNr()) ? ' idag' : '') + (i === FRIDAG ? ' fast-fridag' : ''));
     li.append(el('span', 'fast-dagnavn', dagNavn));
     for (const felt of ['morgen', 'frokost']) {
       const navn = felt === 'morgen' ? 'Morgen' : 'Frokost';
@@ -1292,7 +1301,7 @@ async function tegnFastPlan() {
       const inp = el('input');
       inp.type = 'text'; inp.id = 'fast-' + felt + '-' + i; inp.autocomplete = 'off'; inp.enterKeyHint = 'done';
       inp.placeholder = navn;
-      inp.setAttribute('aria-label', navn + ' ' + DAGE_LANG[i].toLowerCase());
+      inp.setAttribute('aria-label', navn + ' ' + (i === FRIDAG ? 'på fridage' : DAGE_LANG[i].toLowerCase()));
       inp.setAttribute('list', DATALISTE[felt]);
       inp.value = raekke[felt] || '';
       inp.addEventListener('change', async () => {
@@ -1325,6 +1334,7 @@ async function tegnFastPlan() {
     el('h3', 'lille-titel', selv ? 'Min morgenmad og frokost' : 'Børnenes morgenmad og frokost – hver uge'),
     selv ? '' : el('p', 'hint', 'Går igen hver uge af sig selv – også når du skifter uge ovenfor. En enkelt dag ændres ved at trykke på maden på barnets tavle.'),
     selv ? '' : seg, hoved, ol,
+    selv ? '' : el('p', 'hint fridag-hint', '🏖 Fri bruges på hverdage uden skole (ferie, helligdage, fast fridag, syg) – og i weekenden, hvis lørdag/søndag er tom. Så skal hverdagene ikke rettes i ferien.'),
     selv ? '' : knap('🧒 Hvad må børnene selv vælge?', 'lille-knap boernevalg-knap', () => redigerBoernevalg()),
     selv ? '' : knap('⏸ Sæt maden på pause', 'lille-knap boernevalg-knap', () => redigerPause({}, null)),   // pause.js
     selv && typeof pauseMad === 'function' && ['morgen', 'frokost', 'ret'].some(f => pauseMad(selv, isoDato(new Date()), f))

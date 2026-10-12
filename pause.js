@@ -184,3 +184,72 @@ async function pauseUdfyld() {
   }
   if (n) visStatus('⏸ ' + n + (n === 1 ? ' pligt' : ' pligter') + ' fra pausen er givet som klaret');
 }
+
+// ---------- ⏸ Pause på én pligt eller rutine (fx "Giv Alfie mad", mens Alfie passes hos mormor) ----------
+// Gemmes på selve pligten/rutinen: pause {fra, til ('' = til den slås fra)}. Pausede pligter er ikke planlagt de dage
+// (tæller hverken for eller imod "dage i træk" – samme regel i databasen: opdatering-pligt-pause.sql).
+const punktPauset = (o, iso) => !!(o && o.pause && o.pause.fra && o.pause.fra <= iso && (!o.pause.til || o.pause.til >= iso));
+const punktPauseAktuel = o => !!(o && o.pause && o.pause.fra && (!o.pause.til || o.pause.til >= isoDato(new Date())));
+function punktPauseTekst(o) {
+  if (!punktPauseAktuel(o)) return '';
+  const idag = isoDato(new Date()), p = o.pause;
+  if (p.fra > idag) return '⏸ pause fra ' + kortDag(p.fra) + (p.til ? ' til ' + kortDag(p.til) : '');
+  return '⏸ pause' + (!p.til ? '' : p.til === idag ? ' i dag' : ' til og med ' + kortDag(p.til));
+}
+// Lille ⏸-knap ved siden af en pligt/rutine i listerne (voksne)
+function pauseKnap(liste, o, efter) {
+  const k = knap(punktPauseAktuel(o) ? '▶' : '⏸', 'pause-mini' + (punktPauseAktuel(o) ? ' aktiv' : ''), () => pausePunkt(liste, o, efter));
+  k.setAttribute('aria-label', (punktPauseAktuel(o) ? 'Pause – ret eller fortsæt: ' : 'Sæt på pause: ') + o.navn);
+  return k;
+}
+function pausePunkt(liste, o, efter = () => tegnAlt()) {
+  const idag = isoDato(new Date());
+  const aktuel = punktPauseAktuel(o);
+  const s = { fra: o.pause?.fra || idag, til: aktuel ? (o.pause.til ?? '') : plusDage(idag, 6) };
+  let laengde = aktuel && !s.til ? 'altid' : !aktuel || s.til !== idag ? 'dato' : 'idag';
+  const fraIn = input('date', 'ppause-fra', s.fra), tilIn = input('date', 'ppause-til', s.til || '');
+  fraIn.addEventListener('change', () => { s.fra = fraIn.value || idag; });
+  tilIn.addEventListener('change', () => { s.til = tilIn.value; });
+  const naarBoks = el('div');
+  const tegnNaar = () => {
+    naarBoks.replaceChildren(chipValg(['idag', 'dato', 'altid'], laengde, v => {
+      laengde = v;
+      if (v === 'idag') { s.fra = idag; s.til = idag; fraIn.value = idag; tilIn.value = idag; }
+      if (v === 'dato' && (!s.til || s.til === idag)) { s.til = plusDage(s.fra, 6); tilIn.value = s.til; }
+      tegnNaar();
+    }, v => ({ idag: 'I dag', dato: 'Fra – til', altid: 'Til jeg slår den fra' })[v]));
+    if (laengde === 'dato') { const r = el('div', 'pause-datoer'); r.append(felt('Fra', fraIn), felt('Til og med', tilIn)); naarBoks.append(r); }
+    if (laengde === 'altid') naarBoks.append(felt('Fra', fraIn));
+  };
+  tegnNaar();
+  // Samme pligt/rutine hos det andet barn (fx "Giv Alfie mad" hos begge) – kan sættes på pause samtidig
+  const tvillinger = Data.listNu(liste).filter(x => x.id !== o.id && x.navn === o.navn && BOERN.includes(x.barn) && x.barn !== o.barn);
+  const ogsaa = new Set(tvillinger.filter(x => !!punktPauseAktuel(x) === aktuel).map(x => x.barn));   // pr. barn
+  const tvBoks = el('div', 'seg wrap');
+  const tegnTv = () => tvBoks.replaceChildren(...[...new Set(tvillinger.map(x => x.barn))].map(barn => {
+    const b = knap((ogsaa.has(barn) ? '✓ ' : '') + 'Også for ' + barn, null, () => { if (ogsaa.has(barn)) ogsaa.delete(barn); else ogsaa.add(barn); tegnTv(); });
+    b.setAttribute('role', 'checkbox'); b.setAttribute('aria-checked', ogsaa.has(barn));
+    return b;
+  }));
+  tegnTv();
+  const alle = () => [o, ...tvillinger.filter(x => ogsaa.has(x.barn))];
+  const knapper = el('div', 'ark-knapper');
+  if (aktuel) knapper.append(knap('▶ Fortsæt nu', 'knap sekundaer', async () => {
+    for (const x of alle()) {
+      // Er pausen begyndt, slutter den i går (så "dage i træk" stadig springer de dage over); ellers fjernes den
+      if (x.pause?.fra && x.pause.fra < idag) await Data.update(liste, x.id, { pause: { ...x.pause, til: plusDage(idag, -1) } });
+      else await Data.update(liste, x.id, { pause: null });
+    }
+    lukArk(); visStatus(o.navn + ' er i gang igen'); efter();
+  }));
+  knapper.append(knap('Gem', 'knap', async () => {
+    const til = laengde === 'altid' ? '' : s.til;
+    if (laengde === 'dato' && (!til || til < s.fra)) { visStatus('"Til og med" skal være samme dag eller senere', true); return; }
+    for (const x of alle()) await Data.update(liste, x.id, { pause: { fra: s.fra, til } });
+    lukArk(); visStatus('⏸ ' + o.navn + ' holder pause'); efter();
+  }));
+  aabnArk('⏸ Pause: ' + o.navn, el('p', 'hint', liste === 'opgaver'
+      ? 'Pligten forsvinder fra tavlen i pausen og tæller hverken for eller imod dage i træk.'
+      : 'Rutinen vises ikke på tavlen i pausen.'),
+    el('label', 'felt-label', 'Hvor længe?'), naarBoks, tvillinger.length ? tvBoks : '', knapper);
+}

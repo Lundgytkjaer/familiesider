@@ -101,6 +101,7 @@ function skoleFriNu(barn, iso) {
   return fri || Data.listNu('skemadag').some(x => x.barn === barn && x.dag === dag && x.fri);
 }
 function pligtIDag(o, iso) {
+  if (typeof punktPauset === 'function' && punktPauset(o, iso)) return false;   // ⏸ pligten holder pause (pause.js)
   if (DAGTYPER[o.dagtype]) {
     if (o.dagtype === 'foerSkole' || o.dagtype === 'foerFri') return skoleFriNu(o.barn, plusDage(iso, 1)) === (o.dagtype === 'foerFri');
     return skoleFriNu(o.barn, iso) === (o.dagtype === 'fri');
@@ -109,6 +110,7 @@ function pligtIDag(o, iso) {
   return !Array.isArray(o.dage) || !o.dage.length || o.dage.includes(dag);
 }
 async function rutineIDag(r, dato) {
+  if (typeof punktPauset === 'function' && punktPauset(r, isoDato(dato))) return false;   // ⏸ rutinen holder pause (pause.js)
   if (!DAGTYPER[r.dagtype]) return rutineAktiv(r, (dato.getDay() + 6) % 7);
   if (r.dagtype === 'foerSkole' || r.dagtype === 'foerFri') {
     const imorgen = new Date(dato.getFullYear(), dato.getMonth(), dato.getDate() + 1);
@@ -322,9 +324,11 @@ async function tegnRutiner() {
     const info = el('span', 'rutine-info');
     const rNavn = el('span', 'rutine-navn');
     rNavn.append(ikonBillede(r), r.navn);
-    info.append(rNavn, el('span', 'ret-under', [dage, rutineDel(r) && rutineDel(r).navn, (r.trin || []).length + ' trin'].filter(Boolean).join(' · ')), strip);
+    const pt = typeof punktPauseTekst === 'function' ? punktPauseTekst(r) : '';
+    info.append(rNavn, el('span', 'ret-under', [pt, dage, rutineDel(r) && rutineDel(r).navn, (r.trin || []).length + ' trin'].filter(Boolean).join(' · ')), strip);
     b.append(rutineTidEl(r), info, el('span', 'm-pil', '›'));
     li.append(b);
+    if (erVoksen() && typeof pauseKnap === 'function') { li.classList.add('med-pause'); if (pt) li.classList.add('pauset'); li.append(pauseKnap('rutiner', r, () => tegnRutiner())); }   // ⏸ pause.js
     ul.append(li);
   }
   if (!rutiner.length) ul.append(el('li', 'tom', 'Ingen rutiner endnu'));
@@ -556,6 +560,7 @@ function dagensOpgaver(d) {
   const iso = isoDato(nu), dag = idagNr(), man = isoDato(mandagDenneUge());
   const res = [];
   for (const o of d.opgaver) {
+    if (typeof punktPauset === 'function' && punktPauset(o, iso)) continue;   // ⏸ holder pause (pause.js)
     // Bonus sprunget over i dag ("Ikke i dag") – vises nederst med Fortryd; i morgen er den der igen
     const sprunget = o.frivillig && d.flueben.find(x => x.opgave === o.id && x.sprunget && x.dato === iso);
     if (sprunget) { res.push({ o, periode: 'sprunget-' + iso, f: null, sprunget }); continue; }
@@ -769,10 +774,13 @@ function retPligterDele(barn, d, erMig) {
     if (o.frivillig) under.push('Bonus');
     if (d.regel.kr && tal(o.kr)) under.push(kr(tal(o.kr)));
     if (d.regel.stjerner && tal(o.stjerner)) under.push('★ ' + tal(o.stjerner));
+    const pt = typeof punktPauseTekst === 'function' ? punktPauseTekst(o) : '';
+    if (pt) under.unshift(pt);
     const oNavn = el('span', 'ret-navn');
     oNavn.append(ikonBillede(o), o.navn);
     b.append(oNavn, el('span', 'ret-under', under.join(' · ')), el('span', 'm-pil', '›'));
     li.append(b);
+    if (typeof pauseKnap === 'function' && erVoksen()) { li.classList.add('med-pause'); if (pt) li.classList.add('pauset'); li.append(pauseKnap('opgaver', o)); }   // ⏸ pause.js
     ol.append(li);
   }
   if (!d.opgaver.length) ol.append(el('li', 'tom', 'Ingen pligter'));

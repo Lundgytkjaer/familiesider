@@ -614,12 +614,13 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 /* Fast morgenmad og frokost */
 .fast-plan { margin-top: 18px; }
 .fast-plan .hint { margin-top: 0; }
-.fast-hoved, .fast-dag { display: grid; grid-template-columns: 40px 1fr 1fr; gap: 6px; align-items: center; }
+.fast-hoved, .fast-dag { display: grid; grid-template-columns: 40px 1fr 1fr; gap: 6px; align-items: start; }
+.fast-hoved { align-items: center; }
 .fast-hoved { padding: 0 10px 4px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--daempet); }
 .fast-uge { margin-bottom: 10px; }
 .fast-dag { padding: 6px 10px; min-height: 52px; }
-.fast-dagnavn { font-weight: 700; font-size: 14px; color: var(--daempet); }
-.fast-felt { display: flex; align-items: center; min-width: 0; }
+.fast-dagnavn { font-weight: 700; font-size: 14px; color: var(--daempet); padding-top: 11px; }
+.fast-felt { display: flex; align-items: flex-start; min-width: 0; }
 .fast-felt input[type="text"] { min-height: 40px; padding: 0 8px; border: 1.5px solid var(--linje); border-radius: 10px; background: var(--bg); font-size: 15px; }
 .fast-felt .terning.lille { width: 32px; height: 40px; flex: none; }
 .fast-vaerdi { font-weight: 600; overflow-wrap: anywhere; }
@@ -1654,3 +1655,14 @@ body.pause-hele .bundmenu, body.pause-hele #idag-valg, body.pause-hele .bruger-k
 .pause-boble::after { content: ""; position: absolute; left: 50%; bottom: -9px; margin-left: -9px; border: 9px solid transparent; border-bottom: 0; border-top-color: var(--flade); }
 .pause-navn { margin: 0; color: var(--daempet); font-size: 14px; }
 @media (prefers-reduced-motion: reduce) { .pause-makker.vip { animation: none; } }
+
+/* ⏸ Pause på én pligt/rutine + 🏖 Fridage i den faste plan (2026-10-12b) */
+.ret-liste li.med-pause, .rutine-liste li.med-pause { display: flex; align-items: stretch; }
+.ret-liste li.med-pause > .ret-raekke, .rutine-liste li.med-pause > .rutine-raekke { flex: 1; min-width: 0; }
+.pause-mini { flex: none; width: 48px; border: 0; background: none; font-size: 17px; color: var(--daempet); }
+.rutine-liste .pause-mini { margin-left: 6px; background: var(--flade); border-radius: var(--radius); }
+.pause-mini.aktiv { color: var(--p2); }
+li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opacity: .55; }
+.fast-dag.fast-fridag { border-top: 1px dashed var(--linje); margin-top: 4px; padding-top: 10px; }
+.fast-fridag .fast-dagnavn { font-size: 12px; line-height: 1.2; }
+.fast-vaerdi { padding-top: 11px; }
