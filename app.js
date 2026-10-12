@@ -127,7 +127,7 @@ function visFane(navn, fraTilbage = false) {
   if (navn !== 'hjaelp' && tilladteFaner && !tilladteFaner.includes(underMere(navn) ? 'mere' : navn)) navn = 'idag';
   const fra = aktivFane;
   if (!fraTilbage && fra && fra !== navn) { faneHistorik.push(fra); if (faneHistorik.length > 20) faneHistorik.shift(); }
-  if (navn !== 'pligter' && typeof pligtRet !== 'undefined') pligtRet = false;   // rette-tilstand slutter, når man går fra Pligter
+  if (navn !== 'pligter' && typeof pligtRet !== 'undefined') { pligtRet = false; if (typeof pligtDag !== 'undefined') pligtDag = null; }   // rette-tilstand slutter, når man går fra Pligter
   if (!underMere(navn)) tilbageTil = null;
   else if (fra && fra !== navn && !underMere(fra)) tilbageTil = fra === 'mere' ? null : fra;
   aktivFane = navn;

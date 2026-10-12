@@ -1666,3 +1666,10 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .fast-dag.fast-fridag { border-top: 1px dashed var(--linje); margin-top: 4px; padding-top: 10px; }
 .fast-fridag .fast-dagnavn { font-size: 12px; line-height: 1.2; }
 .fast-vaerdi { padding-top: 11px; }
+
+/* Pligter: bladr tilbage og ret en tidligere dag (voksne, 2026-10-12c) */
+.pligt-dag-nav { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; }
+.pligt-dag-nav .lille-titel { margin: 0; flex: 1; text-align: center; }
+.pligt-dag-nav .lille-knap { min-width: 44px; }
+.pligt-dag-nav .lille-knap:disabled { opacity: .35; }
+.liste.tidligere-dag { box-shadow: inset 0 0 0 2px var(--p2); border-radius: var(--radius); }

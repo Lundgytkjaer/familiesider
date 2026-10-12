@@ -555,9 +555,9 @@ const intervalTekst = o => {
 
 // Dagens opgaver: hver-dag-opgaver for i dag, ugens opgaver, pligter med mellemrum der er forfaldne,
 // og engangsopgaver der ikke er klaret
-function dagensOpgaver(d) {
-  const nu = new Date();
-  const iso = isoDato(nu), dag = idagNr(), man = isoDato(mandagDenneUge());
+// iso = en anden dag (voksne kan rette en tidligere dag på Pligter – fx hvis barnet glemte at krydse af)
+function dagensOpgaver(d, iso = isoDato(new Date())) {
+  const man = isoDato(mandagFor(tilDag(iso)));
   const res = [];
   for (const o of d.opgaver) {
     if (typeof punktPauset === 'function' && punktPauset(o, iso)) continue;   // ⏸ holder pause (pause.js)
@@ -581,7 +581,7 @@ function dagensOpgaver(d) {
     }
     const f = d.flueben.find(x => x.opgave === o.id && x.periode === periode);
     if (o.gentag === 'engang' && f && f.dato !== iso) continue;   // klaret en tidligere dag
-    res.push({ o, periode, f });
+    res.push({ o, periode, f, dato: iso });
   }
   const orden = { dag: 0, interval: 1, uge: 2, engang: 3 };
   return res.sort((a, b) => Number(!!a.sprunget) - Number(!!b.sprunget) || Number(!!a.o.frivillig) - Number(!!b.o.frivillig)
@@ -614,14 +614,14 @@ async function skiftFluebenNu(barn, r, regel) {
   }
   if (r.f) await Data.remove('flueben', r.f.id);
   else await Data.add('flueben', {
-    opgave: r.o.id, barn, periode: r.periode, dato: isoDato(new Date()), navn: r.o.navn,
+    opgave: r.o.id, barn, periode: r.periode, dato: r.dato || isoDato(new Date()), navn: r.o.navn,
     kr: regel.kr ? tal(r.o.kr) : 0,
     stjerner: regel.stjerner ? Math.round(tal(r.o.stjerner)) : 0,
     ...(r.o.godkend ? { venter: true } : {})   // 👍: mor/far skal godkende, før det tæller
   });
   const bonus = await opdaterStreakBonus(barn);   // fra sjov.js – giver/tager streak-bonus
   let fejret = false;
-  if (!r.f) {
+  if (!r.f && (!r.dato || r.dato === isoDato(new Date()))) {   // ingen fest, når en voksen retter en tidligere dag
     const liste = skalKlares(dagensOpgaver(await pligtData(barn)));
     if (r.o.frivillig) { fejr('Bonus! ⭐ Sejt gået'); fejret = true; }   // fra sjov.js
     else if (liste.length && liste.every(x => x.f)) { fejr('Alle pligter er klaret! 🎉'); fejret = true; }
@@ -659,7 +659,7 @@ function opgaveLi(barn, r, regel) {
   b.append(tjek, ikonBillede(r.o, 'lille-ikon opg-ikon'), tb);
   b.addEventListener('click', () => skiftFlueben(barn, r, regel));
   li.append(b);
-  if (r.o.frivillig && !r.f) li.append(knap('Ikke i dag', 'lille-knap spring-knap', () => springOver(barn, r)));
+  if (r.o.frivillig && !r.f && (!r.dato || r.dato === isoDato(new Date()))) li.append(knap('Ikke i dag', 'lille-knap spring-knap', () => springOver(barn, r)));
   return li;
 }
 
@@ -835,6 +835,7 @@ function retPligterDele(barn, d, erMig) {
   return dele;
 }
 
+let pligtDag = null;   // voksne: vist dag på Pligter (null = i dag)
 async function tegnPligter() {
   const boks = document.getElementById('pligter-indhold');
   const personer = pligtPersoner();
@@ -912,10 +913,26 @@ async function tegnPligter() {
     }));
   }
 
-  // I dag
-  dele.push(el('h3', 'lille-titel', 'I dag'));
-  const ul = el('ul', 'liste');
-  const idag = dagensOpgaver(d);
+  // I dag – voksne kan bladre tilbage (højst 14 dage) og rette en dag, barnet glemte at krydse af
+  const dagIso = isoDato(new Date());
+  if (!erVoksen() || !pligtDag || pligtDag > dagIso) pligtDag = null;
+  const visDag = pligtDag || dagIso;
+  if (erVoksen()) {
+    const bladr = el('div', 'pligt-dag-nav');
+    const tilbage = knap('‹', 'lille-knap', () => { pligtDag = plusDage(visDag, -1); tegnPligter(); });
+    tilbage.disabled = visDag <= plusDage(dagIso, -14);
+    tilbage.setAttribute('aria-label', 'Dagen før');
+    const frem = knap('›', 'lille-knap', () => { const n = plusDage(visDag, 1); pligtDag = n >= dagIso ? null : n; tegnPligter(); });
+    frem.disabled = visDag >= dagIso;
+    frem.setAttribute('aria-label', 'Dagen efter');
+    const navn = visDag === dagIso ? 'I dag' : visDag === plusDage(dagIso, -1) ? 'I går' : DAGE_LANG[(tilDag(visDag).getDay() + 6) % 7] + ' ' + kortDag(visDag);
+    bladr.append(tilbage, el('h3', 'lille-titel', navn), frem);
+    if (pligtDag) bladr.append(knap('I dag', 'lille-knap', () => { pligtDag = null; tegnPligter(); }));
+    dele.push(bladr);
+    if (pligtDag) dele.push(el('p', 'hint', '✏️ Du retter ' + navn.toLowerCase() + '. Stjerner, kr og dage i træk tæller med (bonus for dage i træk gives kun samme dag).'));
+  } else dele.push(el('h3', 'lille-titel', 'I dag'));
+  const ul = el('ul', 'liste' + (pligtDag ? ' tidligere-dag' : ''));
+  const idag = dagensOpgaver(d, visDag);
   idag.forEach(r => ul.append(opgaveLi(barn, r, d.regel)));
   if (!idag.length) ul.append(el('li', 'tom', d.opgaver.length ? 'Ingen pligter i dag' : 'Ingen pligter endnu'));
   dele.push(ul);
