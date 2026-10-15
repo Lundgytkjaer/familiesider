@@ -1878,3 +1878,8 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .pak-gruppe-hoved.faerdig span { color: var(--accent); font-weight: 600; }
 .seg.pak-rul { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
 .seg.pak-rul button { flex: none; white-space: nowrap; }
+.pak-tur { margin-bottom: 10px; }
+.pak-tur .hint { margin: 4px 0 0; }
+.pak-kun-tag { font-size: 12px; padding: 1px 6px; border-radius: 999px; background: var(--accent-blod); color: var(--fg); }
+.pak-gemte button { font-weight: 600; }
+.pak-gem-tur { display: inline-block; margin-top: 4px; color: var(--accent); font: inherit; font-size: 14px; cursor: pointer; }

@@ -1685,10 +1685,20 @@ let pakFilter = 'Alle';
 let pakNyHvem = 'Alle';
 let pakNyKat = '';
 const pakAabne = new Set();   // sammenfoldede (færdige) grupper, man har åbnet
-const PAK_KAT_ORDEN = ['Tøj', 'Overtøj', 'Fodtøj', 'Toiletsager', 'Medicin', 'Papirer og penge', 'Diverse', 'Køkken', 'Mad og drikke', 'Elektronik', 'Legetøj', 'Andet'];
-const PAK_IKON = { 'Tøj': '👕', 'Overtøj': '🧥', 'Fodtøj': '🥾', 'Toiletsager': '🪥', 'Medicin': '💊', 'Papirer og penge': '🛂', 'Diverse': '🎒',
-  'Køkken': '🍽️', 'Mad og drikke': '🥪', 'Elektronik': '🔌', 'Legetøj': '🧸', 'Andet': '📦' };
+const PAK_KAT_ORDEN = ['Tøj', 'Overtøj', 'Fodtøj', 'Toiletsager', 'Medicin', 'Papirer og penge', 'Til turen', 'Diverse', 'Sengetøj og bad', 'Køkken', 'Mad og drikke', 'Elektronik', 'Legetøj', 'Andet'];
+const PAK_IKON = { 'Tøj': '👕', 'Overtøj': '🧥', 'Fodtøj': '🥾', 'Toiletsager': '🪥', 'Medicin': '💊', 'Papirer og penge': '🛂', 'Til turen': '🚗', 'Diverse': '🎒',
+  'Sengetøj og bad': '🛏️', 'Køkken': '🍽️', 'Mad og drikke': '🥪', 'Elektronik': '🔌', 'Legetøj': '🧸', 'Andet': '📦' };
 const pakIkon = k => PAK_IKON[k] || '📦';
+// "Kun med når": ting, der kun skal med på bestemte ture (pakkepunkter.kun = ['Ski', …]). Listen husker, hvad der gælder
+// denne gang (pakkelister.tur = ['Ski', 'Selv mad']). Ting uden "kun" er altid med; de andre skjules – slettes aldrig.
+const PAK_TURE = ['Ski', 'Sol og strand', 'Selv mad', 'Lejet bolig', 'Bil', 'Fly', 'Udland'];
+const PAK_TUR_IKON = { 'Ski': '⛷️', 'Selv mad': '🍳', 'Bil': '🚗', 'Fly': '✈️', 'Sol og strand': '☀️', 'Lejet bolig': '🏠', 'Udland': '🌍' };
+// Gemte ture: pakkelister.ture = [{navn, tur: [...]}] – ét tryk vælger mærkerne (fx "Sommerhus weekend" = Selv mad + Bil)
+const pakSammeTur = (a, b) => a.length === b.length && a.every(x => b.includes(x));
+const pakTurIkon = t => PAK_TUR_IKON[t] || '🏷️';
+const pakMed = (p, l) => !(p.kun || []).length || p.kun.some(t => (l.tur || []).includes(t));
+const pakTurtyper = punkter => { const brugt = new Set(punkter.flatMap(p => p.kun || [])); return [...PAK_TURE.filter(t => brugt.has(t)), ...[...brugt].filter(t => !PAK_TURE.includes(t)).sort()]; };
+let pakNyKun = '';
 // Kategorierne på en liste i fast rækkefølge (kendte først, så egne i den rækkefølge, de er brugt)
 function pakKategorier(punkter) {
   const brugte = [...new Set(punkter.map(p => p.kategori || 'Andet'))];
@@ -1705,7 +1715,7 @@ const pakForm = (() => {
     const tekst = inp.value.trim();
     if (!tekst || !pakValgt) return;
     inp.value = '';
-    await Data.add('pakkepunkter', { liste: pakValgt, tekst, hvem: pakNyHvem === 'Alle' ? '' : pakNyHvem, pakket: false, ...(pakNyKat ? { kategori: pakNyKat } : {}) });
+    await Data.add('pakkepunkter', { liste: pakValgt, tekst, hvem: pakNyHvem === 'Alle' ? '' : pakNyHvem, pakket: false, ...(pakNyKat ? { kategori: pakNyKat } : {}), ...(pakNyKun ? { kun: [pakNyKun] } : {}) });
     tegnPakkelister();
     inp.focus();
   });
@@ -1721,7 +1731,7 @@ async function tegnPakkelister() {
   if (!valgt) {
     const grid = el('div', 'pak-grid');
     for (const l of lister) {
-      const mine = punkter.filter(p => p.liste === l.id);
+      const mine = punkter.filter(p => p.liste === l.id && pakMed(p, l));
       const pakket = mine.filter(p => p.pakket).length;
       const k = knap('', 'kort pak-kort', () => {
         pakValgt = l.id; lokal.set('pak-valgt', l.id); pakFilter = 'Alle'; tegnPakkelister(); window.scrollTo(0, 0);
@@ -1735,10 +1745,45 @@ async function tegnPakkelister() {
     return;
   }
 
-  const mine = punkter.filter(p => p.liste === valgt.id);
+  const alle = punkter.filter(p => p.liste === valgt.id);
+  const mine = alle.filter(p => pakMed(p, valgt));
+  const skjult = alle.length - mine.length;
   const pakket = mine.filter(p => p.pakket).length;
   const titel = el('div', 'pak-titel');
   titel.append(el('h3', 'lille-titel', valgt.navn), el('span', 'under', pakket + ' af ' + mine.length + ' pakket'), fremskridt(mine.length ? pakket / mine.length : 0));
+  // Denne tur: vælg hvad der gælder – ting med "kun med når" vises kun, når det er valgt
+  const ture = pakTurtyper(alle);
+  let turBoks = '';
+  if (ture.length) {
+    turBoks = el('div', 'pak-tur');
+    const tur = valgt.tur || [];
+    const seg = el('div', 'seg wrap');
+    for (const t of ture) {
+      const n = alle.filter(p => (p.kun || []).includes(t)).length;
+      const b = knap(pakTurIkon(t) + ' ' + t + ' (' + n + ')', null, async () => {
+        if (!erVoksen()) return;
+        const ny = tur.includes(t) ? tur.filter(x => x !== t) : [...tur, t];
+        await Data.update('pakkelister', valgt.id, { tur: ny }); tegnPakkelister();
+      });
+      b.setAttribute('role', 'checkbox'); b.setAttribute('aria-checked', tur.includes(t));
+      seg.append(b);
+    }
+    const gemte = valgt.ture || [];
+    if (gemte.length) {
+      const gs = el('div', 'seg wrap pak-gemte');
+      for (const g of gemte) {
+        const b = knap(g.navn, null, async () => { if (!erVoksen()) return; await Data.update('pakkelister', valgt.id, { tur: g.tur }); tegnPakkelister(); });
+        b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', pakSammeTur(tur, g.tur || []));
+        if (erVoksen()) langtTryk(b, () => holdValg(g.navn, { slet: async () => { await Data.update('pakkelister', valgt.id, { ture: gemte.filter(x => x !== g) }); tegnPakkelister(); } }));
+        gs.append(b);
+      }
+      turBoks.append(el('p', 'seg-label', 'Vælg tur:'), gs);
+    }
+    const gemTur = erVoksen() && tur.length && !gemte.some(g => pakSammeTur(tur, g.tur || []))
+      ? knap('+ Gem som tur …', 'link-knap pak-gem-tur', () => gemPakTur(valgt, tur)) : '';
+    turBoks.append(el('p', 'seg-label', gemte.length ? 'Eller vælg selv:' : 'Denne tur:'), seg, gemTur,
+      el('p', 'hint', skjult ? skjult + (skjult === 1 ? ' ting er skjult' : ' ting er skjult') + ' – de skal ikke med denne gang (de slettes ikke).' : 'Alt på listen er med denne gang.'));
+  }
 
   const personer = ['Alle', ...PERSONER.filter(p => p !== 'Fælles' && mine.some(x => x.hvem === p))];
   if (!personer.includes(pakFilter)) pakFilter = 'Alle';
@@ -1758,10 +1803,10 @@ async function tegnPakkelister() {
     tjek.innerHTML = IKON_TJEK;
     const tb = el('span', 'tekst-boks');
     tb.append(el('span', 'tekst', p.tekst));
-    if (p.hvem) {
+    if (p.hvem || (p.kun || []).length) {
       const tags = el('span', 'tags');
-      const t = el('span', 'hvem-tag ' + (PK[p.hvem] || ''), p.hvem);
-      tags.append(t);
+      if (p.hvem) tags.append(el('span', 'hvem-tag ' + (PK[p.hvem] || ''), p.hvem));
+      for (const t of p.kun || []) tags.append(el('span', 'pak-kun-tag', pakTurIkon(t) + ' ' + t));
       tb.append(tags);
     }
     b.append(tjek, tb);
@@ -1801,12 +1846,13 @@ async function tegnPakkelister() {
   const fod = el('div', 'pak-fod');
   fod.append(
     bekraeftKnap('Start forfra', 'starte forfra', 'lille-knap', async () => {
-      for (const p of mine.filter(p => p.pakket)) await Data.update('pakkepunkter', p.id, { pakket: false });
+      for (const p of alle.filter(p => p.pakket)) await Data.update('pakkepunkter', p.id, { pakket: false });
       tegnPakkelister();
     }),
     knap('Omdøb', 'lille-knap', () => navnPakkeliste(valgt)),
+    knap('Kopiér', 'lille-knap', () => kopierPakkeliste(valgt, alle)),
     bekraeftKnap('Slet liste', 'slette', 'lille-knap fare-knap', async () => {
-      for (const p of mine) await Data.remove('pakkepunkter', p.id);
+      for (const p of alle) await Data.remove('pakkepunkter', p.id);
       await Data.remove('pakkelister', valgt.id);
       pakValgt = ''; lokal.set('pak-valgt', '');
       tegnPakkelister();
@@ -1818,9 +1864,12 @@ async function tegnPakkelister() {
   if (pakNyKat && !kats.includes(pakNyKat)) pakNyKat = '';
   const katValg = kats.length ? valgSeg(['', ...kats], pakNyKat, v => { pakNyKat = v; tegnPakkelister(); }, v => (v ? pakIkon(v) + ' ' + v : 'Ingen'), 'lille-seg pak-rul') : '';
   const katLabel = katValg ? el('p', 'seg-label', 'Kategori:') : '';
+  if (pakNyKun && !ture.includes(pakNyKun)) pakNyKun = '';
+  const kunValg = ture.length ? valgSeg(['', ...ture], pakNyKun, v => { pakNyKun = v; tegnPakkelister(); }, v => (v ? pakTurIkon(v) + ' ' + v : 'Altid'), 'lille-seg pak-rul') : '';
+  const kunLabel = kunValg ? el('p', 'seg-label', 'Kun med når:') : '';
   const visLabel = filter ? el('p', 'seg-label', 'Vis:') : '';
-  if (!erVoksen()) boks.replaceChildren(titel, visLabel, filter, ul);
-  else boks.replaceChildren(titel, pakForm, nyLabel, hvemValg, katLabel, katValg, visLabel, filter, ul, fod);
+  if (!erVoksen()) boks.replaceChildren(titel, turBoks, visLabel, filter, ul);
+  else boks.replaceChildren(titel, turBoks, pakForm, nyLabel, hvemValg, katLabel, katValg, kunLabel, kunValg, visLabel, filter, ul, fod);
   opdaterTilbage();   // fra app.js – tilbage-knappen bliver til "Alle pakkelister"
 }
 
@@ -1834,15 +1883,60 @@ function redigerPakkepunkt(p) {
   const kats = [...new Set([...pakKategorier(paaListen.map(k => ({ kategori: k }))), ...PAK_KAT_ORDEN.filter(k => k !== 'Andet')])];
   const nyKat = input('text', 'pak-ny-kat', '', 'eller skriv en ny');
   const katValg = chipValg(['', ...kats], kat, v => { kat = v; nyKat.value = ''; }, v => (v ? pakIkon(v) + ' ' + v : 'Ingen'));
+  // Kun med når … (flere kan vælges – ingen = altid med)
+  const kun = new Set(p.kun || []);
+  const ture = [...new Set([...PAK_TURE, ...pakTurtyper(Data.listNu('pakkepunkter').filter(x => x.liste === p.liste))])];
+  const kunSeg = el('div', 'seg wrap');
+  for (const t of ture) {
+    const b = knap(pakTurIkon(t) + ' ' + t, null, () => { kun.has(t) ? kun.delete(t) : kun.add(t); b.setAttribute('aria-checked', kun.has(t)); });
+    b.setAttribute('role', 'checkbox'); b.setAttribute('aria-checked', kun.has(t));
+    kunSeg.append(b);
+  }
+  const nyKun = input('text', 'pak-ny-kun', '', 'eller skriv en ny, fx Camping');
   const gem = knap('Gem', 'knap', async () => {
     const t = tekst.value.trim();
     if (!t) { tekst.focus(); return; }
-    await Data.update('pakkepunkter', p.id, { tekst: t, hvem, kategori: nyKat.value.trim() || kat || null });
+    if (nyKun.value.trim()) kun.add(nyKun.value.trim());
+    await Data.update('pakkepunkter', p.id, { tekst: t, hvem, kategori: nyKat.value.trim() || kat || null, kun: kun.size ? [...kun] : null });
     lukArk(); tegnPakkelister();
   });
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('pakkepunkter', p.id); lukArk(); tegnPakkelister(); }), gem);
-  aabnArk('Ret', felt('Hvad skal med?', tekst), felt('Til', hvemValg), el('label', 'felt-label', 'Kategori'), katValg, nyKat, knapper);
+  aabnArk('Ret', felt('Hvad skal med?', tekst), felt('Til', hvemValg), el('label', 'felt-label', 'Kategori'), katValg, nyKat,
+    el('label', 'felt-label', 'Kun med når'), kunSeg, nyKun, el('p', 'hint', 'Intet valgt = skal altid med.'), knapper);
+}
+
+// Gem de valgte mærker som en tur med navn (fx "Sommerferie – kør selv")
+function gemPakTur(l, tur) {
+  const navn = input('text', 'pak-tur-navn', '', 'Fx Sommerhus weekend');
+  const gem = knap('Gem', 'knap', async () => {
+    const n = navn.value.trim();
+    if (!n) { navn.focus(); return; }
+    await Data.update('pakkelister', l.id, { ture: [...(l.ture || []).filter(g => g.navn !== n), { navn: n, tur }] });
+    lukArk(); tegnPakkelister();
+  });
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(gem);
+  aabnArk('Gem som tur', felt('Navn', navn), el('p', 'hint', 'Mærker: ' + tur.map(t => pakTurIkon(t) + ' ' + t).join(', ') + '. Hold fingeren på en gemt tur for at slette den.'), knapper);
+  setTimeout(() => navn.focus(), 50);
+}
+
+// Kopiér en pakkeliste (alle ting, kategorier, hvem og "kun med når" – uden flueben)
+function kopierPakkeliste(l, punkter) {
+  const navn = input('text', 'pakliste-kopi', l.navn + ' (kopi)');
+  const gem = knap('Kopiér', 'knap', async () => {
+    const n = navn.value.trim();
+    if (!n) { navn.focus(); return; }
+    const ny = await Data.add('pakkelister', { navn: n, ...(l.tur ? { tur: l.tur } : {}), ...(l.ture ? { ture: l.ture } : {}) });
+    await Data.addMange('pakkepunkter', punkter.map(p => ({ liste: ny.id, tekst: p.tekst, hvem: p.hvem || '', pakket: false,
+      ...(p.kategori ? { kategori: p.kategori } : {}), ...((p.kun || []).length ? { kun: p.kun } : {}) })));
+    pakValgt = ny.id; lokal.set('pak-valgt', ny.id);
+    lukArk(); tegnPakkelister(); visStatus('Kopieret: ' + n);
+  });
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(gem);
+  aabnArk('Kopiér pakkeliste', felt('Navn på kopien', navn), el('p', 'hint', 'Alle ' + punkter.length + ' ting kommer med – uden flueben.'), knapper);
+  setTimeout(() => navn.select(), 50);
 }
 
 function navnPakkeliste(l) {
