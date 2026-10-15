@@ -1754,3 +1754,94 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .todo-fil { display: flex; gap: 8px; align-items: center; min-width: 0; }
 .todo-fil .note-fil { flex: 1; }
 .fil-taeller { flex: none; align-self: center; min-width: 40px; height: 40px; padding: 0 6px; border: 1px solid var(--linje); border-radius: 8px; background: var(--flade); color: var(--fg); font-size: 1rem; cursor: pointer; }
+
+/* ---------- 💰 Budget (budget.js) ---------- */
+#budget-indhold { display: grid; gap: 12px; min-width: 0; }
+#budget-indhold > .kort { margin: 0; min-width: 0; }
+#budget-indhold h3 { margin: 0 0 10px; font-size: 1rem; }
+.budget-faner { display: grid; grid-template-columns: repeat(3, 1fr); }
+.budget-tom p { margin: 0 0 12px; }
+.budget-hero { display: grid; gap: 2px; padding: 18px 16px; background: var(--accent); color: var(--paa-accent); border: 0; }
+.budget-hero .b-label { font-size: .9rem; opacity: .85; }
+.budget-hero .b-tal { font-family: var(--font-titel); font-size: 2.3rem; line-height: 1.1; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
+.budget-hero .b-under { font-size: .9rem; opacity: .9; }
+.budget-tjek { display: grid; gap: 4px; }
+.budget-tjek .hint { margin: 0 0 6px; }
+.budget-tjek.skal { border: 1.5px solid var(--p2); }
+.budget-tjek .knap { justify-self: start; }
+.budget-tjek .lille-knap { justify-self: start; }
+.b-kom-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin: 6px 0 4px; }
+.b-kom-top > span:nth-child(2) { font-weight: 600; font-variant-numeric: tabular-nums; }
+.b-diff { font-size: .85rem; color: var(--daempet); }
+.b-diff.op { color: var(--fare); }
+.b-kom-liste { list-style: none; margin: 0 0 8px; padding: 0; }
+.b-kom-liste li, .b-linje { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--linje); font-size: .95rem; min-width: 0; }
+.b-kom-liste li > span:first-child, .b-linje > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-linje { width: 100%; background: none; border-width: 0 0 1px; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.b-kom-liste li:has(.b-linje) { padding: 0; border: 0; }
+.b-beloeb { flex: none; font-variant-numeric: tabular-nums; }
+.b-bjaelker { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.b-bjaelke { width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; padding: 6px 2px; background: none; border: 0; color: var(--fg); font: inherit; text-align: left; cursor: pointer; border-radius: 8px; }
+.b-bjaelke:hover { background: var(--bg); }
+.b-navn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-vaerdi { color: var(--daempet); font-variant-numeric: tabular-nums; }
+.b-spor { grid-column: 1 / -1; height: 8px; border-radius: 4px; background: var(--accent-blod); overflow: hidden; }
+.b-fyld { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
+.b-konti { list-style: none; margin: 0 0 8px; padding: 0; }
+.b-konto { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 2px; background: none; border: 0; border-bottom: 1px solid var(--linje); color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.b-konto-v { display: grid; min-width: 0; }
+.b-konto-v .hint { margin: 0; }
+.b-status { flex: none; font-size: .85rem; font-weight: 600; padding: 4px 8px; border-radius: 999px; white-space: nowrap; }
+.b-status.ok { background: var(--accent-blod); color: var(--accent); }
+.b-status.mangler { background: color-mix(in srgb, var(--fare) 14%, transparent); color: var(--fare); }
+.b-status.over { background: color-mix(in srgb, var(--p2) 18%, transparent); color: var(--fg); }
+.b-status.tom { border: 1.5px dashed var(--linje); color: var(--daempet); font-weight: 400; }
+.b-poster-top { display: flex; gap: 8px; flex-wrap: wrap; }
+.b-gruppe-valg { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.b-gruppe-valg button { flex: none; font-size: .9rem; white-space: nowrap; }
+.b-gruppe-hoved { display: flex; justify-content: space-between; gap: 10px; margin: 14px 2px 4px; }
+.b-gruppe-hoved span { color: var(--daempet); font-variant-numeric: tabular-nums; }
+.b-post-liste { list-style: none; margin: 0; padding: 0; background: var(--flade); border: 1px solid var(--linje); border-radius: var(--radius); overflow: hidden; }
+.b-post-liste li + li { border-top: 1px solid var(--linje); }
+.b-post { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 10px; min-height: 52px; padding: 8px 12px; background: none; border: 0; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.b-post.nul { opacity: .55; }
+.b-post-v { display: grid; min-width: 0; }
+.b-post-navn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-post-info { font-size: .8rem; color: var(--daempet); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-post-h { display: grid; justify-items: end; flex: none; font-variant-numeric: tabular-nums; }
+.b-post-h span { font-size: .8rem; color: var(--daempet); }
+.b-graf { position: relative; display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; height: 180px; padding-top: 18px; align-items: end; }
+.b-soejle { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; padding: 0; background: none; border: 0; cursor: pointer; color: var(--daempet); font: inherit; min-width: 0; }
+.b-soejle-spor { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; min-height: 0; }
+.b-soejle-fyld { position: relative; display: block; background: color-mix(in srgb, var(--accent) 45%, var(--flade)); border-radius: 4px 4px 0 0; min-height: 2px; margin-bottom: 0; }
+.b-soejle.valgt .b-soejle-fyld, .b-soejle:hover .b-soejle-fyld { background: var(--accent); }
+.b-soejle-tal { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); font-size: .7rem; color: var(--fg); white-space: nowrap; padding-bottom: 2px; visibility: hidden; }
+.b-soejle.valgt .b-soejle-tal, .b-soejle:hover .b-soejle-tal { visibility: visible; }
+.b-soejle-md { font-size: .7rem; text-align: center; padding-top: 4px; height: 22px; box-sizing: border-box; flex: none; }
+.b-soejle.valgt .b-soejle-md { color: var(--fg); font-weight: 700; }
+.b-snit { position: absolute; left: 0; right: 0; border-top: 1.5px dashed var(--daempet); pointer-events: none; z-index: 1; }
+.b-snit span { position: absolute; right: 0; bottom: 2px; font-size: .7rem; color: var(--daempet); background: var(--flade); padding: 0 4px; }
+.b-beloeb-felt { display: grid; gap: 10px; }
+.b-mdr-valg { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.b-mdr-valg button, .b-md-felt { min-width: 0; }
+.b-mdr-valg button { min-height: 40px; padding: 0; border-radius: 10px; border: 1.5px solid var(--linje); background: var(--bg); color: var(--fg); font: inherit; cursor: pointer; }
+.b-mdr-valg button[aria-checked="true"] { background: var(--accent); color: var(--paa-accent); border-color: var(--accent); }
+.b-mdr-tal { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.b-md-felt { display: grid; gap: 2px; font-size: .8rem; color: var(--daempet); }
+.b-md-felt input { min-width: 0; width: 100%; }
+.b-sum { margin: 0; font-weight: 600; color: var(--accent); }
+.b-fremdrift { height: 6px; border-radius: 3px; background: var(--accent-blod); overflow: hidden; margin-bottom: 14px; }
+.b-fremdrift span { display: block; height: 100%; background: var(--accent); transition: width .3s; }
+.b-gennem-kort { display: grid; gap: 4px; text-align: center; padding: 18px 12px; border: 1px solid var(--linje); border-radius: var(--radius); background: var(--bg); margin-bottom: 14px; }
+.b-gennem-gruppe { color: var(--daempet); font-size: .9rem; }
+.b-gennem-navn { font-size: 1.3rem; }
+.b-gennem-kort .hint { margin: 0; }
+.b-gennem-beloeb { font-family: var(--font-titel); font-size: 2rem; margin-top: 8px; font-variant-numeric: tabular-nums; }
+.b-gennem-under { color: var(--daempet); }
+.b-gennem-knapper { display: grid; gap: 8px; }
+.b-gennem-knapper .knap { min-height: 52px; font-size: 1.05rem; }
+.b-spring { justify-self: center; background: none; border: 0; color: var(--daempet); }
+.b-gennem-ret { display: grid; gap: 10px; }
+.b-gennem-slut { font-size: 3rem; text-align: center; }
+.b-gennem-tal { text-align: center; font-weight: 600; }
+.b-husk { margin: 6px 0 0; padding-left: 20px; }

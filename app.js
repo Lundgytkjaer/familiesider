@@ -88,8 +88,8 @@ function ugeSpan(man) {
 const kortDag = iso => { const d = new Date(iso + 'T00:00'); return d.getDate() + '. ' + MDR[d.getMonth()]; };
 
 // ---------- Faner ----------
-const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe'];
-const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe'];   // sider man når via "Mere"
+const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe', 'budget'];
+const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe', 'budget'];   // sider man når via "Mere"
 // Voksne: "Pligter" (pligter, belønninger, ønsker) er en fane i bundmenuen, og To do ligger under Mere. Børn: som før.
 const underMere = navn => (Data.bruger()?.rolle === 'voksen'
   ? (navn === 'todo' || (UNDER_MERE.includes(navn) && navn !== 'pligter')) : UNDER_MERE.includes(navn));
@@ -123,7 +123,7 @@ function visFane(navn, fraTilbage = false) {
   if (typeof lukZoom === 'function') lukZoom();
   if (!FANER.includes(navn)) navn = 'idag';
   if (erBarn() && typeof pauseHele === 'function' && pauseHele(Data.bruger()?.navn, isoDato(new Date()))) navn = 'idag';   // ⏸ hele tavlen holder pause
-  if ((navn === 'kontakter' || navn === 'aktivitet') && erBarn()) navn = 'idag';   // kontakter og aktivitet er kun for voksne
+  if ((navn === 'kontakter' || navn === 'aktivitet' || navn === 'budget') && erBarn()) navn = 'idag';   // kontakter, aktivitet og budget er kun for voksne
   if (navn !== 'hjaelp' && tilladteFaner && !tilladteFaner.includes(underMere(navn) ? 'mere' : navn)) navn = 'idag';
   const fra = aktivFane;
   if (!fraTilbage && fra && fra !== navn) { faneHistorik.push(fra); if (faneHistorik.length > 20) faneHistorik.shift(); }
@@ -144,6 +144,7 @@ function visFane(navn, fraTilbage = false) {
   if (typeof stopVaelg === 'function' && navn !== 'steder') stopVaelg();   // kort.js
   if (navn === 'steder' && typeof tegnSteder === 'function') tegnSteder();
   if (navn === 'mappe' && typeof tegnMappe === 'function') tegnMappe();   // mappe.js
+  if (navn === 'budget' && typeof tegnBudget === 'function') tegnBudget();   // budget.js
   if (navn === 'aktivitet' && fra !== 'aktivitet' && typeof aktHent === 'function') aktHent(true);   // fra aktivitet.js – hentes frisk hver gang   // fra familie.js (træet skal måles, når siden er synlig)
 }
 function opdaterTilbage() {
@@ -3631,6 +3632,7 @@ function tegnAlt() {
   tegnKontakter();   // fra familie.js (kun voksne)
   tegnMere();   // fra mere.js
   tegnVejr();   // fra vejr.js (tegner kun, når siden er åben)
+  if (typeof tegnBudget === 'function') tegnBudget();   // budget.js (tegner kun, når siden er åben)
   anvendFaner();
   opdaterVenter();
   if (typeof pauseUdfyld === 'function') pauseUdfyld();   // ⏸ pause.js: pligter "tæller som klaret"
