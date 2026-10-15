@@ -1706,3 +1706,37 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .note-billeder.ret .lille-knap { align-self: center; justify-self: start; }
 .note-tekst-felt { width: 100%; font: inherit; }
 #note-ny-mappe { margin-top: 6px; }
+
+/* Familiemappen: blokke, tabeller, tjeklister, personer (2026-10-15c) */
+.mappe-hvem { margin-top: -4px; }
+.mappe-hvem button[class*="c-"][aria-checked="true"] { background: var(--p); border-color: var(--p); color: #fff; }
+.note-blokke { display: grid; gap: 10px; }
+.note-blok { border: 1px dashed var(--linje); border-radius: 12px; padding: 8px; display: grid; gap: 6px; }
+.note-blok-styr { display: flex; gap: 6px; justify-content: flex-end; }
+.note-blok-styr .lille-knap { min-height: 32px; min-width: 40px; padding: 0 10px; }
+.note-blok-styr .lille-knap:disabled { opacity: .3; }
+.note-blok-billede { width: 100%; max-height: 220px; object-fit: contain; border-radius: 10px; background: var(--bg); }
+.note-tilfoej { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 10px 0 4px; }
+.note-tilfoej .seg-label { margin: 0 4px 0 0; }
+.note-tabel-wrap { overflow-x: auto; margin: 8px 0; -webkit-overflow-scrolling: touch; }
+.note-tabel { border-collapse: collapse; min-width: 100%; font-size: 14px; }
+.note-tabel th, .note-tabel td { border: 1px solid var(--linje); padding: 6px 8px; text-align: left; white-space: nowrap; }
+.note-tabel th { background: var(--bg); font-weight: 700; }
+.note-tabel td.tom { color: var(--daempet); text-align: center; }
+.note-tabel-ret .note-tabel th, .note-tabel-ret .note-tabel td { padding: 2px; }
+.note-tabel-ret input[type="text"] { width: 100%; min-width: 80px; min-height: 36px; padding: 0 6px; border: 0; background: transparent; font: inherit; }
+.note-tabel-ret th input[type="text"] { font-weight: 700; }
+.note-tabel-slet { width: 1%; }
+.note-tabel-styr { display: flex; flex-wrap: wrap; gap: 6px; }
+.note-tjek { list-style: none; margin: 6px 0; padding: 0; }
+.note-tjek-punkt { width: 100%; text-align: left; border: 0; background: none; padding: 8px 2px; font: inherit; }
+.note-tjek li.klaret .note-tjek-punkt { color: var(--daempet); text-decoration: line-through; }
+.note-tjek-raekke { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.note-tjek-raekke input[type="checkbox"] { width: 22px; height: 22px; flex: none; }
+.note-tjek-raekke input[type="text"] { flex: 1; min-width: 0; }
+.note-billede-knap { display: block; width: 100%; margin: 8px 0; }
+.note-billede-knap img { height: auto; max-height: 320px; object-fit: contain; background: var(--bg); }
+.note-blokke, .note-blok, .note-blok > *, .note-tabel-ret { min-width: 0; max-width: 100%; }
+.note-blokke { grid-template-columns: minmax(0, 1fr); }
+.note-blok { grid-template-columns: minmax(0, 1fr); }
+.note-tekst-felt { box-sizing: border-box; display: block; }
