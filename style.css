@@ -1845,3 +1845,24 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .b-gennem-slut { font-size: 3rem; text-align: center; }
 .b-gennem-tal { text-align: center; font-weight: 600; }
 .b-husk { margin: 6px 0 0; padding-left: 20px; }
+.budget-hvem { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+.budget-hvem button { flex: none; white-space: nowrap; }
+.budget-hero.minus { background: var(--fare); }
+.b-diff.ned { color: var(--accent); }
+.b-md-gitter { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.b-md-celle { display: grid; gap: 2px; padding: 8px 6px; border-radius: 10px; background: var(--accent-blod); text-align: center; font-variant-numeric: tabular-nums; min-width: 0; }
+.b-md-celle span { font-size: .75rem; color: var(--daempet); }
+.b-md-celle b { font-size: .95rem; color: var(--accent); }
+.b-md-celle.minus { background: color-mix(in srgb, var(--fare) 14%, transparent); }
+.b-md-celle.minus b { color: var(--fare); }
+.b-md-celle.nu { outline: 2px solid var(--fg); outline-offset: -2px; }
+.b-aar-liste, .b-sml-liste { list-style: none; margin: 0 0 10px; padding: 0; }
+.b-aar-liste li, .b-sml-liste li { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(64px, auto); gap: 10px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--linje); font-variant-numeric: tabular-nums; }
+.b-aar-liste li > span:first-child, .b-sml-liste li > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.b-aar-liste .b-diff, .b-sml-liste .b-diff { text-align: right; white-space: nowrap; }
+.b-aar-knapper { display: flex; gap: 8px; flex-wrap: wrap; }
+.b-sml-top { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; font-size: 1.05rem; margin: 4px 0; }
+.b-ark-h3 { font-size: 1rem; margin: 14px 0 6px; }
+.b-post.auto { background: var(--accent-blod); }
+.b-deling { display: grid; gap: 8px; }
+.b-deling .lille-knap { justify-self: start; }
