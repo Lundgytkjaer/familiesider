@@ -334,7 +334,55 @@ function stjerneGave(gaver, faerdig = () => {}) {
 
 // ---------- Alfie – orange løvehoved-dværgkanin ----------
 // hvordan: 'venter' | 'glad' | 'super' | 'sover'
-function alfieSvg(hvordan) {
+// ---------- Pynt tegnet ind i makkeren (kasket, solbriller, tørklæde, hat, krone, kappe, pokal) ----------
+// Hver makker har sine egne ankerpunkter: hoved (top af hovedet), øjne, hals, kappe (skuldre) og pokal (på jorden).
+// Hovedpynt: kun den nyeste af kasket/hat/krone. Resten bliver siddende, når man først har fået det.
+const PYNT_ANKER = {
+  alfie: { hoved: [46, 36, 26, -6], oejne: [39, 53, 50, 5.2], hals: [47, 73, 30, 4], kappe: 'M56 61 Q80 52 100 64 Q105 80 94 92 Q76 86 60 80 Z', pokal: [104, 101, 1] },
+  tank: { hoved: [59, 36, 24, 0], oejne: [51, 67, 51, 7.4], hals: [59, 68, 50, 0], kappe: [59, 58, .9], pokal: [10, 101, .9] },
+  raket: { hoved: [60, 11, 16, 0], oejne: [55, 65, 48, 4.2], hals: [60, 66, 34, 0], kappe: [60, 34, .9], pokal: [100, 103, 1] },
+  globus: { hoved: [58, 21, 30, -8], oejne: [49, 67, 46, 5.6], hals: [60, 84, 18, 0], kappe: [58, 40, 1.15], pokal: [96, 104, 1] },
+  fodbold: { hoved: [58, 41, 30, -8], oejne: [49, 67, 72, 5.6], hals: [58, 88, 40, 0], kappe: [58, 58, 1.15], pokal: [100, 101, 1] },
+  robot: { hoved: [60, 19, 34, 0], oejne: [49, 71, 36, 6.4], hals: [60, 59, 30, 0], kappe: [60, 62, 1], pokal: [100, 104, 1] }
+};
+const PYNT_HOVED = ['🧢', '🎩', '👑'];
+// pynt = liste af emoji fra MAKKER_PYNT, som barnet har fået
+function pyntDele(id, pynt) {
+  const a = PYNT_ANKER[id], p = new Set(pynt || []);
+  const tom = { kappe: '', hals: '', hoved: '', pokal: '' };
+  if (!a || !p.size) return tom;
+  const hovedTing = [...PYNT_HOVED].reverse().find(e => p.has(e));
+  const [hx, hy, hw, hr] = a.hoved, k = hw / 30;
+  let hoved = '';
+  if (hovedTing === '🧢') hoved = `<g transform="translate(${hx} ${hy}) rotate(${hr}) scale(${k})"><path d="M-14 1 a14 12.5 0 0 1 28 0 z" fill="#2f6fdb"/><path d="M8 0 q12 -2 17 2 q-1 3 -6 3 h-11 z" fill="#1f4fa8"/><path d="M-14 1 h28" stroke="#1f4fa8" stroke-width="2"/><circle cx="0" cy="-11" r="1.8" fill="#1f4fa8"/><path d="M-4 -10 q-3 5 -3 10" stroke="#fff" stroke-width="1.4" fill="none" opacity=".5"/></g>`;
+  if (hovedTing === '🎩') hoved = `<g transform="translate(${hx} ${hy}) rotate(${hr}) scale(${k})"><ellipse cx="0" cy="0" rx="18" ry="3.6" fill="#24252b"/><path d="M-10.5 -1 v-19 q10.5 -3 21 0 v19 z" fill="#2b2c33"/><rect x="-10.5" y="-6.5" width="21" height="4" fill="#e5484d"/><path d="M-7 -18 v10" stroke="#fff" stroke-width="1.2" opacity=".25"/></g>`;
+  if (hovedTing === '👑') hoved = `<g transform="translate(${hx} ${hy}) rotate(${hr}) scale(${k})"><path d="M-13 1 L-14 -13 L-6.5 -5 L0 -16 L6.5 -5 L14 -13 L13 1 Z" fill="#ffcf33" stroke="#c99a12" stroke-width="1.2" stroke-linejoin="round"/><circle cx="0" cy="-3" r="2" fill="#e5484d"/><circle cx="-8" cy="-2" r="1.5" fill="#4aa3df"/><circle cx="8" cy="-2" r="1.5" fill="#5cc3a3"/><circle cx="0" cy="-16" r="1.6" fill="#ffcf33" stroke="#c99a12" stroke-width=".8"/></g>`;
+  if (p.has('🕶️')) {
+    const [vx, hx2, oy, r] = a.oejne;
+    const glas = x => `<rect x="${x - r * 1.2}" y="${oy - r * .85}" width="${r * 2.4}" height="${r * 1.7}" rx="${r * .7}" fill="#1d1f26" opacity=".93"/><path d="M${x - r * .6} ${oy - r * .35} l${r * .6} -${r * .25}" stroke="#fff" stroke-width="1" opacity=".55" stroke-linecap="round"/>`;
+    hoved = `<g>${glas(vx)}${glas(hx2)}<path d="M${vx + r * 1.2} ${oy - r * .3} Q${(vx + hx2) / 2} ${oy - r * .8} ${hx2 - r * 1.2} ${oy - r * .3}" stroke="#1d1f26" stroke-width="1.6" fill="none"/></g>` + hoved;
+  }
+  let hals = '';
+  if (p.has('🧣')) {
+    const [x, y, w, r] = a.hals;
+    hals = `<g transform="translate(${x} ${y}) rotate(${r})"><rect x="${-w / 2}" y="-3.5" width="${w}" height="7" rx="3.5" fill="#e5484d"/>${[-.3, 0, .3].map(f => `<path d="M${w * f} -3.5 v7" stroke="#fff" stroke-width="2" opacity=".8"/>`).join('')}<path d="M${w * .18} 2 l3 13 h6 l-3 -13 z" fill="#d43b40"/><path d="M${w * .18 + 3.6} 12 h6" stroke="#fff" stroke-width="2" opacity=".8"/></g>`;
+  }
+  let kappe = '';
+  if (p.has('🦸') && typeof a.kappe === 'string') kappe = `<path d="${a.kappe}" fill="#c0392b"/><path d="M60 64 Q78 58 96 68" stroke="#962d22" stroke-width="2" fill="none" opacity=".5"/>`;   // Alfie ligger ned: kappen ligger på ryggen
+  else if (p.has('🦸')) {
+    const [x, y, sk] = a.kappe;
+    kappe = `<g transform="translate(${x} ${y}) scale(${sk})"><path d="M-12 0 Q-30 22 -26 40 Q0 48 26 40 Q30 22 12 0 Z" fill="#c0392b"/><path d="M-12 0 Q-22 20 -20 38" stroke="#962d22" stroke-width="2" fill="none" opacity=".6"/></g>`;
+  }
+  let pokal = '';
+  if (p.has('🏆')) {
+    const [x, y, sk] = a.pokal;
+    pokal = `<g transform="translate(${x} ${y}) scale(${sk})"><rect x="-8" y="-4" width="16" height="4" rx="1" fill="#8a5a1a"/><rect x="-2" y="-9" width="4" height="5" fill="#e0a92a"/><path d="M-8 -22 h16 q0 12 -8 13 q-8 -1 -8 -13 z" fill="#ffcf33" stroke="#c99a12" stroke-width="1"/><path d="M-8 -20 q-5 0 -4 4 q1 3 5 3 M8 -20 q5 0 4 4 q-1 3 -5 3" stroke="#c99a12" stroke-width="1.6" fill="none"/><path d="M-4 -19 q0 6 3 8" stroke="#fff" stroke-width="1.2" fill="none" opacity=".6"/></g>`;
+  }
+  return { kappe, hals, hoved, pokal };
+}
+
+function alfieSvg(hvordan, pynt) {
+  const P = pyntDele('alfie', pynt);
   const ORANGE = '#e98a3a', MANKE = '#f4a85e', LYS = '#fde6c8', MORK = '#3a2418', LYSROED = '#f39aa8';
   const manke = Array.from({ length: 14 }, (_, i) => {
     const v = (i / 14) * Math.PI * 2;
@@ -373,6 +421,7 @@ function alfieSvg(hvordan) {
       <ellipse cx="88" cy="100" rx="13" ry="5" fill="${ORANGE}"/>
       <ellipse cx="40" cy="98" rx="7" ry="5" fill="${LYS}"/>
       <ellipse cx="55" cy="99" rx="7" ry="5" fill="${LYS}"/>
+      ${P.kappe}
       <g class="alfie-hoved">
         <ellipse cx="37" cy="25" rx="6.5" ry="11.5" fill="${ORANGE}" transform="rotate(-14 37 25)"/>
         <ellipse cx="37" cy="26" rx="3" ry="7" fill="${LYSROED}" opacity=".7" transform="rotate(-14 37 26)"/>
@@ -387,14 +436,18 @@ function alfieSvg(hvordan) {
         <path d="M43.3 57.2 h5.4 l-2.7 3.2z" fill="${LYSROED}"/>
         ${mund}
         <path d="M36 60 h-10 M36 62.5 l-9 3 M56 60 h10 M56 62.5 l9 3" stroke="${MORK}" stroke-width=".7" opacity=".45"/>
+        ${P.hals}
+        ${P.hoved}
       </g>
     </g>
+    ${P.pokal}
     ${ekstra}
   </svg>`;
 }
 
 // ---------- Tanken Tut – en fredelig tank, der kun skyder med konfetti ----------
-function tankSvg(hvordan) {
+function tankSvg(hvordan, pynt) {
+  const P = pyntDele('tank', pynt);
   const GROEN = '#6a9f4b', LYS = '#86bb63', MORK = '#2f3a24';
   const vinkel = { venter: 14, glad: -6, super: -30, sover: 20 }[hvordan];
   const oejne = {
@@ -422,10 +475,12 @@ function tankSvg(hvordan) {
   return `<svg viewBox="0 0 120 112" class="alfie-svg alfie-${hvordan}" aria-hidden="true">
     <ellipse cx="62" cy="104" rx="46" ry="5" fill="#000" opacity=".08"/>
     <g class="alfie-krop">
+      ${P.kappe}
       <rect x="16" y="78" width="92" height="22" rx="11" fill="#4b4f55"/>
       ${[28, 44, 60, 76, 92].map(x => `<circle cx="${x}" cy="89" r="6.5" fill="#9aa0a8"/><circle cx="${x}" cy="89" r="2.2" fill="#4b4f55"/>`).join('')}
       <path d="M20 80 L30 64 L96 64 L106 80 Z" fill="${GROEN}"/>
       <path d="M38 72 l3 6 l6 1 l-4.5 4 l1.2 6 l-5.7 -3 l-5.7 3 l1.2 -6 l-4.5 -4 l6 -1z" fill="#ffd34d" transform="translate(48 -6) scale(.7)"/>
+      ${P.hals}
       <g class="alfie-hoved">
         <g transform="rotate(${vinkel} 80 50)"><rect x="78" y="46" width="34" height="8" rx="3" fill="#5b8a3e"/><rect x="108" y="44" width="7" height="12" rx="2" fill="#4c7834"/></g>
         <ellipse cx="59" cy="54" rx="26" ry="16" fill="${LYS}"/>
@@ -433,14 +488,17 @@ function tankSvg(hvordan) {
         ${hvordan === 'sover' ? `<path d="M49 39 q10 -16 22 -2 z" fill="#5b7bd6"/><circle cx="74" cy="36" r="3" fill="#fff"/>` : ''}
         ${oejne}
         ${mund}
+        ${P.hoved}
       </g>
     </g>
+    ${P.pokal}
     ${ekstra}
   </svg>`;
 }
 
 // ---------- Raketten Rolf ----------
-function raketSvg(hvordan) {
+function raketSvg(hvordan, pynt) {
+  const P = pyntDele('raket', pynt);
   const ROED = '#e5484d', MORK = '#2b3442';
   const oejne = {
     venter: `<circle cx="55" cy="48" r="3" fill="${MORK}"/><circle cx="65" cy="48" r="3" fill="${MORK}"/>`,
@@ -463,18 +521,22 @@ function raketSvg(hvordan) {
   return `<svg viewBox="0 0 120 112" class="alfie-svg alfie-${hvordan}" aria-hidden="true">
     <ellipse cx="60" cy="106" rx="34" ry="4" fill="#000" opacity=".08"/>
     <g class="alfie-krop">
+      ${P.kappe}
       ${flamme}
       <path d="M42 62 L26 88 L44 82 Z" fill="${ROED}"/><path d="M78 62 L94 88 L76 82 Z" fill="${ROED}"/>
       <path d="M60 6 C80 22 82 52 78 84 L42 84 C38 52 40 22 60 6 Z" fill="#f4f5f8" stroke="#c9ccd3" stroke-width="1.5"/>
       <path d="M60 6 C69 13 74 21 76 28 L44 28 C46 21 51 13 60 6 Z" fill="${ROED}"/>
       <rect x="50" y="84" width="20" height="5" rx="2" fill="#5a6b7d"/>
       <circle cx="47" cy="74" r="2" fill="#c9ccd3"/><circle cx="73" cy="74" r="2" fill="#c9ccd3"/>
+      ${P.hals}
       <g class="alfie-hoved">
         <circle cx="60" cy="49" r="13" fill="#9fd0ff" stroke="#5a6b7d" stroke-width="3"/>
         ${oejne}
         ${mund}
+        ${P.hoved}
       </g>
     </g>
+    ${P.pokal}
   </svg>`;
 }
 
@@ -500,7 +562,8 @@ const KONFETTI = (pkt) => `<g class="alfie-hjerter">${pkt.map(([x, y], i) => i %
   : `<circle cx="${x}" cy="${y}" r="2.4" fill="${['#ef6b8a', '#ffd34d', '#7aa5f5', '#a990ff', '#5cc3a3', '#f2a45a'][i % 6]}"/>`).join('')}</g>`;
 
 // ---------- Globussen Gløbe – kan alle lande (næsten) ----------
-function globusSvg(hvordan) {
+function globusSvg(hvordan, pynt) {
+  const P = pyntDele('globus', pynt);
   const flag = (x, y, a, b) => `<g transform="translate(${x} ${y})"><path d="M0 0 v16" stroke="#7a5b2e" stroke-width="1.4"/><rect x="0.7" y="0" width="12" height="8" fill="${a}"/><rect x="0.7" y="3" width="12" height="2" fill="${b}"/></g>`;
   const ekstra = {
     super: `<g class="alfie-hjerter">${flag(4, 8, '#c8102e', '#fff')}${flag(100, 4, '#0052b4', '#ffd34d')}${flag(106, 34, '#009246', '#fff')}${flag(8, 40, '#ffd34d', '#c8102e')}</g>`,
@@ -511,7 +574,9 @@ function globusSvg(hvordan) {
   return `<svg viewBox="0 0 120 112" class="alfie-svg alfie-${hvordan}" aria-hidden="true">
     <ellipse cx="60" cy="106" rx="26" ry="4" fill="#000" opacity=".08"/>
     <g class="alfie-krop">
+      ${P.kappe}
       <path d="M44 104 h32 l-4 -8 h-24 z" fill="#c9a227"/><rect x="57" y="84" width="6" height="13" fill="#c9a227"/>
+      ${P.hals}
       <path d="M26 46 a34 34 0 0 0 58 30" stroke="#c9a227" stroke-width="3.5" fill="none" stroke-linecap="round"/>
       <g class="alfie-hoved">
         <circle cx="58" cy="48" r="30" fill="#4aa3df"/>
@@ -524,14 +589,17 @@ function globusSvg(hvordan) {
         <circle cx="58" cy="48" r="30" fill="none" stroke="#2f7fb8" stroke-width="2"/>
         ${hvordan === 'sover' ? `<path d="M40 22 q18 -24 36 -2 z" fill="#5b7bd6"/><circle cx="78" cy="19" r="3.5" fill="#fff"/>` : ''}
         <g>${ansigt(hvordan, 58, 46, 9, '#1d2a3a')}</g>
+        ${P.hoved}
       </g>
     </g>
+    ${P.pokal}
     ${ekstra}
   </svg>`;
 }
 
 // ---------- Fodbolden Bobby ----------
-function fodboldSvg(hvordan) {
+function fodboldSvg(hvordan, pynt) {
+  const P = pyntDele('fodbold', pynt);
   const MORK = '#2b3442';
   const ekstra = {
     super: `<g class="alfie-hjerter"><text x="78" y="22" font-size="17" font-weight="900" fill="#e5484d" font-family="system-ui, sans-serif">MÅL!</text></g>${KONFETTI([[12, 12], [24, 24], [100, 40], [8, 36], [110, 30], [30, 6]])}`,
@@ -547,19 +615,24 @@ function fodboldSvg(hvordan) {
     ${net}
     <ellipse cx="58" cy="102" rx="24" ry="4" fill="#000" opacity=".1"/>
     <g class="alfie-krop">
+      ${P.kappe}
       <g class="alfie-hoved">
         <circle cx="58" cy="68" r="30" fill="#fff" stroke="#c9ccd3" stroke-width="1.5"/>
         <path d="M58 40 l10 7 -4 12 h-12 l-4 -12z" fill="${MORK}" opacity=".9"/>
         <path d="M30 60 l8 -3 4 9 -6 7 -7 -3z M86 60 l-8 -3 -4 9 6 7 7 -3z M44 92 l3 -8 h22 l3 8 q-14 6 -28 0z" fill="${MORK}" opacity=".85"/>
         <g transform="translate(0 6)">${ansigt(hvordan, 58, 66, 9)}</g>
+        ${P.hals}
+        ${P.hoved}
       </g>
     </g>
+    ${P.pokal}
     ${ekstra}
   </svg>`;
 }
 
 // ---------- Robotten Bit – kører på high fives ----------
-function robotSvg(hvordan) {
+function robotSvg(hvordan, pynt) {
+  const P = pyntDele('robot', pynt);
   const niveau = { venter: 0.2, glad: 0.6, super: 1, sover: 0.6 }[hvordan];
   const batFarve = niveau < 0.3 ? '#e5484d' : niveau < 1 ? '#f2b33d' : '#43b65a';
   const oejeFarve = hvordan === 'sover' ? '#7d8a99' : '#2ee6f0';
@@ -577,12 +650,14 @@ function robotSvg(hvordan) {
   return `<svg viewBox="0 0 120 112" class="alfie-svg alfie-${hvordan}" aria-hidden="true">
     <ellipse cx="60" cy="106" rx="26" ry="4" fill="#000" opacity=".08"/>
     <g class="alfie-krop">
+      ${P.kappe}
       <rect x="44" y="92" width="12" height="12" rx="3" fill="#5a6b7d"/><rect x="64" y="92" width="12" height="12" rx="3" fill="#5a6b7d"/>
       <path d="M40 66 q-12 6 -14 ${hvordan === 'super' ? -14 : 8}" stroke="#8a9bb0" stroke-width="5" fill="none" stroke-linecap="round"/>
       <path d="M80 66 q12 6 14 ${hvordan === 'super' ? -14 : 8}" stroke="#8a9bb0" stroke-width="5" fill="none" stroke-linecap="round"/>
       <rect x="38" y="58" width="44" height="36" rx="8" fill="#a9b8c9"/>
       <rect x="49" y="66" width="22" height="12" rx="2" fill="#2b3442"/><rect x="71" y="69" width="2.5" height="6" rx="1" fill="#2b3442"/>
       <rect x="51" y="68" width="${(18 * niveau).toFixed(1)}" height="8" rx="1" fill="${batFarve}"/>
+      ${P.hals}
       <g class="alfie-hoved">
         <path d="M60 18 v-8" stroke="#8a9bb0" stroke-width="3"/>
         <circle cx="60" cy="8" r="4.5" fill="${hvordan === 'super' ? '#ff4d6d' : hvordan === 'sover' ? '#7d8a99' : '#ffd34d'}" class="${hvordan === 'super' ? 'robot-lys' : ''}"/>
@@ -590,8 +665,10 @@ function robotSvg(hvordan) {
         <rect x="40" y="25" width="40" height="28" rx="6" fill="#2b3442"/>
         <circle cx="31" cy="38" r="4" fill="#8a9bb0"/><circle cx="89" cy="38" r="4" fill="#8a9bb0"/>
         ${oejne}${mund}
+        ${P.hoved}
       </g>
     </g>
+    ${P.pokal}
     ${ekstra}
   </svg>`;
 }
@@ -716,25 +793,24 @@ async function alfieKort(barn) {
   const figur = el('button', 'alfie-figur');
   figur.type = 'button';
   figur.setAttribute('aria-label', m.navn);
-  figur.innerHTML = m.svg(hvordan);
+  figur.innerHTML = m.svg(hvordan, nv.pynt);
   const boble = el('div', 'alfie-boble', tekst);
   boble.setAttribute('aria-live', 'polite');
   figur.addEventListener('click', () => {
     if (hvordan === 'sover') {
       // Sovende makker vågner et øjeblik og fester
-      figur.innerHTML = m.svg('super');
+      figur.innerHTML = m.svg('super', nv.pynt);
       boble.textContent = m.vaagner;
       clearTimeout(figur._timer);
-      figur._timer = setTimeout(() => { figur.innerHTML = m.svg('sover'); boble.textContent = tekst; }, 5000);
+      figur._timer = setTimeout(() => { figur.innerHTML = m.svg('sover', nv.pynt); boble.textContent = tekst; }, 5000);
       return;
     }
     figur.classList.remove('vip'); void figur.offsetWidth; figur.classList.add('vip');
     boble.textContent = m.siger[Math.floor(Math.random() * m.siger.length)];
   });
-  // Pynt: det nyeste sidder på makkeren, resten står under som en lille samling
+  // Pynten tegnes ind i makkeren (pyntDele) – alt det, barnet har fået, sidder på den
   const figurBoks = el('div', 'makker-figur-boks');
   figurBoks.append(figur);
-  if (nv.sidste) figurBoks.append(el('span', 'makker-pynt', nv.sidste[1]));
   const hoejre = el('div', 'alfie-hoejre');
   hoejre.append(boble, ialt ? fremskridt(klaret / ialt) : '');
   hoejre.append(el('p', 'makker-niveau', (nv.niveau ? 'Niveau ' + (nv.niveau + 1) + ' ' + nv.pynt.join('') : 'Niveau 1')
