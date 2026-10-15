@@ -1723,6 +1723,8 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .note-tabel th, .note-tabel td { border: 1px solid var(--linje); padding: 6px 8px; text-align: left; white-space: nowrap; }
 .note-tabel th { background: var(--bg); font-weight: 700; }
 .note-tabel td.tom { color: var(--daempet); text-align: center; }
+.note-tabel td { vertical-align: top; }
+.note-tabel td.lang { white-space: normal; min-width: 12em; overflow-wrap: anywhere; }
 .note-tabel-ret .note-tabel th, .note-tabel-ret .note-tabel td { padding: 2px; }
 .note-tabel-ret input[type="text"] { width: 100%; min-width: 80px; min-height: 36px; padding: 0 6px; border: 0; background: transparent; font: inherit; }
 .note-tabel-ret th input[type="text"] { font-weight: 700; }

@@ -199,7 +199,7 @@ function tabelEl(b) {
   for (const k of b.kolonner || []) tr.append(el('th', null, k));
   thead.append(tr);
   const tbody = el('tbody');
-  for (const r of b.raekker || []) { const rr = el('tr'); (b.kolonner || []).forEach((_, i) => rr.append(el('td', null, r[i] || ''))); tbody.append(rr); }
+  for (const r of b.raekker || []) { const rr = el('tr'); (b.kolonner || []).forEach((_, i) => rr.append(el('td', String(r[i] || '').length > 24 ? 'lang' : null, r[i] || ''))); tbody.append(rr); }
   if (!(b.raekker || []).length) { const rr = el('tr'); const td = el('td', 'tom', 'Ingen rækker endnu'); td.colSpan = (b.kolonner || []).length || 1; rr.append(td); tbody.append(rr); }
   t.append(thead, tbody);
   wrap.append(t);
