@@ -1740,3 +1740,17 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .note-blokke { grid-template-columns: minmax(0, 1fr); }
 .note-blok { grid-template-columns: minmax(0, 1fr); }
 .note-tekst-felt { box-sizing: border-box; display: block; }
+
+/* ---------- Filer (Familiemappen og To do) ---------- */
+.note-fil { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 8px 12px; border: 1px solid var(--linje); border-radius: 12px; background: var(--flade); color: var(--fg); text-decoration: none; min-width: 0; }
+.note-fil:hover { border-color: var(--accent); }
+.note-fil[aria-disabled="true"] { opacity: .6; pointer-events: none; }
+.note-fil.fejl { opacity: .6; border-style: dashed; }
+.note-fil-ikon { font-size: 1.4rem; flex: none; }
+.note-fil-navn { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.note-fil-str { flex: none; color: var(--daempet); font-size: .85rem; }
+.todo-filer { display: grid; gap: 8px; }
+.todo-filer > .lille-knap { justify-self: start; }
+.todo-fil { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.todo-fil .note-fil { flex: 1; }
+.fil-taeller { flex: none; align-self: center; min-width: 40px; height: 40px; padding: 0 6px; border: 1px solid var(--linje); border-radius: 8px; background: var(--flade); color: var(--fg); font-size: 1rem; cursor: pointer; }

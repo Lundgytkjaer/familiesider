@@ -355,16 +355,46 @@ function redigerTodo(p) {
     else billedBoks.append(knap('📷 Tag eller vælg billede', 'lille-knap', () => filInput.click()));
   };
   tegnBillede();
+  // Vedhæftede filer (PDF, Word, Excel …) – ligger i Storage, kun links gemmes på opgaven
+  const foer = (p.filer || []).map(f => f.sti);
+  let filer = [...(p.filer || [])];
+  rydIkkeGemteFiler();
+  const filBoks = el('div', 'todo-filer');
+  const andenInput = el('input'); andenInput.type = 'file'; andenInput.multiple = true; andenInput.hidden = true;
+  andenInput.addEventListener('change', async () => {
+    for (const fil of [...andenInput.files]) {
+      if (fil.size > MAX_FIL) { visStatus(fil.name + ' er for stor (højst 20 MB)', true); continue; }
+      visStatus('Lægger ' + fil.name + ' op …');
+      try { const f = await lagFilOp(fil, 'alle'); delete f.type; filer.push(f); visStatus('📎 ' + fil.name + ' er vedhæftet'); }
+      catch (e) { console.warn(e); visStatus(fil.name + ' kunne ikke lægges op', true); }
+    }
+    andenInput.value = ''; tegnFiler();
+  });
+  const tegnFiler = () => {
+    filBoks.replaceChildren(andenInput);
+    filer.forEach((f, i) => {
+      const r = el('div', 'todo-fil');
+      r.append(filLink(f), knap('✕', 'lille-knap', () => { filer.splice(i, 1); tegnFiler(); }));
+      r.lastChild.setAttribute('aria-label', 'Fjern ' + f.navn);
+      filBoks.append(r);
+    });
+    filBoks.append(knap('📎 Vedhæft fil', 'lille-knap', () => andenInput.click()));
+  };
+  tegnFiler();
   const gem = knap('Gem', 'knap', async () => {
     const t = tekst.value.trim();
     if (!t) { tekst.focus(); return; }
-    await Data.update('todo', p.id, { tekst: t, hvem, frist: frist.value || null, prio, billede });
+    await Data.update('todo', p.id, { tekst: t, hvem, frist: frist.value || null, prio, billede, filer });
+    const nu = new Set(filer.map(f => f.sti));
+    filerIkkeGemt = filerIkkeGemt.filter(x => !nu.has(x)); rydIkkeGemteFiler();
+    const fjernet = foer.filter(x => !nu.has(x));
+    if (fjernet.length) Data.sletFiler(fjernet);
     lukArk(); tegnAlt();
   });
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('todo', p.id); lukArk(); tegnAlt(); }), gem);
   aabnArk('Ret opgave', felt('Opgave', tekst), felt('Hvem skal gøre det?', hvemValg), felt('Hvornår (valgfri)', fristRaekke),
-    felt('Prioritet', prioValg), el('label', 'felt-label', 'Billede'), billedBoks, el('p', 'hint', 'Opgaver med en dato står også i "Kalender i dag" på familiens overblik den dag.'), knapper);
+    felt('Prioritet', prioValg), el('label', 'felt-label', 'Billede'), billedBoks, el('label', 'felt-label', 'Filer'), filBoks, el('p', 'hint', 'Opgaver med en dato står også i "Kalender i dag" på familiens overblik den dag.'), knapper);
 }
 
 async function redigerVare(p) {
@@ -534,6 +564,14 @@ async function tegnListe(navn) {
       li.append(thumb);
     }
 
+    if (p.filer?.length) {
+      const fk = el('button', 'fil-taeller', '📎' + (p.filer.length > 1 ? p.filer.length : ''));
+      fk.type = 'button';
+      fk.setAttribute('aria-label', 'Vis filer for ' + p.tekst);
+      fk.addEventListener('click', () => { const boks = el('div', 'todo-filer'); p.filer.forEach(f => boks.append(filLink(f))); aabnArk(p.tekst, boks); });
+      li.append(fk);
+    }
+
     {
       const mere = el('button', 'mere-knap');
       mere.type = 'button';
@@ -613,7 +651,7 @@ function punktValg(liste, p, ekstra = []) {
     foerst,
     slet: () => Data.remove(liste, p.id),
     ret: erBarn() ? null : () => (liste === 'indkob' ? redigerVare(p) : redigerTodo(p)),
-    retTekst: liste === 'indkob' ? '✏️ Butik, note, tilbud, billede …' : '✏️ Ret opgave, billede …',
+    retTekst: liste === 'indkob' ? '✏️ Butik, note, tilbud, billede …' : '✏️ Ret opgave, billede, filer …',
     ekstra
   });
 }

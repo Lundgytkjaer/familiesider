@@ -15,6 +15,7 @@ const Data = (() => {
   let profil = null;         // {id, navn, rolle}
   const lyttere = [];
   let timer;
+  const filUrlCache = new Map();   // sti → {url, til}
 
   // Fortryd: slettede rækker huskes kort, så de kan sættes ind igen (med samme id).
   // Flere sletninger lige efter hinanden (fx "Ryd klarede") bliver til én fortrydelse.
@@ -202,6 +203,43 @@ const Data = (() => {
       const { data, error } = await q;
       if (error) throw error;
       return data || [];
+    },
+
+    // ---------- Filer (Supabase Storage, bucket 'filer' – opdatering-filer.sql) ----------
+    // Stien bestemmer, hvem der må se filen: alle/… · voksne/… · mig/<bruger-id>/…  (regler i databasen)
+    async uploadFil(syn, fil) {
+      const mappe = syn === 'mig' ? 'mig/' + profil.id : syn === 'voksne' ? 'voksne' : 'alle';
+      const ren = (fil.name || 'fil').normalize('NFD').replace(/[^\w.\-]+/g, '_').slice(-60);
+      const sti = mappe + '/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7) + '-' + ren;
+      const { error } = await db.storage.from('filer').upload(sti, fil, { contentType: fil.type || 'application/octet-stream', upsert: false });
+      if (error) throw error;
+      return { sti, navn: fil.name || ren, mime: fil.type || '', str: fil.size || 0 };
+    },
+    // Midlertidigt link (1 time) – genbruges, så den samme fil ikke hentes igen og igen
+    async filUrl(sti) {
+      const c = filUrlCache.get(sti);
+      if (c && c.til > Date.now()) return c.url;
+      const { data, error } = await db.storage.from('filer').createSignedUrl(sti, 3600);
+      if (error) throw error;
+      filUrlCache.set(sti, { url: data.signedUrl, til: Date.now() + 50 * 60000 });
+      return data.signedUrl;
+    },
+    async sletFiler(stier) {
+      const s = (stier || []).filter(Boolean);
+      if (!s.length) return;
+      s.forEach(x => filUrlCache.delete(x));
+      const { error } = await db.storage.from('filer').remove(s);
+      if (error) console.warn('Kunne ikke slette filer', error);
+    },
+    // Ny synlighed → flyt filen til den anden mappe (ellers gælder de gamle regler stadig)
+    async flytFil(sti, syn) {
+      const navn = sti.split('/').pop();
+      const ny = (syn === 'mig' ? 'mig/' + profil.id : syn === 'voksne' ? 'voksne' : 'alle') + '/' + navn;
+      if (ny === sti) return sti;
+      const { error } = await db.storage.from('filer').move(sti, ny);
+      if (error) throw error;
+      filUrlCache.delete(sti);
+      return ny;
     },
 
     onChange(fn) { lyttere.push(fn); }

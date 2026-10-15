@@ -7,7 +7,11 @@
 //   {type: 'tekst', tekst}                       – links (https://… / www.…) bliver til knapper
 //   {type: 'tabel', kolonner: [..], raekker: [[..]]} – fx synsprøver: én række pr. gang (nyeste øverst)
 //   {type: 'tjek', punkter: [{tekst, klaret}]}  – tjekliste (kan krydses af direkte, når noten vises)
-//   {type: 'billede', src}                       – billede (også indsat med "sæt ind" fra udklipsholderen)
+//   {type: 'billede', sti | src}                 – billede (også indsat med "sæt ind"). Nye ligger i Supabase Storage (sti),
+//                                                  gamle som data-URL (src)
+//   {type: 'fil', sti, navn, mime, str}          – vedhæftet fil (PDF, Word, Excel …) i Supabase Storage, højst 20 MB
+// Filer ligger i bucket 'filer' i en mappe efter notens synlighed (alle/ · voksne/ · mig/<id>/) – reglerne er i
+// databasen (opdatering-filer.sql). Skifter noten synlighed, flyttes filerne med. Data.uploadFil/filUrl/flytFil i data.js.
 // Ældre noter med {tekst, billeder} vises som blokke og gemmes som blokke næste gang, de rettes.
 // "Skjult felt" vises først, når man trykker (fx et kode-HINT – gem aldrig rigtige koder).
 const NOTE_LISTER = { alle: 'noter', voksne: 'noter_voksne', mig: 'noter_privat' };
@@ -29,6 +33,47 @@ let mappeHvem = '';
 let mappeSoeg = '';
 
 const mappeIkon = m => MAPPE_IKON[m] || '📁';
+const MAX_FIL = 20 * 1024 * 1024;
+const filIkon = (mime, navn) => /pdf/i.test(mime) || /\.pdf$/i.test(navn) ? '📄' : /sheet|excel|csv/i.test(mime) || /\.(xlsx?|csv)$/i.test(navn) ? '📊'
+  : /word|document/i.test(mime) || /\.docx?$/i.test(navn) ? '📝' : /^image\//.test(mime) ? '🖼️' : /zip/i.test(mime) ? '📦' : '📎';
+const filStr = n => !n ? '' : n < 1024 * 1024 ? Math.max(1, Math.round(n / 1024)) + ' KB' : (n / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB';
+// Billede fra en blok: data-URL med det samme, ellers et midlertidigt link fra Storage (hentes i baggrunden)
+function blokBillede(b, klasse) {
+  const img = el('img', klasse); img.alt = ''; img.loading = 'lazy';
+  if (b.src) img.src = b.src;
+  else if (b.sti) Data.filUrl(b.sti).then(u => { img.src = u; }).catch(() => { img.alt = 'Billedet kunne ikke hentes'; });
+  return img;
+}
+const blokUrl = async b => b.src || (b.sti ? Data.filUrl(b.sti) : '');
+// Link til en fil – adressen sættes, når den er hentet, så et tryk åbner filen direkte (også på iPhone)
+function filLink(f) {
+  const a = el('a', 'note-fil');
+  a.target = '_blank'; a.rel = 'noopener';
+  a.append(el('span', 'note-fil-ikon', filIkon(f.mime, f.navn)), el('span', 'note-fil-navn', f.navn || 'Fil'), el('span', 'note-fil-str', filStr(f.str)));
+  a.setAttribute('aria-disabled', 'true');
+  Data.filUrl(f.sti).then(u => { a.href = u; a.removeAttribute('aria-disabled'); }).catch(() => { a.classList.add('fejl'); a.title = 'Filen kunne ikke hentes'; });
+  return a;
+}
+// Filer der er lagt op, men aldrig gemt i en note (arket blev lukket) – ryddes væk næste gang
+let filerIkkeGemt = [];
+function rydIkkeGemteFiler() { if (filerIkkeGemt.length) { Data.sletFiler(filerIkkeGemt); filerIkkeGemt = []; } }
+// Læg en fil op – billeder gøres små først. Fejler Storage (fx før opdatering-filer.sql er kørt), bruges data-URL til billeder.
+async function lagFilOp(fil, syn, somBillede) {
+  if (somBillede) {
+    const dataUrl = await laesBillede(fil, 1600, 0.75);
+    try {
+      const blob = await (await fetch(dataUrl)).blob();
+      const f = await Data.uploadFil(syn, new File([blob], (fil.name || 'billede').replace(/\.\w+$/, '') + '.jpg', { type: 'image/jpeg' }));
+      filerIkkeGemt.push(f.sti);
+      return { type: 'billede', sti: f.sti };
+    } catch (e) { console.warn(e); return { type: 'billede', src: await laesBillede(fil, 1200, 0.72) }; }
+  }
+  if (fil.size > MAX_FIL) throw new Error('For stor');
+  const f = await Data.uploadFil(syn, fil);
+  filerIkkeGemt.push(f.sti);
+  return { type: 'fil', ...f };
+}
+const blokStier = blokke => (blokke || []).map(b => b.sti).filter(Boolean);
 const idagDato = () => { const d = new Date(); return d.getDate() + '/' + (d.getMonth() + 1) + ' ' + d.getFullYear(); };
 // Blokkene for en note (også gamle noter med tekst + billeder)
 function noteBlokke(n) {
@@ -48,7 +93,7 @@ function brugteMapper(noter) {
   return m.sort((a, b) => (a === 'Andet') - (b === 'Andet') || a.localeCompare(b, 'da'));
 }
 const noteSoegTekst = n => [n.titel, n.mappe, ...(n.hvem || []), ...noteBlokke(n).flatMap(b =>
-  b.type === 'tekst' ? [b.tekst] : b.type === 'tabel' ? [...(b.kolonner || []), ...(b.raekker || []).flat()] : b.type === 'tjek' ? (b.punkter || []).map(p => p.tekst) : [])].join(' ').toLowerCase();
+  b.type === 'tekst' ? [b.tekst] : b.type === 'fil' ? [b.navn] : b.type === 'tabel' ? [...(b.kolonner || []), ...(b.raekker || []).flat()] : b.type === 'tjek' ? (b.punkter || []).map(p => p.tekst) : [])].join(' ').toLowerCase();
 
 // Tekst → tekst + link-knapper (kun http/https og www.; laves som DOM, aldrig som HTML)
 const URL_RE = /\b(https?:\/\/[^\s<>"]+|www\.[^\s<>"]+)/gi;
@@ -86,6 +131,7 @@ const foersteLinje = n => {
 function tegnMappe() {
   const boks = document.getElementById('mappe-indhold');
   if (!boks) return;
+  if (document.getElementById('ark').hidden) rydIkkeGemteFiler();
   const noter = alleNoter();
   const mapper = brugteMapper(noter);
   if (mappeValgt !== 'alle' && !mapper.includes(mappeValgt)) mappeValgt = 'alle';
@@ -134,7 +180,9 @@ function tegnMappe() {
         n.skjult ? '🔒' : '', n._syn !== 'alle' ? NOTE_SYN[n._syn] : ''].filter(Boolean);
       if (info.length) b.append(el('span', 'note-info', info.join(' · ')));
       const billede = bl.find(x => x.type === 'billede');
-      if (billede) { const img = el('img', 'note-thumb'); img.src = billede.src; img.alt = ''; img.loading = 'lazy'; b.append(img); }
+      if (billede) b.append(blokBillede(billede, 'note-thumb'));
+      const nF = bl.filter(x => x.type === 'fil').length;
+      if (nF) { const info = b.querySelector('.note-info'); if (info) info.append(' · 📎 ' + nF); else b.append(el('span', 'note-info', '📎 ' + nF)); }
       li.append(b);
       return li;
     }));
@@ -166,7 +214,8 @@ function visNote(id) {
   blokke.forEach((b, bi) => {
     if (b.type === 'tekst' && b.tekst) dele.push(tekstMedLinks(b.tekst));
     if (b.type === 'tabel') dele.push(tabelEl(b));
-    if (b.type === 'billede') { const k = knap('', 'note-billede-knap', () => visStortBillede(b.src, n.titel || '')); const img = el('img'); img.src = b.src; img.alt = ''; k.append(img); dele.push(k); }
+    if (b.type === 'billede') { const k = knap('', 'note-billede-knap', async () => visStortBillede(await blokUrl(b), n.titel || '')); k.append(blokBillede(b)); dele.push(k); }
+    if (b.type === 'fil') dele.push(filLink(b));
     if (b.type === 'tjek') {
       const ul = el('ul', 'note-tjek');
       (b.punkter || []).forEach((p, pi) => {
@@ -222,6 +271,7 @@ function nyRaekke(n, bi) {
 
 // ---------- Ret / ny note ----------
 function redigerNote(n = {}) {
+  rydIkkeGemteFiler();
   const ny = !n.id;
   const s = {
     mappe: n.mappe || (mappeValgt !== 'alle' ? mappeValgt : 'Andet'), syn: n._syn || 'alle', fast: !!n.fast,
@@ -258,7 +308,12 @@ function redigerNote(n = {}) {
   const indsaet = b => { s.blokke.splice(aktiv + 1, 0, b); aktiv++; tegnBlokke(); };
   async function tilfoejBillede(fil) {
     if (antalBilleder() >= MAX_BILLEDER) { visStatus('Højst ' + MAX_BILLEDER + ' billeder pr. note', true); return; }
-    try { indsaet({ type: 'billede', src: await laesBillede(fil, 1200, 0.72) }); } catch { visStatus('Billedet kunne ikke læses', true); }
+    try { visStatus('Lægger billedet op …'); indsaet(await lagFilOp(fil, s.syn, true)); } catch { visStatus('Billedet kunne ikke læses', true); }
+  }
+  async function tilfoejFil(fil) {
+    if (fil.size > MAX_FIL) { visStatus(fil.name + ' er for stor (højst 20 MB)', true); return; }
+    try { visStatus('Lægger ' + fil.name + ' op …'); indsaet(await lagFilOp(fil, s.syn, false)); visStatus('📎 ' + fil.name + ' er vedhæftet'); }
+    catch (e) { console.warn(e); visStatus('Filen kunne ikke lægges op – er opdatering-filer.sql kørt i Supabase?', true); }
   }
   function blokRamme(i, ...indhold) {
     const r = el('div', 'note-blok');
@@ -281,7 +336,8 @@ function redigerNote(n = {}) {
         t.addEventListener('input', () => { b.tekst = t.value; });
         return blokRamme(i, t);
       }
-      if (b.type === 'billede') { const img = el('img', 'note-blok-billede'); img.src = b.src; img.alt = ''; return blokRamme(i, img); }
+      if (b.type === 'billede') return blokRamme(i, blokBillede(b, 'note-blok-billede'));
+      if (b.type === 'fil') return blokRamme(i, filLink(b));
       if (b.type === 'tjek') {
         const ul = el('div', 'note-tjek-ret');
         const tegnP = () => {
@@ -328,14 +384,17 @@ function redigerNote(n = {}) {
   // Tilføj blokke
   const filInput = el('input'); filInput.type = 'file'; filInput.accept = 'image/*'; filInput.multiple = true; filInput.hidden = true;
   filInput.addEventListener('change', async () => { for (const f of [...(filInput.files || [])]) await tilfoejBillede(f); filInput.value = ''; });
+  const andenFil = el('input'); andenFil.type = 'file'; andenFil.multiple = true; andenFil.hidden = true;
+  andenFil.addEventListener('change', async () => { for (const f of [...(andenFil.files || [])]) await tilfoejFil(f); andenFil.value = ''; });
   const tabelMenu = el('div', 'seg wrap'); tabelMenu.hidden = true;
   tabelMenu.append(...Object.entries(TABEL_SKABELONER).map(([navn, kol]) => knap('▦ ' + navn, 'lille-knap', () => { tabelMenu.hidden = true; indsaet({ type: 'tabel', kolonner: [...kol], raekker: [] }); })));
   const tilfoej = el('div', 'note-tilfoej');
-  tilfoej.append(filInput, el('span', 'seg-label', 'Tilføj'),
+  tilfoej.append(filInput, andenFil, el('span', 'seg-label', 'Tilføj'),
     knap('¶ Tekst', 'lille-knap', () => indsaet({ type: 'tekst', tekst: '' })),
     knap('▦ Tabel', 'lille-knap', () => { tabelMenu.hidden = !tabelMenu.hidden; }),
     knap('☑ Tjekliste', 'lille-knap', () => indsaet({ type: 'tjek', punkter: [{ tekst: '', klaret: false }] })),
     knap('📷 Billede', 'lille-knap', () => filInput.click()),
+    knap('📎 Fil', 'lille-knap', () => andenFil.click()),
     navigator.clipboard?.read ? knap('📋 Sæt billede ind', 'lille-knap', async () => {   // skærmklip fra udklipsholderen
       try {
         let fundet = 0;
@@ -365,11 +424,24 @@ function redigerNote(n = {}) {
     if (!t && !blokke.length) { titel.focus(); visStatus('Skriv en titel eller lidt indhold', true); return; }
     const felter = { titel: t, mappe: s.mappe, hvem: s.hvem, blokke, tekst: null, billeder: null, skjult: skjult.value.trim() || null, fast: s.fast, rettet: new Date().toISOString() };
     const liste = NOTE_LISTER[s.syn];
+    const flyttet = new Set();
     try {
+      // Filerne skal ligge i mappen for notens synlighed (ellers gælder de gamle regler stadig)
+      flyttet.clear();
+      const maal = s.syn === 'mig' ? 'mig/' + Data.bruger().id + '/' : s.syn + '/';
+      for (const b of blokke) if (b.sti && !b.sti.startsWith(maal)) {
+        const gl = b.sti;
+        try { b.sti = await Data.flytFil(gl, s.syn); flyttet.add(gl); filerIkkeGemt = filerIkkeGemt.map(x => x === gl ? b.sti : x); } catch (e) { console.warn(e); }
+      }
       if (ny) await Data.add(liste, felter);
       else if (liste === n._liste) await Data.update(liste, n.id, felter);
       else { await Data.add(liste, felter); await Data.stille(() => Data.remove(n._liste, n.id)); }   // ny synlighed = flyt til den anden liste
     } catch { visStatus('Kunne ikke gemme noten', true); return; }
+    // Filer der er fjernet fra noten, slettes; de nye er nu gemt
+    const nu = new Set(blokStier(blokke));
+    const vaek = blokStier(noteBlokke(n)).filter(x => !nu.has(x) && !flyttet.has(x));
+    filerIkkeGemt = filerIkkeGemt.filter(x => !nu.has(x)); rydIkkeGemteFiler();
+    if (vaek.length) Data.sletFiler(vaek);
     mappeValgt = s.mappe; lokal.set('mappe', s.mappe);
     lukArk(); tegnMappe(); visStatus('Gemt i ' + s.mappe);
   }));
