@@ -1676,11 +1676,24 @@ function redigerBeloenning(b) {
 
 // =====================================================================
 // PAKKELISTER
-// Data: 'pakkelister' {navn}   'pakkepunkter' {liste, tekst, hvem, pakket}
+// Data: 'pakkelister' {navn}   'pakkepunkter' {liste, tekst, hvem, pakket, kategori?}
+// Kategori er valgfri: har mindst ét punkt en kategori, vises listen i grupper (fx Tøj, Toiletsager, Mad og drikke).
+// En gruppe, hvor alt er pakket, foldes sammen (tryk for at åbne). Punkter uden kategori står under "Andet".
 // =====================================================================
 let pakValgt = lokal.get('pak-valgt') || '';
 let pakFilter = 'Alle';
 let pakNyHvem = 'Alle';
+let pakNyKat = '';
+const pakAabne = new Set();   // sammenfoldede (færdige) grupper, man har åbnet
+const PAK_KAT_ORDEN = ['Tøj', 'Overtøj', 'Fodtøj', 'Toiletsager', 'Medicin', 'Papirer og penge', 'Diverse', 'Køkken', 'Mad og drikke', 'Elektronik', 'Legetøj', 'Andet'];
+const PAK_IKON = { 'Tøj': '👕', 'Overtøj': '🧥', 'Fodtøj': '🥾', 'Toiletsager': '🪥', 'Medicin': '💊', 'Papirer og penge': '🛂', 'Diverse': '🎒',
+  'Køkken': '🍽️', 'Mad og drikke': '🥪', 'Elektronik': '🔌', 'Legetøj': '🧸', 'Andet': '📦' };
+const pakIkon = k => PAK_IKON[k] || '📦';
+// Kategorierne på en liste i fast rækkefølge (kendte først, så egne i den rækkefølge, de er brugt)
+function pakKategorier(punkter) {
+  const brugte = [...new Set(punkter.map(p => p.kategori || 'Andet'))];
+  return brugte.sort((a, b) => (PAK_KAT_ORDEN.indexOf(a) + 1 || 99) - (PAK_KAT_ORDEN.indexOf(b) + 1 || 99) || (a === 'Andet') - (b === 'Andet'));
+}
 const pakForm = (() => {
   const form = el('form', 'tilfoj');
   const inp = el('input');
@@ -1692,7 +1705,7 @@ const pakForm = (() => {
     const tekst = inp.value.trim();
     if (!tekst || !pakValgt) return;
     inp.value = '';
-    await Data.add('pakkepunkter', { liste: pakValgt, tekst, hvem: pakNyHvem === 'Alle' ? '' : pakNyHvem, pakket: false });
+    await Data.add('pakkepunkter', { liste: pakValgt, tekst, hvem: pakNyHvem === 'Alle' ? '' : pakNyHvem, pakket: false, ...(pakNyKat ? { kategori: pakNyKat } : {}) });
     tegnPakkelister();
     inp.focus();
   });
@@ -1732,12 +1745,11 @@ async function tegnPakkelister() {
   const filter = personer.length > 1 ? valgSeg(personer, pakFilter, v => { pakFilter = v; tegnPakkelister(); }, v => (v === 'Alle' ? 'Alle' : v)) : '';
 
   const hvemValg = valgSeg(['Alle', ...PERSONER.filter(p => p !== 'Fælles')], pakNyHvem, v => { pakNyHvem = v; tegnPakkelister(); },
-    v => (v === 'Alle' ? 'Fælles' : v), 'wrap lille-seg');
+    v => (v === 'Alle' ? 'Fælles' : v), 'lille-seg pak-rul');
 
-  const ul = el('ul', 'liste');
   const viste = mine.filter(p => pakFilter === 'Alle' || p.hvem === pakFilter)
     .sort((a, b) => Number(a.pakket) - Number(b.pakket) || a.tekst.localeCompare(b.tekst, 'da'));
-  for (const p of viste) {
+  const punktLi = p => {
     const li = el('li', 'punkt' + (p.pakket ? ' faerdig' : ''));
     const b = el('button', 'punkt-knap');
     b.type = 'button';
@@ -1766,9 +1778,25 @@ async function tegnPakkelister() {
     mere.setAttribute('aria-label', 'Ret ' + p.tekst);
     li.append(b);
     if (erVoksen()) li.append(mere, slet);
-    ul.append(li);
+    return li;
+  };
+  const medKat = mine.some(p => p.kategori);
+  const ul = el(medKat ? 'div' : 'ul', medKat ? 'pak-grupper' : 'liste');
+  if (!medKat) viste.forEach(p => ul.append(punktLi(p)));
+  else for (const k of pakKategorier(mine)) {
+    const iGruppe = viste.filter(p => (p.kategori || 'Andet') === k);
+    if (!iGruppe.length) continue;
+    const n = iGruppe.filter(p => p.pakket).length, alt = n === iGruppe.length;
+    const noegle = valgt.id + '|' + k, aaben = !alt || pakAabne.has(noegle);
+    const hoved = knap('', 'pak-gruppe-hoved' + (alt ? ' faerdig' : ''), () => { if (!alt) return; pakAabne.has(noegle) ? pakAabne.delete(noegle) : pakAabne.add(noegle); tegnPakkelister(); });
+    hoved.setAttribute('aria-expanded', aaben);
+    hoved.append(el('b', null, pakIkon(k) + ' ' + k), el('span', null, alt ? '✓ alt pakket' : n + ' af ' + iGruppe.length));
+    const gl = el('ul', 'liste');
+    if (aaben) iGruppe.forEach(p => gl.append(punktLi(p)));
+    ul.append(hoved);
+    if (aaben) ul.append(gl);
   }
-  if (!viste.length) ul.append(el('li', 'tom', 'Intet på listen endnu'));
+  if (!viste.length) ul.append(el(medKat ? 'p' : 'li', 'tom', 'Intet på listen endnu'));
 
   const fod = el('div', 'pak-fod');
   fod.append(
@@ -1786,9 +1814,13 @@ async function tegnPakkelister() {
   );
 
   const nyLabel = el('p', 'seg-label', 'Ny ting er til:');
+  const kats = medKat ? pakKategorier(mine).filter(k => k !== 'Andet') : [];
+  if (pakNyKat && !kats.includes(pakNyKat)) pakNyKat = '';
+  const katValg = kats.length ? valgSeg(['', ...kats], pakNyKat, v => { pakNyKat = v; tegnPakkelister(); }, v => (v ? pakIkon(v) + ' ' + v : 'Ingen'), 'lille-seg pak-rul') : '';
+  const katLabel = katValg ? el('p', 'seg-label', 'Kategori:') : '';
   const visLabel = filter ? el('p', 'seg-label', 'Vis:') : '';
   if (!erVoksen()) boks.replaceChildren(titel, visLabel, filter, ul);
-  else boks.replaceChildren(titel, pakForm, nyLabel, hvemValg, visLabel, filter, ul, fod);
+  else boks.replaceChildren(titel, pakForm, nyLabel, hvemValg, katLabel, katValg, visLabel, filter, ul, fod);
   opdaterTilbage();   // fra app.js – tilbage-knappen bliver til "Alle pakkelister"
 }
 
@@ -1797,15 +1829,20 @@ function redigerPakkepunkt(p) {
   const tekst = input('text', 'pak-tekst', p.tekst);
   let hvem = p.hvem || '';
   const hvemValg = chipValg(['', ...PERSONER.filter(x => x !== 'Fælles')], hvem, v => { hvem = v; }, v => v || 'Fælles');
+  let kat = p.kategori || '';
+  const paaListen = Data.listNu('pakkepunkter').filter(x => x.liste === p.liste && x.kategori).map(x => x.kategori);
+  const kats = [...new Set([...pakKategorier(paaListen.map(k => ({ kategori: k }))), ...PAK_KAT_ORDEN.filter(k => k !== 'Andet')])];
+  const nyKat = input('text', 'pak-ny-kat', '', 'eller skriv en ny');
+  const katValg = chipValg(['', ...kats], kat, v => { kat = v; nyKat.value = ''; }, v => (v ? pakIkon(v) + ' ' + v : 'Ingen'));
   const gem = knap('Gem', 'knap', async () => {
     const t = tekst.value.trim();
     if (!t) { tekst.focus(); return; }
-    await Data.update('pakkepunkter', p.id, { tekst: t, hvem });
+    await Data.update('pakkepunkter', p.id, { tekst: t, hvem, kategori: nyKat.value.trim() || kat || null });
     lukArk(); tegnPakkelister();
   });
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('pakkepunkter', p.id); lukArk(); tegnPakkelister(); }), gem);
-  aabnArk('Ret', felt('Hvad skal med?', tekst), felt('Til', hvemValg), knapper);
+  aabnArk('Ret', felt('Hvad skal med?', tekst), felt('Til', hvemValg), el('label', 'felt-label', 'Kategori'), katValg, nyKat, knapper);
 }
 
 function navnPakkeliste(l) {

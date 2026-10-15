@@ -1870,3 +1870,11 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .b-deling .lille-knap { justify-self: start; }
 .kladde-hint { margin: 0 0 8px; }
 .kladde-hint .link-knap { color: var(--accent); text-decoration: underline; font: inherit; min-height: 0; cursor: pointer; }
+/* Pakkelister med kategorier */
+.pak-grupper { display: grid; gap: 6px; }
+.pak-gruppe-hoved { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; width: 100%; margin-top: 10px; padding: 6px 4px; background: none; border: 0; border-bottom: 2px solid var(--linje); color: var(--fg); font: inherit; text-align: left; }
+.pak-gruppe-hoved span { color: var(--daempet); font-size: 14px; font-variant-numeric: tabular-nums; }
+.pak-gruppe-hoved.faerdig { cursor: pointer; opacity: .75; }
+.pak-gruppe-hoved.faerdig span { color: var(--accent); font-weight: 600; }
+.seg.pak-rul { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.seg.pak-rul button { flex: none; white-space: nowrap; }
