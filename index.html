@@ -24,7 +24,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-12c">
+  <link rel="stylesheet" href="style.css?v=2026-10-15b">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -238,6 +238,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="7" width="16" height="13" rx="2"/><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M4 12h16"/></svg>
           <span class="mere-navn">Pakkelister</span><span class="under">Til sommerhus, ferie og weekender</span>
         </button>
+        <button type="button" class="kort mere-kort" data-gaa="mappe">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>
+          <span class="mere-navn">Familiemappen</span><span class="under">Noter, links, nummerplade, kode-hints …</span>
+        </button>
         <button type="button" class="kort mere-kort" data-gaa="steder">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4L3.5 6v14L9 18l6 2 5.5-2V4L15 6z"/><path d="M9 4v14M15 6v14"/></svg>
           <span class="mere-navn">Vores kort</span><span class="under">Her har vi været – og vil gerne hen</span>
@@ -298,6 +302,13 @@
       <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
       <div class="sek-hoved"><h2>Pakkelister</h2></div>
       <div id="pak-indhold"></div>
+    </section>
+
+    <!-- FAMILIEMAPPEN (mappe.js) -->
+    <section id="mappe" class="fane" hidden>
+      <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
+      <div class="sek-hoved"><h2>Familiemappen</h2><button type="button" class="lille-knap ny-knap kun-voksen" id="ny-note">+ Ny note</button></div>
+      <div id="mappe-indhold"></div>
     </section>
 
     <!-- VORES KORT (kort.js) -->
@@ -388,6 +399,7 @@
             <li class="kun-voksen"><b>Aktivitet</b> (under Mere) viser hvem der har tilføjet, rettet, krydset af eller slettet hvad de sidste 60 dage. Slettede ting kan gendannes, og en ændring kan fortrydes, hvis ingen har rettet den siden. Kun voksne kan se den.</li>
             <li><b>Familie</b> viser hele familien – hvem der er mormor, faster, fætter osv. Tryk på en person for at se forældre, søskende og børn<span class="kun-voksen">, rette eller tilføje familie (+ Barn, + Forælder …). Afdøde kan få en 🕯️ mindedag i kalenderen</span>.</li>
             <li class="kun-voksen"><b>⏸ Pause:</b> Har I ikke bestemt maden endnu, så tryk "⏸ Sæt maden på pause" under børnenes morgenmad/frokost på Madplan (eller Indstillinger → barnet). Vælg hvad der holder pause (morgenmad, frokost, aftensmad, pligter eller hele tavlen) og hvor længe. Børnene ser "Ikke bestemt endnu" i stedet for maden. Pligterne kan tælle som klaret eller fryses (dage i træk står stille). Pausen står øverst på Familien med "Slå fra".</li>
+            <li><b>Familiemappen</b> samler noter i mapper (Links, Bil, Hus og have, Logins …): tekst, links (bliver til knapper), billeder og et 🔒 skjult felt, der først vises, når man trykker.<span class="kun-voksen"> Hver note kan ses af Alle, Kun voksne eller Kun mig. Gem kun kode-hints – aldrig rigtige koder.</span></li>
             <li><b>Vores kort</b> viser steder, vi har været (📍), og steder vi gerne vil hen (⭐). Tryk på en nål eller et sted i listen for at se år, hvem der var med, note og billede.<span class="kun-voksen"> Tryk <b>+ Tilføj sted</b> og søg en by – eller vælg på kortet / "Her er vi nu". Et ⭐-sted kan blive til 📍 med "✅ Vi har været der!".</span></li>
             <li><b>Skoleskema</b>, <b>Pakkelister</b>, <b>Ugens konkurrence</b> (hvem cykler eller går længst) og <b>Vejret</b>.</li>
           </ul>
@@ -473,20 +485,21 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
-<script src="data.js?v=2026-10-12c"></script>
-<script src="dage.js?v=2026-10-12c"></script>
-<script src="vejr.js?v=2026-10-12c"></script>
-<script src="app.js?v=2026-10-12c"></script>
-<script src="mere.js?v=2026-10-12c"></script>
-<script src="sjov.js?v=2026-10-12c"></script>
-<script src="seddel.js?v=2026-10-12c"></script>
-<script src="familie.js?v=2026-10-12c"></script>
-<script src="handel.js?v=2026-10-12c"></script>
-<script src="retter.js?v=2026-10-12c"></script>
-<script src="aktivitet.js?v=2026-10-12c"></script>
-<script src="kort.js?v=2026-10-12c"></script>
-<script src="pause.js?v=2026-10-12c"></script>
-<script src="push.js?v=2026-10-12c"></script>
-<script src="ai.js?v=2026-10-12c"></script>
+<script src="data.js?v=2026-10-15b"></script>
+<script src="dage.js?v=2026-10-15b"></script>
+<script src="vejr.js?v=2026-10-15b"></script>
+<script src="app.js?v=2026-10-15b"></script>
+<script src="mere.js?v=2026-10-15b"></script>
+<script src="sjov.js?v=2026-10-15b"></script>
+<script src="seddel.js?v=2026-10-15b"></script>
+<script src="familie.js?v=2026-10-15b"></script>
+<script src="handel.js?v=2026-10-15b"></script>
+<script src="retter.js?v=2026-10-15b"></script>
+<script src="aktivitet.js?v=2026-10-15b"></script>
+<script src="kort.js?v=2026-10-15b"></script>
+<script src="pause.js?v=2026-10-15b"></script>
+<script src="mappe.js?v=2026-10-15b"></script>
+<script src="push.js?v=2026-10-15b"></script>
+<script src="ai.js?v=2026-10-15b"></script>
 </body>
 </html>

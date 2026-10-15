@@ -1602,9 +1602,9 @@ body.cool .rutine-strip { display: none; }
 .sted-under { font-size: 13px; color: var(--daempet); }
 .sted-prikker { display: flex; gap: 3px; flex: none; }
 .sted-prikker .prik { width: 10px; height: 10px; border-radius: 50%; background: var(--p, var(--daempet)); }
-.sted-pin { border-radius: 50%; display: flex; align-items: center; justify-content: center; }
-.sted-pin.vaeret { background: var(--accent); border: 3px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
-.sted-pin.droem { font-size: 20px; line-height: 1; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+.sted-pin { background: none; border: 0; }
+.sted-pin span { display: grid; place-items: center; width: 30px; height: 30px; box-sizing: border-box; border-radius: 50%; background: #fff; border: 3px solid var(--p); font-size: 15px; line-height: 1; box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.sted-pin.droem span { border-style: dashed; opacity: .85; }
 .sted-popup { font-family: var(--font); font-size: 14px; color: #16201c; display: grid; gap: 4px; }
 .sted-popup-navn { font-size: 15px; }
 .sted-hvem { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -1673,3 +1673,36 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .pligt-dag-nav .lille-knap { min-width: 44px; }
 .pligt-dag-nav .lille-knap:disabled { opacity: .35; }
 .liste.tidligere-dag { box-shadow: inset 0 0 0 2px var(--p2); border-radius: var(--radius); }
+
+/* Kort: egne lag + kortstil (2026-10-15a) */
+.sted-lag-valg button[aria-checked="true"] { background: var(--p, var(--fg)); border-color: var(--p, var(--fg)); color: #fff; }
+.sted-lag-valg { margin-bottom: 6px; }
+.sted-ret-lag { margin: -2px 0 10px; }
+.sted-ikon.droem { opacity: .55; }
+.kort-stil-knap { font: 600 13px var(--font); padding: 6px 10px; border-radius: 999px; border: 0; background: #fff; color: #16201c; box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: pointer; }
+.lag-farver button { width: 40px; height: 40px; min-width: 0; padding: 0; border-radius: 50%; border: 2px solid transparent; color: #fff; font-weight: 800; }
+.lag-farver button[aria-pressed="true"] { border-color: var(--fg); }
+
+/* 📁 Familiemappen (mappe.js, 2026-10-15b) */
+#mappe-soeg { width: 100%; margin-bottom: 10px; }
+.note-liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.note-kort { width: 100%; display: grid; grid-template-columns: 1fr auto; column-gap: 10px; row-gap: 2px; padding: 12px 14px; border: 1px solid var(--linje); border-radius: var(--radius); background: var(--flade); text-align: left; }
+.note-kort > :not(.note-thumb) { grid-column: 1; min-width: 0; }
+.note-top { display: flex; gap: 8px; align-items: baseline; }
+.note-titel { overflow-wrap: anywhere; }
+.note-uddrag { color: var(--daempet); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-info { font-size: 12px; color: var(--daempet); }
+.note-thumb { grid-column: 2; grid-row: 1 / span 3; width: 56px; height: 56px; object-fit: cover; border-radius: 10px; align-self: center; }
+.note-meta { margin: 0 0 8px; color: var(--daempet); font-size: 14px; }
+.note-tekst p { margin: 0 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.note-link { color: var(--accent); font-weight: 600; text-decoration: underline; overflow-wrap: anywhere; }
+.note-skjult { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: var(--bg); }
+.note-skjult-vaerdi { flex: 1; min-width: 0; font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+.note-billeder { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 10px 0; }
+.note-billede-knap { padding: 0; border: 0; background: none; border-radius: 12px; overflow: hidden; }
+.note-billede-knap img, .note-billede-ret img { display: block; width: 100%; height: 140px; object-fit: cover; border-radius: 12px; }
+.note-billede-ret { position: relative; }
+.note-fjern { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; border-radius: 50%; border: 0; background: rgba(0,0,0,.6); color: #fff; font-weight: 800; }
+.note-billeder.ret .lille-knap { align-self: center; justify-self: start; }
+.note-tekst-felt { width: 100%; font: inherit; }
+#note-ny-mappe { margin-top: 6px; }

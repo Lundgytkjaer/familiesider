@@ -88,8 +88,8 @@ function ugeSpan(man) {
 const kortDag = iso => { const d = new Date(iso + 'T00:00'); return d.getDate() + '. ' + MDR[d.getMonth()]; };
 
 // ---------- Faner ----------
-const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder'];
-const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder'];   // sider man når via "Mere"
+const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe'];
+const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe'];   // sider man når via "Mere"
 // Voksne: "Pligter" (pligter, belønninger, ønsker) er en fane i bundmenuen, og To do ligger under Mere. Børn: som før.
 const underMere = navn => (Data.bruger()?.rolle === 'voksen'
   ? (navn === 'todo' || (UNDER_MERE.includes(navn) && navn !== 'pligter')) : UNDER_MERE.includes(navn));
@@ -143,6 +143,7 @@ function visFane(navn, fraTilbage = false) {
   if (navn === 'familie' && typeof tegnFamilie === 'function') tegnFamilie();
   if (typeof stopVaelg === 'function' && navn !== 'steder') stopVaelg();   // kort.js
   if (navn === 'steder' && typeof tegnSteder === 'function') tegnSteder();
+  if (navn === 'mappe' && typeof tegnMappe === 'function') tegnMappe();   // mappe.js
   if (navn === 'aktivitet' && fra !== 'aktivitet' && typeof aktHent === 'function') aktHent(true);   // fra aktivitet.js – hentes frisk hver gang   // fra familie.js (træet skal måles, når siden er synlig)
 }
 function opdaterTilbage() {
@@ -343,16 +344,27 @@ function redigerTodo(p) {
     knap('Ingen', 'lille-knap', () => { frist.value = ''; }));
   let prio = p.prio || 2;
   const prioValg = chipValg([1, 2, 3], prio, v => { prio = v; }, v => PRIO[v]);
+  // Billede (fx af en seddel eller noget der skal ordnes) – vises som lille billede på opgaven
+  let billede = p.billede || '';
+  const billedBoks = el('div', 'billede-boks');
+  const filInput = el('input'); filInput.type = 'file'; filInput.accept = 'image/*'; filInput.hidden = true;
+  filInput.addEventListener('change', async () => { try { billede = await laesBillede(filInput.files[0]); tegnBillede(); } catch { visStatus('Billedet kunne ikke læses', true); } });
+  const tegnBillede = () => {
+    billedBoks.replaceChildren(filInput);
+    if (billede) { const img = el('img'); img.src = billede; img.alt = ''; billedBoks.append(img, knap('Fjern billede', 'lille-knap', () => { billede = ''; tegnBillede(); })); }
+    else billedBoks.append(knap('📷 Tag eller vælg billede', 'lille-knap', () => filInput.click()));
+  };
+  tegnBillede();
   const gem = knap('Gem', 'knap', async () => {
     const t = tekst.value.trim();
     if (!t) { tekst.focus(); return; }
-    await Data.update('todo', p.id, { tekst: t, hvem, frist: frist.value || null, prio });
+    await Data.update('todo', p.id, { tekst: t, hvem, frist: frist.value || null, prio, billede });
     lukArk(); tegnAlt();
   });
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('todo', p.id); lukArk(); tegnAlt(); }), gem);
   aabnArk('Ret opgave', felt('Opgave', tekst), felt('Hvem skal gøre det?', hvemValg), felt('Hvornår (valgfri)', fristRaekke),
-    felt('Prioritet', prioValg), el('p', 'hint', 'Opgaver med en dato står også i "Kalender i dag" på familiens overblik den dag.'), knapper);
+    felt('Prioritet', prioValg), el('label', 'felt-label', 'Billede'), billedBoks, el('p', 'hint', 'Opgaver med en dato står også i "Kalender i dag" på familiens overblik den dag.'), knapper);
 }
 
 async function redigerVare(p) {
@@ -601,7 +613,7 @@ function punktValg(liste, p, ekstra = []) {
     foerst,
     slet: () => Data.remove(liste, p.id),
     ret: erBarn() ? null : () => (liste === 'indkob' ? redigerVare(p) : redigerTodo(p)),
-    retTekst: liste === 'indkob' ? '✏️ Butik, note, tilbud, billede …' : '✏️ Ret opgave',
+    retTekst: liste === 'indkob' ? '✏️ Butik, note, tilbud, billede …' : '✏️ Ret opgave, billede …',
     ekstra
   });
 }
