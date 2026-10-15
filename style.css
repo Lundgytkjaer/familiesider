@@ -1868,3 +1868,5 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .b-post.auto { background: var(--accent-blod); }
 .b-deling { display: grid; gap: 8px; }
 .b-deling .lille-knap { justify-self: start; }
+.kladde-hint { margin: 0 0 8px; }
+.kladde-hint .link-knap { color: var(--accent); text-decoration: underline; font: inherit; min-height: 0; cursor: pointer; }

@@ -4,6 +4,31 @@ const lokal = {
   get(k) { try { return localStorage.getItem('familietavle:' + k); } catch { return null; } },
   set(k, v) { try { localStorage.setItem('familietavle:' + k, v); } catch {} }
 };
+// Kladder: tekst man er i gang med at skrive, gemmes på enheden, mens man skriver. Lukker telefonen appen i baggrunden
+// (fx når man skifter til en anden app), er teksten der stadig, når man åbner det igen. Slettes, når det er sendt (højst 7 dage).
+const KLADDE_DAGE = 7;
+const kladdeNoegle = n => 'kladde:' + (Data.bruger()?.navn || '') + ':' + n;
+function kladdeHent(n) {
+  try {
+    const k = JSON.parse(lokal.get(kladdeNoegle(n)) || 'null');
+    return k && Date.now() - k.tid < KLADDE_DAGE * 864e5 ? k.v : null;
+  } catch { return null; }
+}
+function kladdeGem(n, v) {
+  try {
+    if (v == null || v === '') localStorage.removeItem('familietavle:' + kladdeNoegle(n));
+    else lokal.set(kladdeNoegle(n), JSON.stringify({ v, tid: Date.now() }));
+  } catch {}
+}
+const kladdeGlem = n => kladdeGem(n, null);
+// Lille linje i et ark: "✏️ Det, du skrev sidst, er hentet frem · Start forfra"
+function kladdeHint(forfra) {
+  const p = el('p', 'hint kladde-hint', '✏️ Det, du skrev sidst, er hentet frem · ');
+  const b = el('button', 'link-knap', 'Start forfra'); b.type = 'button';
+  b.addEventListener('click', () => { forfra(); p.remove(); });
+  p.append(b);
+  return p;
+}
 
 // Flag-emoji (🇩🇰 ved fødselsdage): Windows viser kun bogstaverne "DK". Kan browseren ikke tegne flag,
 // hentes en lille flag-skrifttype (Twemoji, CC-BY 4.0) – kun til flag-tegnene, alt andet er uændret.

@@ -1268,9 +1268,11 @@ const ekstraLinje = (navn, n) => '⭐ ' + navn + ' · ★ ' + n;
 
 // Barnet: "Jeg har gjort noget ekstra"
 function bedOmEkstra(barn) {
-  const tekst = input('text', 'ekstra-tekst', '', 'Fx Hjalp mormor med at bære');
+  const kl = kladdeHent('ekstra');
+  const tekst = input('text', 'ekstra-tekst', kl || '', 'Fx Hjalp mormor med at bære');
+  tekst.addEventListener('input', () => kladdeGem('ekstra', tekst.value.trim() ? tekst.value : null));
   const forslag = el('div', 'seg wrap');
-  for (const g of ['Hjalp til', 'Ryddede op', 'Hjalp med maden', 'Var sød ved min bror', 'Lavede noget ekstra']) forslag.append(knap(g, null, () => { tekst.value = g; }));
+  for (const g of ['Hjalp til', 'Ryddede op', 'Hjalp med maden', 'Var sød ved min bror', 'Lavede noget ekstra']) forslag.append(knap(g, null, () => { tekst.value = g; kladdeGem('ekstra', g); }));
   let n = 1;
   const antal = chipValg([1, 2, 3], n, v => { n = v; }, v => '★'.repeat(v));
   const fejl = el('p', 'fejl'); fejl.hidden = true;
@@ -1278,6 +1280,7 @@ function bedOmEkstra(barn) {
     const t = tekst.value.trim();
     if (!t) { fejl.textContent = 'Skriv hvad du har gjort 🙂'; fejl.hidden = false; tekst.focus(); return; }
     const r = await Data.add('ekstra', { barn, tekst: t, stjerner: n, dato: isoDato(new Date()), status: 'afventer' });
+    if (r) kladdeGlem('ekstra');
     lukArk();
     if (r) fejr('Sendt til mor og far ⭐');   // fra sjov.js
     tegnAlt();

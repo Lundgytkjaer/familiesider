@@ -47,26 +47,31 @@ async function sendSvar(s, reaktion, svarTekst, k) {
 
 // Et helt svar: en emoji og/eller en kort tekst
 function svarArk(s, k) {
-  let valgt = '';
+  const kn = 'svar-' + s.id, kl = kladdeHent(kn);
+  let valgt = kl?.valgt || '';
   const forhaand = el('p', 'svar-citat', '"' + kortTekst(s.tekst, 80) + '" – ' + kaldNavn(s.fra));
   const plade = el('div', 'svar-emoji');
   const tegnPlade = () => plade.replaceChildren(...SEDDEL_EMOJI.map(e => {
-    const b = knap(e, 'svar-emoji-knap', () => { valgt = valgt === e ? '' : e; tegnPlade(); });
+    const b = knap(e, 'svar-emoji-knap', () => { valgt = valgt === e ? '' : e; tegnPlade(); gemKl(); });
     b.setAttribute('aria-pressed', e === valgt);
     return b;
   }));
   tegnPlade();
   const tekst = el('textarea', 'seddel-input');
   tekst.id = 'svar-tekst'; tekst.rows = 2; tekst.maxLength = 100; tekst.placeholder = 'Skriv et svar …';
+  tekst.value = kl?.tekst || '';
+  const gemKl = () => kladdeGem(kn, valgt || tekst.value.trim() ? { valgt, tekst: tekst.value } : null);
+  tekst.addEventListener('input', gemKl);
   const send = knap('Send svar', 'knap', async () => {
     if (!valgt && !tekst.value.trim()) { tekst.focus(); return; }
     send.disabled = true;
     lukArk();
+    kladdeGlem(kn);
     await sendSvar(s, valgt, tekst.value, k);
   });
   const knapper = el('div', 'ark-knapper');
   knapper.append(send);
-  aabnArk('Svar ' + kaldNavn(s.fra), forhaand, el('label', 'felt-label', 'Vælg en emoji'), plade,
+  aabnArk('Svar ' + kaldNavn(s.fra), forhaand, kl ? kladdeHint(() => { kladdeGlem(kn); lukArk(); svarArk(s, k); }) : '', el('label', 'felt-label', 'Vælg en emoji'), plade,
     felt('Og/eller skriv noget', tekst), knapper);
 }
 
@@ -174,10 +179,10 @@ async function seddelSkrivLink(barn) {
   const mig = Data.bruger()?.navn;
   if (mig === barn) {
     if (!(await sedlerTilladt(barn))) return null;
-    return knap('✉️ Skriv en seddel', 'seddel-skriv-link', () => skrivSeddel(VOKSNE[0]));
+    return knap(kladdeHent('seddel') ? '✉️ Skriv videre på din seddel' : '✉️ Skriv en seddel', 'seddel-skriv-link', () => skrivSeddel(VOKSNE[0]));
   }
   if (!erVoksen()) return null;
-  return knap('✉️ Skriv en seddel' + (barn ? ' til ' + barn : ''), 'seddel-skriv-link', () => skrivSeddel(barn || BOERN[0]));
+  return knap((kladdeHent('seddel') ? '✉️ Skriv videre på din seddel' : '✉️ Skriv en seddel') + (barn ? ' til ' + barn : ''), 'seddel-skriv-link', () => skrivSeddel(barn || BOERN[0]));
 }
 
 // Sedlerne på et barns tavle (øverst)
@@ -237,8 +242,14 @@ function skrivSeddel(tilStandard, gl) {
     sticker: gl?.sticker ?? '', farve: gl?.farve || 'gul', hemmelig: !!gl?.hemmelig,
     stjerner: gl?.stjerner || 0, vis: 'nu', id: gl?.id
   };
+  // Kladde (kun ny seddel): hentes frem, hvis man blev afbrudt – og gemmes ved hver ændring
+  const kl = ny ? kladdeHent('seddel') : null;
+  if (kl) { for (const f of ['tekst', 'sticker', 'farve', 'hemmelig']) if (kl[f] != null) s[f] = kl[f]; if (modtagere.includes(kl.til)) s.til = kl.til; }
   const forhaand = el('div', 'seddel-forhaand');
-  const tegnForhaand = () => forhaand.replaceChildren(seddelEl({ ...s, til: tilNavn(s.til) }, { rolle: 'forhaand' }));
+  const tegnForhaand = () => {
+    forhaand.replaceChildren(seddelEl({ ...s, til: tilNavn(s.til) }, { rolle: 'forhaand' }));
+    if (ny) kladdeGem('seddel', s.tekst.trim() || s.sticker ? { tekst: s.tekst, til: s.til, sticker: s.sticker, farve: s.farve, hemmelig: s.hemmelig } : null);
+  };
   tegnForhaand();
 
   const tekst = el('textarea', 'seddel-input');
@@ -274,6 +285,7 @@ function skrivSeddel(tilStandard, gl) {
         // Gaven: stjernerne lægges til barnets saldo (som en justering) den dag, sedlen vises
         if (gave > 0) await Data.add('justeringer', { barn: t, dato: isoDato(new Date(visFra)), stjerner: gave, kr: 0, tekst: 'Gave på seddel fra ' + s.fra, seddel: true });
       }
+      kladdeGlem('seddel');
       if (barn) besked('✉️ Sedlen er sendt til ' + tilNavn(s.til));
     } else {
       await Data.update('sedler', gl.id, felter);   // gaven og modtageren kan ikke ændres bagefter
@@ -283,8 +295,10 @@ function skrivSeddel(tilStandard, gl) {
   const knapper = el('div', 'ark-knapper');
   if (!ny) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove('sedler', gl.id); lukArk(); tegnAlt(); }));
   knapper.append(gem);
-  const dele = [forhaand, felt('Til', tilValg), felt('Besked', tekst),
-    el('label', 'felt-label', 'Klistermærke'), stickerValg, el('label', 'felt-label', 'Farve'), farveValg, hemmeligBoks];
+  const dele = [forhaand];
+  if (kl) dele.push(kladdeHint(() => { kladdeGlem('seddel'); lukArk(); skrivSeddel(tilStandard); }));
+  dele.push(felt('Til', tilValg), felt('Besked', tekst),
+    el('label', 'felt-label', 'Klistermærke'), stickerValg, el('label', 'felt-label', 'Farve'), farveValg, hemmeligBoks);
   if (ny && !barn) dele.push(el('label', 'felt-label', '🎁 Gave (kun til børn)'), gaveValg, el('label', 'felt-label', 'Hvornår'), visValg);
   dele.push(knapper);
   aabnArk(ny ? 'Ny seddel' : 'Ret seddel', ...dele);
