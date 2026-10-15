@@ -347,7 +347,7 @@ const PYNT_ANKER = {
 };
 const PYNT_HOVED = ['🧢', '🎩', '👑'];
 // pynt = liste af emoji fra MAKKER_PYNT, som barnet har fået
-function pyntDele(id, pynt) {
+function pyntDele(id, pynt, hvordan) {
   const a = PYNT_ANKER[id], p = new Set(pynt || []);
   const tom = { kappe: '', hals: '', hoved: '', pokal: '' };
   if (!a || !p.size) return tom;
@@ -357,7 +357,7 @@ function pyntDele(id, pynt) {
   if (hovedTing === '🧢') hoved = `<g transform="translate(${hx} ${hy}) rotate(${hr}) scale(${k})"><path d="M-14 1 a14 12.5 0 0 1 28 0 z" fill="#2f6fdb"/><path d="M8 0 q12 -2 17 2 q-1 3 -6 3 h-11 z" fill="#1f4fa8"/><path d="M-14 1 h28" stroke="#1f4fa8" stroke-width="2"/><circle cx="0" cy="-11" r="1.8" fill="#1f4fa8"/><path d="M-4 -10 q-3 5 -3 10" stroke="#fff" stroke-width="1.4" fill="none" opacity=".5"/></g>`;
   if (hovedTing === '🎩') hoved = `<g transform="translate(${hx} ${hy}) rotate(${hr}) scale(${k})"><ellipse cx="0" cy="0" rx="18" ry="3.6" fill="#24252b"/><path d="M-10.5 -1 v-19 q10.5 -3 21 0 v19 z" fill="#2b2c33"/><rect x="-10.5" y="-6.5" width="21" height="4" fill="#e5484d"/><path d="M-7 -18 v10" stroke="#fff" stroke-width="1.2" opacity=".25"/></g>`;
   if (hovedTing === '👑') hoved = `<g transform="translate(${hx} ${hy}) rotate(${hr}) scale(${k})"><path d="M-13 1 L-14 -13 L-6.5 -5 L0 -16 L6.5 -5 L14 -13 L13 1 Z" fill="#ffcf33" stroke="#c99a12" stroke-width="1.2" stroke-linejoin="round"/><circle cx="0" cy="-3" r="2" fill="#e5484d"/><circle cx="-8" cy="-2" r="1.5" fill="#4aa3df"/><circle cx="8" cy="-2" r="1.5" fill="#5cc3a3"/><circle cx="0" cy="-16" r="1.6" fill="#ffcf33" stroke="#c99a12" stroke-width=".8"/></g>`;
-  if (p.has('🕶️')) {
+  if (p.has('🕶️') && hvordan !== 'sover') {   // brillerne tages af, når makkeren sover
     const [vx, hx2, oy, r] = a.oejne;
     const glas = x => `<rect x="${x - r * 1.2}" y="${oy - r * .85}" width="${r * 2.4}" height="${r * 1.7}" rx="${r * .7}" fill="#1d1f26" opacity=".93"/><path d="M${x - r * .6} ${oy - r * .35} l${r * .6} -${r * .25}" stroke="#fff" stroke-width="1" opacity=".55" stroke-linecap="round"/>`;
     hoved = `<g>${glas(vx)}${glas(hx2)}<path d="M${vx + r * 1.2} ${oy - r * .3} Q${(vx + hx2) / 2} ${oy - r * .8} ${hx2 - r * 1.2} ${oy - r * .3}" stroke="#1d1f26" stroke-width="1.6" fill="none"/></g>` + hoved;
@@ -382,7 +382,7 @@ function pyntDele(id, pynt) {
 }
 
 function alfieSvg(hvordan, pynt) {
-  const P = pyntDele('alfie', pynt);
+  const P = pyntDele('alfie', pynt, hvordan);
   const ORANGE = '#e98a3a', MANKE = '#f4a85e', LYS = '#fde6c8', MORK = '#3a2418', LYSROED = '#f39aa8';
   const manke = Array.from({ length: 14 }, (_, i) => {
     const v = (i / 14) * Math.PI * 2;
@@ -447,7 +447,7 @@ function alfieSvg(hvordan, pynt) {
 
 // ---------- Tanken Tut – en fredelig tank, der kun skyder med konfetti ----------
 function tankSvg(hvordan, pynt) {
-  const P = pyntDele('tank', pynt);
+  const P = pyntDele('tank', pynt, hvordan);
   const GROEN = '#6a9f4b', LYS = '#86bb63', MORK = '#2f3a24';
   const vinkel = { venter: 14, glad: -6, super: -30, sover: 20 }[hvordan];
   const oejne = {
@@ -498,7 +498,7 @@ function tankSvg(hvordan, pynt) {
 
 // ---------- Raketten Rolf ----------
 function raketSvg(hvordan, pynt) {
-  const P = pyntDele('raket', pynt);
+  const P = pyntDele('raket', pynt, hvordan);
   const ROED = '#e5484d', MORK = '#2b3442';
   const oejne = {
     venter: `<circle cx="55" cy="48" r="3" fill="${MORK}"/><circle cx="65" cy="48" r="3" fill="${MORK}"/>`,
@@ -563,7 +563,7 @@ const KONFETTI = (pkt) => `<g class="alfie-hjerter">${pkt.map(([x, y], i) => i %
 
 // ---------- Globussen Gløbe – kan alle lande (næsten) ----------
 function globusSvg(hvordan, pynt) {
-  const P = pyntDele('globus', pynt);
+  const P = pyntDele('globus', pynt, hvordan);
   const flag = (x, y, a, b) => `<g transform="translate(${x} ${y})"><path d="M0 0 v16" stroke="#7a5b2e" stroke-width="1.4"/><rect x="0.7" y="0" width="12" height="8" fill="${a}"/><rect x="0.7" y="3" width="12" height="2" fill="${b}"/></g>`;
   const ekstra = {
     super: `<g class="alfie-hjerter">${flag(4, 8, '#c8102e', '#fff')}${flag(100, 4, '#0052b4', '#ffd34d')}${flag(106, 34, '#009246', '#fff')}${flag(8, 40, '#ffd34d', '#c8102e')}</g>`,
@@ -599,7 +599,7 @@ function globusSvg(hvordan, pynt) {
 
 // ---------- Fodbolden Bobby ----------
 function fodboldSvg(hvordan, pynt) {
-  const P = pyntDele('fodbold', pynt);
+  const P = pyntDele('fodbold', pynt, hvordan);
   const MORK = '#2b3442';
   const ekstra = {
     super: `<g class="alfie-hjerter"><text x="78" y="22" font-size="17" font-weight="900" fill="#e5484d" font-family="system-ui, sans-serif">MÅL!</text></g>${KONFETTI([[12, 12], [24, 24], [100, 40], [8, 36], [110, 30], [30, 6]])}`,
@@ -632,7 +632,7 @@ function fodboldSvg(hvordan, pynt) {
 
 // ---------- Robotten Bit – kører på high fives ----------
 function robotSvg(hvordan, pynt) {
-  const P = pyntDele('robot', pynt);
+  const P = pyntDele('robot', pynt, hvordan);
   const niveau = { venter: 0.2, glad: 0.6, super: 1, sover: 0.6 }[hvordan];
   const batFarve = niveau < 0.3 ? '#e5484d' : niveau < 1 ? '#f2b33d' : '#43b65a';
   const oejeFarve = hvordan === 'sover' ? '#7d8a99' : '#2ee6f0';
