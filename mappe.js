@@ -14,11 +14,12 @@
 // databasen (opdatering-filer.sql). Skifter noten synlighed, flyttes filerne med. Data.uploadFil/filUrl/flytFil i data.js.
 // Ældre noter med {tekst, billeder} vises som blokke og gemmes som blokke næste gang, de rettes.
 // "Skjult felt" vises først, når man trykker (fx et kode-HINT – gem aldrig rigtige koder).
+// tavle: true = 📌 hænger som huskeseddel øverst på Familien (I dag). "📝 Ny huskeseddel" laver en hurtig note (mappen Huskesedler).
 const NOTE_LISTER = { alle: 'noter', voksne: 'noter_voksne', mig: 'noter_privat' };
 const NOTE_SYN = { alle: '👨‍👩‍👦‍👦 Alle', voksne: '🔒 Kun voksne', mig: '👤 Kun mig' };
 const MAPPE_IKON = {
   'Hus og have': '🏡', 'Bil': '🚗', 'Sundhed': '🩺', 'Skole og fritid': '🎒', 'Størrelser': '👕', 'Papirer og forsikring': '🗂️',
-  'Wifi og teknik': '📶', 'Logins': '🔑', 'Links': '🔗', 'Opskrifter': '🍳', 'Ferie og rejser': '🏖️', 'Alfie': '🐰', 'Gaveidéer': '🎁', 'Andet': '📝'
+  'Wifi og teknik': '📶', 'Logins': '🔑', 'Links': '🔗', 'Opskrifter': '🍳', 'Ferie og rejser': '🏖️', 'Alfie': '🐰', 'Gaveidéer': '🎁', 'Huskesedler': '📌', 'Andet': '📝'
 };
 const NOTE_HVEM = () => [...PERSONER.filter(n => n !== 'Fælles'), 'Alfie'];
 const TABEL_SKABELONER = {
@@ -258,6 +259,9 @@ function visNote(id) {
   if (!erBarn()) {
     const knapper = el('div', 'ark-knapper');
     if (tabeller.length === 1) knapper.append(knap('+ Ny række', 'knap sekundaer', () => raekkeArk(n, tabeller[0][1], null)));
+    knapper.append(knap(n.tavle ? '📌 Tag af tavlen' : '📌 Sæt på tavlen', 'knap sekundaer', async () => {
+      await Data.update(n._liste, n.id, { tavle: !n.tavle }); lukArk(); tegnOverblik(); visStatus(n.tavle ? 'Taget af tavlen' : '📌 Hænger nu på Familien');
+    }));
     knapper.append(knap('✏️ Ret', 'knap', () => redigerNote(n)));
     dele.push(knapper);
   }
@@ -312,7 +316,7 @@ function redigerNote(n = {}) {
   rydIkkeGemteFiler();
   const ny = !n.id;
   const s = {
-    mappe: n.mappe || (mappeValgt !== 'alle' ? mappeValgt : 'Andet'), syn: n._syn || 'alle', fast: !!n.fast,
+    mappe: n.mappe || (mappeValgt !== 'alle' ? mappeValgt : 'Andet'), syn: n._syn || 'alle', fast: !!n.fast, tavle: !!n.tavle,
     hvem: [...(n.hvem || (mappeHvem ? [mappeHvem] : []))],
     blokke: JSON.parse(JSON.stringify(noteBlokke(n).length ? noteBlokke(n) : [{ type: 'tekst', tekst: '' }]))
   };
@@ -460,7 +464,7 @@ function redigerNote(n = {}) {
       .map(b => b.type === 'tjek' ? { ...b, punkter: (b.punkter || []).filter(p => (p.tekst || '').trim()) } : b)
       .filter(b => b.type !== 'tjek' || b.punkter.length);
     if (!t && !blokke.length) { titel.focus(); visStatus('Skriv en titel eller lidt indhold', true); return; }
-    const felter = { titel: t, mappe: s.mappe, hvem: s.hvem, blokke, tekst: null, billeder: null, skjult: skjult.value.trim() || null, fast: s.fast, rettet: new Date().toISOString() };
+    const felter = { titel: t, mappe: s.mappe, hvem: s.hvem, blokke, tekst: null, billeder: null, skjult: skjult.value.trim() || null, fast: s.fast, tavle: s.tavle, rettet: new Date().toISOString() };
     const liste = NOTE_LISTER[s.syn];
     const flyttet = new Set();
     try {
@@ -481,12 +485,14 @@ function redigerNote(n = {}) {
     filerIkkeGemt = filerIkkeGemt.filter(x => !nu.has(x)); rydIkkeGemteFiler();
     if (vaek.length) Data.sletFiler(vaek);
     mappeValgt = s.mappe; lokal.set('mappe', s.mappe);
-    lukArk(); tegnMappe(); visStatus('Gemt i ' + s.mappe);
+    lukArk(); tegnMappe(); tegnOverblik(); visStatus('Gemt i ' + s.mappe);
   }));
   const synBoks = chipValg(Object.keys(NOTE_SYN), s.syn, v => { s.syn = v; }, v => NOTE_SYN[v]);
   const fastKnap = knap('📌 Fastgør øverst', null, () => { s.fast = !s.fast; fastKnap.setAttribute('aria-checked', s.fast); });
   fastKnap.setAttribute('role', 'checkbox'); fastKnap.setAttribute('aria-checked', s.fast);
-  const fastBoks = el('div', 'seg wrap'); fastBoks.append(fastKnap);
+  const tavleKnap = knap('📌 Hæng på tavlen (Familien)', null, () => { s.tavle = !s.tavle; tavleKnap.setAttribute('aria-checked', s.tavle); });
+  tavleKnap.setAttribute('role', 'checkbox'); tavleKnap.setAttribute('aria-checked', s.tavle);
+  const fastBoks = el('div', 'seg wrap'); fastBoks.append(fastKnap, tavleKnap);
   aabnArk(ny ? 'Ny note' : 'Ret note', felt('Titel', titel), el('label', 'felt-label', 'Mappe'), mappeBoks, nyMappe,
     el('label', 'felt-label', 'Hvem drejer det sig om? (valgfrit)'), hvemBoks,
     el('label', 'felt-label', 'Indhold'), blokBoks, tilfoej, tabelMenu,
@@ -499,6 +505,79 @@ function redigerNote(n = {}) {
   window._notePaste = e => { if (blokBoks.isConnected) indsaetBillede(e); };
   arkInd.addEventListener('paste', window._notePaste);
   if (ny) setTimeout(() => titel.focus(), 50);
+}
+
+// ---------- 📌 Huskesedler på tavlen (Familien) ----------
+// Noter med tavle: true vises som gule sedler øverst på Familien. Tjeklister kan krydses af direkte; tryk = åbn noten.
+const TAVLE_LINJER = 6;
+function tavleNoter() {
+  if (erBarn()) return null;
+  const noter = alleNoter().filter(n => n.tavle).sort((a, b) => String(b.rettet || '').localeCompare(String(a.rettet || '')));
+  const raekke = el('div', 'seddel-raekke note-tavle' + (noter.length ? '' : ' tom'));
+  for (const n of noter) {
+    const kort = el('div', 'seddel note-seddel');
+    kort.style.setProperty('--drej', ((n.id || '').charCodeAt(0) % 5 - 2) * 0.6 + 'deg');
+    kort.append(el('span', 'seddel-magnet'));
+    const aabn = knap('', 'note-seddel-aabn', () => visNote(n.id));
+    aabn.setAttribute('aria-label', 'Åbn ' + (n.titel || 'noten'));
+    if (n.titel) aabn.append(el('b', 'note-seddel-titel', n.titel));
+    let linjer = 0, mere = false;
+    const blokke = noteBlokke(n);
+    for (const b of blokke) {
+      if (b.type === 'tekst') for (const l of (b.tekst || '').split('\n').filter(x => x.trim())) { if (linjer >= TAVLE_LINJER) { mere = true; break; } aabn.append(el('span', 'note-seddel-linje', l)); linjer++; }
+    }
+    kort.append(aabn);
+    blokke.forEach((b, bi) => {
+      if (b.type !== 'tjek') return;
+      const ul = el('ul', 'note-seddel-tjek');
+      (b.punkter || []).forEach((p, pi) => {
+        if (linjer >= TAVLE_LINJER + 4) { mere = true; return; }
+        const li = el('li', p.klaret ? 'klaret' : '');
+        const k = knap((p.klaret ? '☑ ' : '☐ ') + p.tekst, 'note-seddel-punkt', async () => {
+          const ny = blokke.map((x, i) => i !== bi ? x : { ...x, punkter: x.punkter.map((y, j) => j !== pi ? y : { ...y, klaret: !y.klaret }) });
+          await Data.update(n._liste, n.id, { blokke: ny, tekst: null, billeder: null });
+          tegnOverblik();
+        });
+        k.setAttribute('role', 'checkbox'); k.setAttribute('aria-checked', !!p.klaret);
+        li.append(k); ul.append(li); linjer++;
+      });
+      kort.append(ul);
+    });
+    if (blokke.some(b => b.type === 'tabel' || b.type === 'billede' || b.type === 'fil')) mere = true;
+    const bund = el('div', 'note-seddel-bund');
+    bund.append(el('span', null, (mere ? '… tryk for resten' : '') + (n._syn === 'mig' ? (mere ? ' · ' : '') + '👤 kun dig' : n._syn === 'voksne' ? (mere ? ' · ' : '') + '🔒 voksne' : '')));
+    kort.append(bund);
+    raekke.append(kort);
+  }
+  raekke.append(knap('📝 Ny huskeseddel', 'note-ny', () => nyHuskeseddel()));
+  return raekke;
+}
+// 📝 Ny huskeseddel – hurtigt: skriv, og den hænger på tavlen
+function nyHuskeseddel() {
+  const k = kladdeHent('huskeseddel') || {};
+  const s = { syn: k.syn || 'mig', tjek: !!k.tjek };
+  const tekst = el('textarea', 'seddel-input'); tekst.rows = 5; tekst.value = k.tekst || '';
+  tekst.placeholder = 'Skriv din huskeseddel …\nFørste linje bliver overskrift.';
+  const gemKladde = () => kladdeGem('huskeseddel', { tekst: tekst.value, syn: s.syn, tjek: s.tjek });
+  tekst.addEventListener('input', gemKladde);
+  const tjekKnap = knap('☑ Lav linjerne til en tjekliste', null, () => { s.tjek = !s.tjek; tjekKnap.setAttribute('aria-checked', s.tjek); gemKladde(); });
+  tjekKnap.setAttribute('role', 'checkbox'); tjekKnap.setAttribute('aria-checked', s.tjek);
+  const tjekBoks = el('div', 'seg wrap'); tjekBoks.append(tjekKnap);
+  const syn = chipValg(Object.keys(NOTE_SYN), s.syn, v => { s.syn = v; gemKladde(); }, v => NOTE_SYN[v]);
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('📌 Hæng op', 'knap', async () => {
+    const linjer = tekst.value.split('\n').map(x => x.trim()).filter(Boolean);
+    if (!linjer.length) { tekst.focus(); visStatus('Skriv lidt først', true); return; }
+    const [titel, ...rest] = linjer;
+    const blokke = !rest.length ? [] : s.tjek ? [{ type: 'tjek', punkter: rest.map(t => ({ tekst: t.replace(/^[-•☐☑*]\s*/, ''), klaret: false })) }] : [{ type: 'tekst', tekst: rest.join('\n') }];
+    await Data.add(NOTE_LISTER[s.syn], { titel: titel.slice(0, 80), mappe: 'Huskesedler', hvem: [], blokke, tavle: true, fast: false, rettet: new Date().toISOString() });
+    kladdeGlem('huskeseddel');
+    lukArk(); tegnOverblik(); visStatus('📌 Hænger nu på Familien');
+  }));
+  const hint = k.tekst ? kladdeHint(() => { kladdeGlem('huskeseddel'); tekst.value = ''; }) : null;
+  aabnArk('📝 Ny huskeseddel', ...(hint ? [hint] : []), tekst, tjekBoks, el('label', 'felt-label', 'Hvem kan se den?'), syn,
+    el('p', 'hint', 'Den hænger øverst på Familien, til du tager den ned (åbn den → 📌 Tag af tavlen). Du finder den også i Familiemappen under 📌 Huskesedler.'), knapper);
+  setTimeout(() => tekst.focus(), 50);
 }
 
 document.getElementById('ny-note')?.addEventListener('click', () => redigerNote());

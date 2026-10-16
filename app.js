@@ -3085,6 +3085,9 @@ async function tegnOverblik() {
   // Køleskabssedler til mig og svar på dem, jeg har sendt (seddel.js)
   const ovSedler = document.getElementById('ov-sedler');
   if (ovSedler && typeof voksenSedler === 'function') { const v = await voksenSedler(); ovSedler.replaceChildren(...(v ? [v] : [])); ovSedler.hidden = !v; }
+  // 📌 Huskesedler på tavlen (mappe.js)
+  const ovNoter = document.getElementById('ov-noter');
+  if (ovNoter && typeof tavleNoter === 'function') { const v = tavleNoter(); ovNoter.replaceChildren(...(v ? [v] : [])); ovNoter.hidden = !v; }
   const ovLink = document.getElementById('ov-seddel-link');
   if (ovLink && typeof seddelSkrivLink === 'function') { const l = await seddelSkrivLink(null); ovLink.replaceChildren(...(l ? [l] : [])); }
 
