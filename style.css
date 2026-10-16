@@ -1761,7 +1761,7 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 #budget-indhold { display: grid; gap: 12px; min-width: 0; }
 #budget-indhold > .kort { margin: 0; min-width: 0; }
 #budget-indhold h3 { margin: 0 0 10px; font-size: 1rem; }
-.budget-faner { display: grid; grid-template-columns: repeat(3, 1fr); }
+.budget-faner { display: grid; grid-template-columns: repeat(4, 1fr); }
 .budget-tom p { margin: 0 0 12px; }
 .budget-hero { display: grid; gap: 2px; padding: 18px 16px; background: var(--accent); color: var(--paa-accent); border: 0; }
 .budget-hero .b-label { font-size: .9rem; opacity: .85; }
@@ -1799,7 +1799,7 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .b-status.over { background: color-mix(in srgb, var(--p2) 18%, transparent); color: var(--fg); }
 .b-status.tom { border: 1.5px dashed var(--linje); color: var(--daempet); font-weight: 400; }
 .b-poster-top { display: flex; gap: 8px; flex-wrap: wrap; }
-.b-gruppe-valg { display: flex; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+.b-gruppe-valg { display: flex; flex-wrap: wrap; overflow: visible; }
 .b-gruppe-valg button { flex: none; font-size: .9rem; white-space: nowrap; }
 .b-gruppe-hoved { display: flex; justify-content: space-between; gap: 10px; margin: 14px 2px 4px; }
 .b-gruppe-hoved span { color: var(--daempet); font-variant-numeric: tabular-nums; }
@@ -1889,3 +1889,36 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .raekke-flyt { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
 .raekke-flyt .hint { margin: 0; }
 .raekke-flyt .lille-knap:disabled { opacity: .35; }
+
+/* Budget – fanen År: budget og forbrug for alle år */
+.b-aar-valg { flex-wrap: wrap; overflow: visible; }
+.b-aar-valg button { flex: 1 1 auto; font-size: .9rem; }
+.b-aar-forkl .b-b, .b-aar-forkl .b-f { display: inline; font-weight: 700; }
+.b-aar-kort { padding: 0; overflow: hidden; }
+.b-aar-rul { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.b-aar-tab { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: .92rem; }
+.b-aar-tab th, .b-aar-tab td { padding: 7px 8px; border-bottom: 1px solid var(--linje); vertical-align: top; }
+.b-aar-tab thead th { text-align: right; position: sticky; top: 0; background: var(--flade); }
+.b-aar-tab thead th .hint { display: block; font-weight: 400; font-size: .75rem; margin: 0; }
+.b-aar-tab tbody th { text-align: left; font-weight: 400; position: sticky; left: 0; background: var(--flade); min-width: 128px; max-width: 46vw; }
+.b-aar-tab td { text-align: right; white-space: nowrap; min-width: 64px; }
+.b-aar-tab .b-b, .b-aar-tab .b-f { display: block; }
+.b-b { color: var(--daempet); }
+.b-b.lille { font-size: .82em; }
+.b-f { color: var(--fg); font-weight: 600; }
+.b-f.op { color: #c0392b; }
+.b-f.ned { color: #1e8449; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .b-f.op { color: #ff8a7a; } :root:not([data-theme="light"]) .b-f.ned { color: #6fd08c; } }
+:root[data-theme="dark"] .b-f.op { color: #ff8a7a; } :root[data-theme="dark"] .b-f.ned { color: #6fd08c; }
+.b-aar-ialt th, .b-aar-ialt td { font-weight: 800; background: var(--flade); }
+.b-aar-ialt .b-f { font-weight: 800; }
+.b-aar-gruppe th { font-weight: 700; }
+.b-aar-gknap { all: unset; cursor: pointer; display: block; min-height: 32px; line-height: 1.25; }
+.b-aar-gknap:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; border-radius: 4px; }
+.b-aar-post th { padding-left: 22px; font-size: .88rem; color: var(--daempet); }
+.b-aar-post td { font-size: .88rem; }
+@media (min-width: 700px) { .b-aar-tab { font-size: 1rem; } .b-aar-tab td { min-width: 96px; } }
+
+.budget-faner button { min-width: 0; padding-left: 4px; padding-right: 4px; }
+.b-aar-valg { flex-wrap: nowrap; }
+.b-aar-valg button { flex: 1 1 0; min-width: 0; }

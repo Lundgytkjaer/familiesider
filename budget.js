@@ -6,6 +6,8 @@
 //     'budget_privat' (kun den, der oprettede rækken – maa_se) eller 'budget_delt' (alle voksne) – personen vælger selv.
 //     "Andel af fælles budget" regnes automatisk (summen af "hver af jer" pr. konto) og gemmes ikke.
 //   Årsbillede (📌 Gem årets budget): række i samme liste {snap: 'ÅÅÅÅ', dato, poster: [{navn, gruppe, konto?, type?, aar}], ejer?}
+//   Forbrug (fra banken): {snap: 'ÅÅÅÅ', art: 'forbrug', maaneder: antal måneder, periode: 'jan–okt', dato, poster: [{navn, gruppe, aar}]}
+//     – aar = det brugte beløb i perioden; kr/md = aar / maaneder. Vises kun under fanen År.
 //     – bruges til "År for år" og Sammenlign. Poster-funktionerne springer snap-rækker over.
 // Behov pr. konto = summen af posterne / 12. "Hver af jer" = behov delt i BUDGET_DELES, rundet op til nærmeste BUDGET_RUND kr.
 // En post er "ikke tjekket", når den ikke er set i en gennemgang/rettet i 12 måneder – så ved man, hvad der skal opdateres.
@@ -20,6 +22,8 @@ let budgetVis = lokal.get('budget-vis') || 'overblik';
 let budgetGruppe = '';
 let budgetSoeg = '';
 let budgetMaaned = null;
+let budgetAarValg = lokal.get('budget-aarvis') || 'begge';
+const budgetAabne = new Set();
 
 const bKr = n => Math.round(n || 0).toLocaleString('da-DK');
 const bTal = s => { const t = String(s ?? '').replace(/\s|kr\.?/gi, '').replace(/\./g, '').replace(',', '.'); const n = Number(t); return isFinite(n) ? n : NaN; };
@@ -127,7 +131,7 @@ function tegnBudget() {
   const poster = bPoster();
   const seg = el('div', 'seg budget-faner');
   seg.setAttribute('role', 'radiogroup');
-  for (const [id, tekst] of [['overblik', 'Overblik'], ['poster', 'Poster'], ['maaneder', 'Måneder']]) {
+  for (const [id, tekst] of [['overblik', 'Overblik'], ['poster', 'Poster'], ['maaneder', 'Måneder'], ['aar', 'År']]) {
     const b = knap(tekst, null, () => { budgetVis = id; lokal.set('budget-vis', id); tegnBudget(); });
     b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', budgetVis === id);
     seg.append(b);
@@ -139,7 +143,8 @@ function tegnBudget() {
     boks.replaceChildren(hvemSeg, tom);
     return;
   }
-  const indhold = budgetVis === 'poster' ? budgetPosterVis(poster) : budgetVis === 'maaneder' ? budgetMaanederVis(poster) : budgetOverblik(poster);
+  const indhold = budgetVis === 'poster' ? budgetPosterVis(poster) : budgetVis === 'maaneder' ? budgetMaanederVis(poster)
+    : budgetVis === 'aar' ? budgetAarVis(poster) : budgetOverblik(poster);
   boks.replaceChildren(hvemSeg, seg, ...indhold);
 }
 
@@ -554,7 +559,7 @@ function budgetGennemgang(alle, kilde = bKilde('faelles')) {
 }
 
 // ---------- År for år: 📌 gem årets budget og sammenlign ----------
-const bSnaps = kilde => kilde.alle().filter(p => p.snap).sort((a, b) => String(a.snap).localeCompare(String(b.snap)));
+const bSnaps = kilde => kilde.alle().filter(p => p.snap && p.art !== 'forbrug').sort((a, b) => String(a.snap).localeCompare(String(b.snap)));
 function bSnapPoster(kilde) {
   const ps = kilde.poster().map(p => ({ navn: p.navn, gruppe: p.gruppe || 'Andet', ...(p.konto ? { konto: p.konto } : {}), ...(p.type ? { type: p.type } : {}), aar: Math.round(bAar(p) * 100) / 100 }));
   if (!kilde.faelles) ps.push({ navn: 'Andel af fælles budget', gruppe: 'Fælles budget', type: 'ud', aar: bAndel() * 12 });
@@ -602,6 +607,7 @@ function bAarKort(kilde, nuMd) {
   knapper.append(gem);
   const tidligere = [...snaps].reverse().find(x => String(x.snap) < aar) || sidste;   // helst et tidligere år
   if (snaps.length) knapper.append(knap('Sammenlign ›', 'lille-knap', () => budgetSammenlign(kilde, tidligere)));
+  if (kilde.faelles) knapper.append(knap('Alle år og forbrug ›', 'lille-knap', () => { budgetVis = 'aar'; lokal.set('budget-vis', 'aar'); tegnBudget(); window.scrollTo(0, 0); }));
   kort.append(knapper);
   return kort;
 }
@@ -641,6 +647,106 @@ function budgetSammenlign(kilde, snap) {
   aabnArk('📈 ' + snap.snap + ' mod nu', vaelg, top, el('p', null, tekst), el('h3', 'b-ark-h3', 'Pr. kategori (kr/md)'), gTab,
     el('h3', 'b-ark-h3', aendr.length ? 'Største ændringer (kr/år)' : 'Ingen poster er ændret'), pTab,
     el('p', 'hint', snap.snap + ' blev gemt ' + bDato(snap.dato) + '. Poster sammenlignes på navn og kategori.'));
+}
+
+// ---------- År: budget og faktisk forbrug for alle år i én tabel ----------
+const bNoegle = p => (p.navn || '').toLowerCase() + '|' + (p.gruppe || 'Andet').toLowerCase();
+function bAarData(poster) {
+  const nu = String(new Date().getFullYear());
+  const alle = bAlleFaelles();
+  const aar = new Map();   // 'ÅÅÅÅ' → { b: Map|null, f: Map|null, fMdr, periode }
+  const hent = a => { if (!aar.has(a)) aar.set(a, { b: null, f: null }); return aar.get(a); };
+  const tilMap = (ps, del) => { const m = new Map(); for (const p of ps || []) { if (p.type === 'ind') continue; const k = bNoegle(p); const x = m.get(k) || { navn: p.navn, gruppe: p.gruppe || 'Andet', md: 0 }; x.md += (Number(p.aar) || 0) / del; m.set(k, x); } return m; };
+  for (const s of alle.filter(p => p.snap && p.art !== 'forbrug')) if (String(s.snap) !== nu) hent(String(s.snap)).b = tilMap(s.poster, 12);
+  hent(nu).b = tilMap(poster.map(p => ({ navn: p.navn, gruppe: p.gruppe, aar: bAar(p) })), 12);
+  for (const s of alle.filter(p => p.snap && p.art === 'forbrug')) {
+    const x = hent(String(s.snap)), mdr = Number(s.maaneder) || 12;
+    x.f = tilMap(s.poster, mdr); x.periode = s.periode || ''; x.fDato = s.dato;
+  }
+  return [...aar].sort((a, b) => a[0].localeCompare(b[0]));
+}
+function budgetAarVis(poster) {
+  const kol = bAarData(poster);
+  const harF = kol.some(([, x]) => x.f);
+  const vis = harF ? budgetAarValg : 'budget';
+  // Rækkefølge: grupperne som under Poster, derefter grupper der kun findes i gamle år
+  const grpOrden = [...bGrupper(poster).keys()];
+  const grupper = new Map();   // gruppe → Map(nøgle → navn)
+  const sorteret = poster.slice().sort(bSort);
+  for (const p of sorteret) { const g = p.gruppe || 'Andet'; if (!grupper.has(g)) grupper.set(g, new Map()); grupper.get(g).set(bNoegle(p), p.navn); }
+  for (const [, x] of kol) for (const m of [x.b, x.f]) if (m) for (const [k, p] of m) {
+    if (!grupper.has(p.gruppe)) grupper.set(p.gruppe, new Map());
+    if (!grupper.get(p.gruppe).has(k)) grupper.get(p.gruppe).set(k, p.navn);
+  }
+  const gOrden = [...grupper.keys()].sort((a, b) => (grpOrden.indexOf(a) + 1 || 999) - (grpOrden.indexOf(b) + 1 || 999));
+  const sum = (m, keys) => { if (!m) return null; let s = 0, fandt = false; for (const k of keys) { const x = m.get(k); if (x) { s += x.md; fandt = true; } } return fandt ? s : 0; };
+  const celle = (b, f) => {
+    const td = el('td');
+    const vb = vis !== 'forbrug', vf = vis !== 'budget';
+    if (vb) td.append(el('span', 'b-b' + (vf ? ' lille' : ''), b == null ? '–' : bKr(b)));
+    if (vf) {
+      const over = f != null && b != null && f > b + Math.max(50, b * 0.05), under = f != null && b != null && f < b - Math.max(50, b * 0.05);
+      td.append(el('span', 'b-f' + (over ? ' op' : under ? ' ned' : ''), f == null ? '–' : bKr(f)));
+    }
+    return td;
+  };
+  const dele = [];
+  const valg = el('div', 'seg b-aar-valg');
+  valg.setAttribute('role', 'radiogroup');
+  for (const [id, tekst] of [['begge', 'Begge'], ['budget', 'Budget'], ['forbrug', 'Forbrug']]) {
+    const b = knap(tekst, null, () => { budgetAarValg = id; lokal.set('budget-aarvis', id); tegnBudget(); });
+    b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', vis === id);
+    if (!harF && id !== 'budget') b.disabled = true;
+    valg.append(b);
+  }
+  dele.push(valg);
+  const forkl = el('p', 'hint b-aar-forkl');
+  if (vis === 'begge') forkl.append(el('span', 'b-b lille', 'grå'), ' = budget (planlagt) · ', el('span', 'b-f', 'sort'), ' = faktisk forbrug ifølge banken · ', el('span', 'b-f op', 'rød'), ' over / ', el('span', 'b-f ned', 'grøn'), ' under budget. Kr. om måneden.');
+  else forkl.textContent = (vis === 'budget' ? 'Budget (det planlagte)' : 'Faktisk forbrug ifølge banken') + ' i kr. om måneden.';
+  dele.push(forkl);
+  const rul = el('div', 'b-aar-rul');
+  const tab = el('table', 'b-aar-tab');
+  const thead = el('thead'), hr = el('tr');
+  hr.append(el('th', null, ''));
+  for (const [a, x] of kol) { const th = el('th'); th.append(el('b', null, a)); if (x.periode && vis !== 'budget') th.append(el('span', 'hint', x.periode)); hr.append(th); }
+  thead.append(hr);
+  const tb = el('tbody');
+  const alleNgl = gOrden.flatMap(g => [...grupper.get(g).keys()]);
+  const iAlt = el('tr', 'b-aar-ialt');
+  iAlt.append(el('th', null, 'I alt'));
+  for (const [, x] of kol) iAlt.append(celle(sum(x.b, alleNgl), sum(x.f, alleNgl)));
+  tb.append(iAlt);
+  for (const g of gOrden) {
+    const ngl = [...grupper.get(g).keys()];
+    const aaben = budgetAabne.has(g);
+    const tr = el('tr', 'b-aar-gruppe');
+    const th = el('th');
+    const b = knap((aaben ? '▾ ' : '▸ ') + bIkon(g) + ' ' + g, 'b-aar-gknap', () => { aaben ? budgetAabne.delete(g) : budgetAabne.add(g); tegnBudget(); });
+    b.setAttribute('aria-expanded', aaben);
+    th.append(b); tr.append(th);
+    for (const [, x] of kol) tr.append(celle(sum(x.b, ngl), sum(x.f, ngl)));
+    tb.append(tr);
+    if (aaben) for (const k of ngl) {
+      const pr = el('tr', 'b-aar-post');
+      pr.append(el('th', null, grupper.get(g).get(k)));
+      for (const [, x] of kol) {
+        const bb = x.b ? (x.b.get(k)?.md ?? null) : null, ff = x.f ? (x.f.get(k)?.md ?? null) : null;
+        pr.append(celle(bb, ff));
+      }
+      tb.append(pr);
+    }
+  }
+  tab.append(thead, tb);
+  rul.append(tab);
+  const kort = el('div', 'kort b-aar-kort');
+  kort.append(rul);
+  dele.push(kort);
+  const noter = ['Tryk på en kategori for at se posterne.', '"–" betyder, at posten ikke fandtes det år.'];
+  const fk = kol.filter(([, x]) => x.f && x.periode);
+  if (fk.length) noter.push('Forbruget er regnet om til kr. om måneden for den periode, banken dækker (' + fk.map(([a, x]) => a + ': ' + x.periode).join(', ') + ').');
+  noter.push('Nogle ting kan kun ses samlet i banken – fx GF, der står som én post under forbrug.');
+  dele.push(el('p', 'hint', noter.join(' ')));
+  return dele;
 }
 
 // ---------- Personligt budget ----------
