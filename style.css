@@ -1883,3 +1883,9 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .pak-kun-tag { font-size: 12px; padding: 1px 6px; border-radius: 999px; background: var(--accent-blod); color: var(--fg); }
 .pak-gemte button { font-weight: 600; }
 .pak-gem-tur { display: inline-block; margin-top: 4px; color: var(--accent); font: inherit; font-size: 14px; cursor: pointer; }
+.note-tabel tr.kan-trykkes { cursor: pointer; }
+.note-tabel tr.kan-trykkes:hover td, .note-tabel tr.kan-trykkes:focus-visible td { background: var(--accent-blod); }
+.note-tabel-hint { margin: -2px 0 8px; font-size: 12px; }
+.raekke-flyt { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; }
+.raekke-flyt .hint { margin: 0; }
+.raekke-flyt .lille-knap:disabled { opacity: .35; }

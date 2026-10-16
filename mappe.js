@@ -192,14 +192,24 @@ function tegnMappe() {
 }
 
 // ---------- Vis en note ----------
-function tabelEl(b) {
+function tabelEl(b, vedTryk) {   // vedTryk(ri): rækken kan trykkes på (ret/flyt/slet)
   const wrap = el('div', 'note-tabel-wrap');
   const t = el('table', 'note-tabel');
   const thead = el('thead'), tr = el('tr');
   for (const k of b.kolonner || []) tr.append(el('th', null, k));
   thead.append(tr);
   const tbody = el('tbody');
-  for (const r of b.raekker || []) { const rr = el('tr'); (b.kolonner || []).forEach((_, i) => rr.append(el('td', String(r[i] || '').length > 24 ? 'lang' : null, r[i] || ''))); tbody.append(rr); }
+  (b.raekker || []).forEach((r, ri) => {
+    const rr = el('tr');
+    (b.kolonner || []).forEach((_, i) => rr.append(el('td', String(r[i] || '').length > 24 ? 'lang' : null, r[i] || '')));
+    if (vedTryk) {
+      rr.className = 'kan-trykkes'; rr.tabIndex = 0; rr.setAttribute('role', 'button');
+      rr.setAttribute('aria-label', 'Ret række: ' + r.filter(Boolean).join(', '));
+      rr.addEventListener('click', () => vedTryk(ri));
+      rr.addEventListener('keydown', e => { if (e.key === 'Enter') vedTryk(ri); });
+    }
+    tbody.append(rr);
+  });
   if (!(b.raekker || []).length) { const rr = el('tr'); const td = el('td', 'tom', 'Ingen rækker endnu'); td.colSpan = (b.kolonner || []).length || 1; rr.append(td); tbody.append(rr); }
   t.append(thead, tbody);
   wrap.append(t);
@@ -213,7 +223,11 @@ function visNote(id) {
   const blokke = noteBlokke(n);
   blokke.forEach((b, bi) => {
     if (b.type === 'tekst' && b.tekst) dele.push(tekstMedLinks(b.tekst));
-    if (b.type === 'tabel') dele.push(tabelEl(b));
+    if (b.type === 'tabel') {
+      const kan = !erBarn();
+      dele.push(tabelEl(b, kan ? ri => raekkeArk(n, bi, ri) : null));
+      if (kan && (b.raekker || []).length) dele.push(el('p', 'hint note-tabel-hint', 'Tryk på en række for at rette, flytte eller slette den.'));
+    }
     if (b.type === 'billede') { const k = knap('', 'note-billede-knap', async () => visStortBillede(await blokUrl(b), n.titel || '')); k.append(blokBillede(b)); dele.push(k); }
     if (b.type === 'fil') dele.push(filLink(b));
     if (b.type === 'tjek') {
@@ -243,30 +257,54 @@ function visNote(id) {
   const tabeller = blokke.map((b, i) => [b, i]).filter(([b]) => b.type === 'tabel');
   if (!erBarn()) {
     const knapper = el('div', 'ark-knapper');
-    if (tabeller.length === 1) knapper.append(knap('+ Ny række', 'knap sekundaer', () => nyRaekke(n, tabeller[0][1])));
+    if (tabeller.length === 1) knapper.append(knap('+ Ny række', 'knap sekundaer', () => raekkeArk(n, tabeller[0][1], null)));
     knapper.append(knap('✏️ Ret', 'knap', () => redigerNote(n)));
     dele.push(knapper);
   }
   aabnArk((n.fast ? '📌 ' : '') + (n.titel || 'Note'), ...dele);
 }
-// En ny række i en tabel (fx en ny synsprøve) – dato-kolonnen udfyldes med i dag
-function nyRaekke(n, bi) {
-  const blokke = noteBlokke(n).map(b => ({ ...b }));
+// Ny række (ri = null – dato-kolonnen udfyldes med i dag, kommer øverst) eller ret en række: felter under hinanden,
+// ↑ ↓ flytter rækken, Slet fjerner den. Alt gemmes med det samme.
+function raekkeArk(n, bi, ri) {
+  const frisk = () => alleNoter().find(x => x.id === n.id) || n;
+  const blokke = noteBlokke(frisk()).map(b => ({ ...b, raekker: [...(b.raekker || [])] }));
   const b = blokke[bi];
+  const ny = ri == null;
+  const gl = ny ? null : b.raekker[ri] || [];
   const felter = (b.kolonner || []).map((k, i) => {
-    const f = input('text', 'raekke-' + i, /dato/i.test(k) ? idagDato() : '', k || 'Kolonne ' + (i + 1));
+    const f = input('text', 'raekke-' + i, ny ? (/dato/i.test(k) ? idagDato() : '') : (gl[i] || ''), k || 'Kolonne ' + (i + 1));
     return felt(k || 'Kolonne ' + (i + 1), f);
   });
-  const knapper = el('div', 'ark-knapper');
-  knapper.append(knap('Gem række', 'knap', async () => {
-    const r = felter.map(f => f.querySelector('input').value.trim());
-    if (!r.some(Boolean)) return;
-    b.raekker = [r, ...(b.raekker || [])];
+  const vaerdier = () => felter.map(f => f.querySelector('input').value.trim());
+  const gem = async (raekker, aabnIgen) => {
+    b.raekker = raekker;
     await Data.update(n._liste, n.id, { blokke, tekst: null, billeder: null, rettet: new Date().toISOString() });
-    visNote(n.id);
-  }));
-  aabnArk('Ny række · ' + (n.titel || ''), ...felter, knapper);
-  setTimeout(() => felter[0]?.querySelector('input')?.select(), 50);
+    if (aabnIgen != null) raekkeArk(frisk(), bi, aabnIgen); else visNote(n.id);
+  };
+  const knapper = el('div', 'ark-knapper');
+  if (ny) {
+    knapper.append(knap('Gem række', 'knap', async () => {
+      const r = vaerdier();
+      if (!r.some(Boolean)) return;
+      await gem([r, ...b.raekker]);
+    }));
+  } else {
+    const slet = knap('Slet', 'knap fare', e => bekraeft(e.currentTarget, () => gem(b.raekker.filter((_, i) => i !== ri))));
+    slet.dataset.handling = 'slette rækken';
+    knapper.append(slet, knap('Gem', 'knap', () => { const r = b.raekker.slice(); r[ri] = vaerdier(); return gem(r); }));
+  }
+  const dele = [...felter];
+  if (!ny) {
+    const flyt = el('div', 'raekke-flyt');
+    const flytTil = til => { const r = b.raekker.slice(); r[ri] = vaerdier(); const [x] = r.splice(ri, 1); r.splice(til, 0, x); return gem(r, til); };
+    const op = knap('↑ Flyt op', 'lille-knap', () => flytTil(ri - 1)); op.disabled = ri === 0;
+    const ned = knap('↓ Flyt ned', 'lille-knap', () => flytTil(ri + 1)); ned.disabled = ri >= b.raekker.length - 1;
+    flyt.append(op, ned, el('span', 'hint', 'Række ' + (ri + 1) + ' af ' + b.raekker.length));
+    dele.push(flyt);
+  }
+  dele.push(knapper);
+  aabnArk((ny ? 'Ny række · ' : 'Ret række · ') + (n.titel || ''), ...dele);
+  if (ny) setTimeout(() => felter[0]?.querySelector('input')?.select(), 50);
 }
 
 // ---------- Ret / ny note ----------
