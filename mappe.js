@@ -513,7 +513,8 @@ const TAVLE_LINJER = 6;
 function tavleNoter() {
   if (erBarn()) return null;
   const noter = alleNoter().filter(n => n.tavle).sort((a, b) => String(b.rettet || '').localeCompare(String(a.rettet || '')));
-  const raekke = el('div', 'seddel-raekke note-tavle' + (noter.length ? '' : ' tom'));
+  if (!noter.length) return null;
+  const raekke = el('div', 'seddel-raekke note-tavle');
   for (const n of noter) {
     const kort = el('div', 'seddel note-seddel');
     kort.style.setProperty('--drej', ((n.id || '').charCodeAt(0) % 5 - 2) * 0.6 + 'deg');
@@ -549,10 +550,11 @@ function tavleNoter() {
     kort.append(bund);
     raekke.append(kort);
   }
-  raekke.append(knap('📝 Ny huskeseddel', 'note-ny', () => nyHuskeseddel()));
   return raekke;
 }
 // 📝 Ny huskeseddel – hurtigt: skriv, og den hænger på tavlen
+// Diskret link nederst på Familien – ved siden af "✉️ Skriv en seddel"
+const huskeseddelLink = () => erBarn() ? null : knap(kladdeHent('huskeseddel') ? '📝 Skriv videre på din huskeseddel' : '📝 Ny huskeseddel', 'seddel-skriv-link', () => nyHuskeseddel());
 function nyHuskeseddel() {
   const k = kladdeHent('huskeseddel') || {};
   const s = { syn: k.syn || 'mig', tjek: !!k.tjek };

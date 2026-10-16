@@ -3089,7 +3089,10 @@ async function tegnOverblik() {
   const ovNoter = document.getElementById('ov-noter');
   if (ovNoter && typeof tavleNoter === 'function') { const v = tavleNoter(); ovNoter.replaceChildren(...(v ? [v] : [])); ovNoter.hidden = !v; }
   const ovLink = document.getElementById('ov-seddel-link');
-  if (ovLink && typeof seddelSkrivLink === 'function') { const l = await seddelSkrivLink(null); ovLink.replaceChildren(...(l ? [l] : [])); }
+  if (ovLink && typeof seddelSkrivLink === 'function') {
+    const l = await seddelSkrivLink(null), h = typeof huskeseddelLink === 'function' ? huskeseddelLink() : null;
+    ovLink.replaceChildren(...[l, h].filter(Boolean)); ovLink.classList.toggle('to-links', !!(l && h));
+  }
 
   // ⏸ Pauser for børnene (pause.js) – øverst, så man husker at slå dem fra
   let ovPause = document.getElementById('ov-pause');
