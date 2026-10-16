@@ -1211,7 +1211,7 @@ async function tegnMadplan() {
         const forslag = el('div', 'ude-forslag');
         forslag.append(el('span', null, '📅 ' + a.titel + (a.tid ? ' ' + visTider(a.tid) : '') + ' – ude?'),
           knap('🎉 Ja', 'lille-knap', async () => { await gemDag(i, '🎉 ' + a.titel, true); tegnMadplan(); }),
-          knap('✕', 'lille-knap ude-nej', () => { lokal.set('ude-nej', [...(lokal.get('ude-nej') || []), iso + '|' + a.titel].slice(-40)); tegnMadplan(); }));
+          knap('✕', 'lille-knap ude-nej', () => { lokal.set('ude-nej', JSON.stringify([...udeNej(), iso + '|' + a.titel].slice(-40))); tegnMadplan(); }));
         forslag.lastChild.setAttribute('aria-label', 'Nej, vi spiser hjemme');
         li.append(forslag);
       }
@@ -1263,8 +1263,10 @@ async function gemDag(dag, ret, ude = false, uge = madUgeIso()) {
 }
 
 // Kalenderaftale for familien om aftenen → forslag om "Vi er ude" (ikke ferie/fravær, ikke ugentlige ting, ikke én persons aftaler)
+// "Nej tak"-forslag huskes på enheden som JSON-liste (lokal gemmer kun tekst)
+function udeNej() { try { const v = JSON.parse(lokal.get('ude-nej') || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } }
 function udeAftale(aftaler, iso) {
-  const nej = new Set(lokal.get('ude-nej') || []);
+  const nej = new Set(udeNej());
   return aftalerDen(aftaler, iso).find(a => {
     if (a.fri || a.type || (a.tilDato && a.tilDato > a.dato) || ['uge', '2uger', 'maaned'].includes(a.gentag)) return false;
     const hvem = personerI(a);
