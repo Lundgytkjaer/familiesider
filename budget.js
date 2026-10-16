@@ -108,8 +108,10 @@ function budgetMereTekst() {
   if (!u) return;
   const poster = bPoster();
   if (!poster.length) { u.textContent = 'Faste udgifter, konti og overførsler'; return; }
-  const n = poster.filter(bGammel).length + bKilde(bMig()).poster().filter(bGammel).length;
-  u.textContent = bKr(poster.reduce((s, p) => s + bAar(p), 0) / 12) + ' kr om måneden' + (n ? ' · 🔄 ' + n + ' skal tjekkes' : ' · ✓ opdateret');
+  // Fælles og Mit budget tælles hver for sig, så man kan se, hvor det er, der skal tjekkes
+  const nF = poster.filter(bGammel).length, nM = bKilde(bMig()).poster().filter(bGammel).length;
+  const tjek = nF && nM ? nF + ' fælles + ' + nM + ' i Mit budget skal tjekkes' : nF ? nF + ' skal tjekkes' : nM ? nM + ' i Mit budget skal tjekkes' : '';
+  u.textContent = bKr(poster.reduce((s, p) => s + bAar(p), 0) / 12) + ' kr om måneden' + (tjek ? ' · 🔄 ' + tjek : ' · ✓ opdateret');
 }
 
 function tegnBudget() {
