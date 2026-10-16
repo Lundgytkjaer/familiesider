@@ -3377,6 +3377,19 @@ function redigerFravaer(barn, iso, x) {
 // Åbnes fra forbogstav-knappen øverst til højre.
 //  1) Hvad der vises (for mig – og for børnene, hvis man er voksen): helligdage, mærkedage, sol, vejr, nedtælling, faner
 //  2) Udseende (kun denne enhed)   3) By til vejr og sol (voksne)   4) Hjælp   5) Log ud
+// Download en kopi af alle data som JSON-fil (familietavlen-kopi-ÅÅÅÅ-MM-DD.json)
+function gemBackup() {
+  const data = Data.eksport();
+  const blob = new Blob([JSON.stringify(data, null, 1)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'familietavlen-kopi-' + isoDato(new Date()) + '.json';
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  lokal.set('backup-sidst', new Date().toISOString());
+  visStatus('💾 Kopi gemt (' + data.antal + ' rækker) – find den i Overførsler/Filer');
+}
+
 async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
   const mig = Data.bruger()?.navn;
   const folk = erBarn() ? [mig] : [mig, ...BOERN.filter(b => b !== mig)];
@@ -3468,6 +3481,15 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     const stedKnap = knap('📍 Sted for vejr og sol …', 'lille-knap', () => vaelgSted());   // fra vejr.js
     familieSted().then(st => { stedKnap.textContent = '📍 Vejr og sol: ' + (st.navn || 'Ukendt sted') + ' – skift'; });
     dele.push(el('h3', 'lille-titel indst-titel', 'Vejr og sol'), stedKnap);
+  }
+  // 💾 Sikkerhedskopi (kun voksne, kun for sig selv)
+  if (hvem === mig && !erBarn()) {
+    const sidst = lokal.get('backup-sidst');
+    const dage = sidst ? Math.floor((Date.now() - new Date(sidst)) / 864e5) : null;
+    dele.push(el('h3', 'lille-titel indst-titel', '💾 Sikkerhedskopi'),
+      knap('💾 Gem en kopi af alle data', 'lille-knap', () => gemBackup()),
+      el('p', 'hint', (sidst ? 'Sidste kopi på denne enhed: ' + (dage === 0 ? 'i dag' : 'for ' + dage + (dage === 1 ? ' dag' : ' dage') + ' siden') + '. ' : 'Der er ikke gemt en kopi fra denne enhed endnu. ')
+        + 'Gem en kopi en gang om måneden og før større opdateringer. Filen indeholder alt det, du kan se – også private ting – så gem den et sikkert sted.'));
   }
   // Hjælp
   dele.push(el('h3', 'lille-titel indst-titel', 'Hjælp'),

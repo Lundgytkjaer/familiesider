@@ -154,7 +154,11 @@ async function tegnSteder() {
   for (const id in stedMarkoer) delete stedMarkoer[id];
   for (const s of vist) {
     const lag = lagFor(s);
-    const ikon = L.divIcon({ className: 'sted-pin ' + s.slags, html: '<span style="--p:' + lag.farve + '">' + lag.ikon + '</span>', iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -15] });
+    // Ikon og farve kommer fra databasen: aldrig som HTML (ellers kunne et ikon som <img onerror=…> køre kode)
+    const pin = document.createElement('span');
+    pin.textContent = lag.ikon || '📍';
+    pin.style.setProperty('--p', /^#[0-9a-f]{3,8}$/i.test(lag.farve || '') ? lag.farve : STANDARD_LAG.farve);
+    const ikon = L.divIcon({ className: 'sted-pin ' + (s.slags === 'droem' ? 'droem' : 'vaeret'), html: pin, iconSize: [30, 30], iconAnchor: [15, 15], popupAnchor: [0, -15] });
     const m = L.marker([s.lat, s.lon], { icon: ikon, title: s.navn }).bindPopup(() => stedPopup(s.id), { maxWidth: 260, minWidth: 180 });
     m.addTo(stedLag);
     stedMarkoer[s.id] = m;

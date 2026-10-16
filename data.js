@@ -118,6 +118,8 @@ const Data = (() => {
     async list(liste) {
       return raekker.filter(r => r.liste === liste).map(tilPunkt);
     },
+    // 💾 Kopi af alle data, den indloggede kan se (rå rækker) – til en fil på enheden
+    eksport() { return { app: 'familietavlen', version: 1, tid: new Date().toISOString(), bruger: profil?.navn || '', antal: raekker.length, punkter: JSON.parse(JSON.stringify(raekker)) }; },
     listNu(liste) { return raekker.filter(r => r.liste === liste).map(tilPunkt); },   // samme, uden at vente
 
     async add(liste, felter) {
