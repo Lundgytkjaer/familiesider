@@ -1515,7 +1515,7 @@ details.avanceret summary { cursor: pointer; font-weight: 700; color: var(--daem
 /* Cool-tavle: roligere udtryk – ingen billeder ved rutinerne */
 body.cool .rutine-strip { display: none; }
 /* Automatisk emoji ved pligter/belønninger: centreret i samme felt som et billede */
-.lille-ikon.auto-emoji { display: inline-flex; align-items: center; justify-content: center; background: none; font-size: 20px; line-height: 1; overflow: hidden; }
+.lille-ikon.auto-emoji { display: inline-flex; align-items: center; justify-content: center; background: none; font-size: 20px; line-height: 1.2; overflow: visible; }   /* visible: brede emojis (👓) må ikke skæres – Windows tegner dem større end 1em */
 .punkt-knap .opg-ikon.auto-emoji { font-size: 24px; }
 .bonus-linje { line-height: 1.35; margin-bottom: 6px; }
 .emoji-valg .emoji-knap { font-size: 20px; min-width: 44px; padding: 6px 8px; }
