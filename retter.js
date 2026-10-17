@@ -112,8 +112,20 @@ function punktPanel(type, navn, efter, lokalt = () => {}) {
   setTimeout(() => boks.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 30);
   return boks;
 }
+// Egne navne for kombinationer (okt. 2026): f.navne = [{navn, side?, sovs?, fyld?, variant?}]
+// fx Kødsovs + tilbehør spaghetti = "Spaghetti bolognese". Navnet bruges, når kombinationen passer præcist
+// (samme variant, tilbehør, sovs og fyld – hverken mere eller mindre); ekstra kommer bagefter: "Spaghetti bolognese med hvidløgsbrød".
+const retNavne = f => (Array.isArray(f?.navne) ? f.navne : []).filter(n => n && n.navn);
+function kombiNavn(f, v, side, fyld = [], sovs = null) {
+  const ens = (a, b) => lavt(a || '') === lavt(b || '');
+  return retNavne(f).find(n => ens(n.variant, v?.navn) && ens(n.side, side) && ens(n.sovs, sovs)
+    && (n.fyld ? fyld.length === 1 && ens(fyld[0], n.fyld) : !fyld.length)) || null;
+}
+const kombiDele = n => [n.variant, ...(n.fyld ? [n.fyld] : []), n.side, n.sovs].filter(Boolean);
 // Hele teksten: ret (evt. variant) + fyld + tilbehør + ekstra – "Pita med kebab, pommes og salat"
 function komponer(f, v, side, ekstra = [], fyld = [], sovs = null) {
+  const k = kombiNavn(f, v, side, fyld, sovs);
+  if (k) return !ekstra.length ? k.navn : / med /i.test(k.navn) ? oprems([k.navn, ...ekstra]) : k.navn + ' med ' + oprems(ekstra);
   const base = v ? variantTekst(f, v) : f.tekst;
   const dele = [...fyld, side, sovs, ...ekstra].filter(Boolean);   // "Hakkebøf med kartofler og brun sovs"
   if (!dele.length) return base;
@@ -130,6 +142,8 @@ function findPraecis(favs, felt, t) {
       if (lavt(f.tekst) === t) return { fav: f, variant: null };
       const v = (Array.isArray(f.varianter) ? f.varianter : []).find(v => lavt(variantTekst(f, v)) === t);
       if (v) return { fav: f, variant: v };
+      const n = retNavne(f).find(n => lavt(n.navn) === t);   // eget navn for en kombination
+      if (n) return { fav: f, variant: n.variant ? (Array.isArray(f.varianter) ? f.varianter : []).find(v => lavt(v.navn) === lavt(n.variant)) || null : null, kombi: n };
     }
   }
   return null;
@@ -156,10 +170,13 @@ function findRet(favs, felt, tekst) {
       const egneFyld = passerFyld(f).map(lavt), egneSider = passerSider(f).map(lavt), egneEkstra = passerEkstra(f).map(lavt);
       // Rettens egne lister først, så de fælles
       const erFyld = d => egneFyld.includes(d) || (!egneSider.includes(d) && !egneEkstra.includes(d) && alleFyld(favs).includes(d) && !alleSider(favs).includes(d));
-      const fyld = dele.filter(erFyld);
-      const side = dele.find(d => !fyld.includes(d) && (egneSider.includes(d) || (!egneEkstra.includes(d) && alleSider(favs).includes(d)))) || null;
-      const sovs = dele.find(d => !fyld.includes(d) && d !== side && alleSovse(favs).includes(d)) || null;
-      return { ...fund, fyld, side, sovs, udenSide: udenSide && !side, udenSovs: udenSovs && !sovs, ekstra: dele.filter(d => d !== side && d !== sovs && !fyld.includes(d)) };
+      let fyld = dele.filter(erFyld);
+      let side = dele.find(d => !fyld.includes(d) && (egneSider.includes(d) || (!egneEkstra.includes(d) && alleSider(favs).includes(d)))) || null;
+      let sovs = dele.find(d => !fyld.includes(d) && d !== side && alleSovse(favs).includes(d)) || null;
+      const k = fund.kombi;   // "Spaghetti bolognese" = Kødsovs + spaghetti
+      if (k) { if (k.side && !side) side = lavt(k.side); if (k.sovs && !sovs) sovs = lavt(k.sovs); if (k.fyld && !fyld.includes(lavt(k.fyld))) fyld = [lavt(k.fyld), ...fyld]; }
+      const { kombi, ...uden } = fund;
+      return { ...uden, fyld, side, sovs, udenSide: udenSide && !side, udenSovs: udenSovs && !sovs, ekstra: dele.filter(d => d !== side && d !== sovs && !fyld.includes(d)) };
     }
     let fandt = false;
     for (const d of kendte) {
@@ -179,7 +196,7 @@ function retVisning(favs, felt, tekst) {
     fund.sovs || (fund.udenSovs ? null : fund.fav.sovs)) : tekst;
 }
 // Alle tekster en ret kan stå som (selve retten + aktive varianter + med ét slags fyld)
-const retTekster = f => [f.tekst, ...aktiveVarianter(f).map(v => variantTekst(f, v)), ...passerFyld(f).map(y => f.tekst + ' med ' + y)];
+const retTekster = f => [f.tekst, ...aktiveVarianter(f).map(v => variantTekst(f, v)), ...passerFyld(f).map(y => f.tekst + ' med ' + y), ...retNavne(f).map(n => n.navn)];
 
 // Til forslagslisten i tekstfelterne: retter + varianter (+ morgen/frokost til aftensmad, men bagerst)
 function forslagTekster(favs, felt) {
@@ -221,7 +238,8 @@ function redigerRet(f) {
   const s = {
     tekst: f.tekst, gruppe: f.gruppe || '', side: f.side || '', ikkeAuto: !!f.ikkeAuto,
     sider: [...passerSider(f)], ekstra: [...passerEkstra(f)], fyld: [...passerFyld(f)], sovse: [...passerSovse(f)], sovs: f.sovs || '',
-    varianter: (Array.isArray(f.varianter) ? f.varianter : []).map(v => ({ ...v })), maal: retMaaltider(f)
+    varianter: (Array.isArray(f.varianter) ? f.varianter : []).map(v => ({ ...v })), maal: retMaaltider(f),
+    navne: retNavne(f).map(n => ({ ...n }))
   };
   const erAften = s.maal.includes('ret');   // tilbehør, sovs, ekstra og kategori bruges kun til aftensmad
   const aftenDele = [], katDele = [];
@@ -355,6 +373,54 @@ function redigerRet(f) {
     s.varianter.push({ navn: t });
     nyVar.value = ''; tegnVar(); nyVar.focus();
   });
+  // Egne navne for kombinationer: "Spaghetti bolognese" = Kødsovs + spaghetti
+  const navneBoks = el('div');
+  const tegnNavne = () => {
+    const ul = el('ul', 'tb-raekker');
+    s.navne.forEach((n, i) => {
+      const li = el('li', 'var-raekke');
+      const t = el('span', 'tb-navn');
+      t.append(el('strong', null, n.navn), el('span', 'kombi-dele', ' = ' + s.tekst + (kombiDele(n).length ? ' med ' + oprems(kombiDele(n)) : '')));
+      const slet = knap('', 'slet', () => { s.navne.splice(i, 1); tegnNavne(); });
+      slet.innerHTML = IKON_SLET;
+      slet.setAttribute('aria-label', 'Slet navnet ' + n.navn);
+      li.append(t, slet);
+      ul.append(li);
+    });
+    if (!s.navne.length) ul.append(el('li', 'tom', 'Ingen egne navne endnu'));
+    navneBoks.replaceChildren(ul);
+  };
+  tegnNavne();
+  const ny = { side: s.side || '', sovs: s.sovs || '', fyld: '', variant: '' };
+  const nyNavn = input('text', 'kombi-navn', '', 'Fx Spaghetti bolognese');
+  const nyValg = el('div', 'kombi-valg'), nyVis = el('p', 'hint');
+  const tegnNyValg = () => {
+    const rk = [];
+    const vaelger = (titel, felt, muligheder) => {
+      if (!muligheder.length) return;
+      if (ny[felt] && !muligheder.map(lavt).includes(lavt(ny[felt]))) ny[felt] = '';
+      rk.push(el('label', 'felt-label lille-label', titel), chipValg(['', ...muligheder], ny[felt], v => { ny[felt] = v; tegnNyValg(); }, v => v || 'Intet'));
+    };
+    vaelger('Variant', 'variant', aktiveVarianter({ varianter: s.varianter }).map(v => v.navn));
+    vaelger('Fyld', 'fyld', s.fyld);
+    if (s.maal.includes('ret')) { vaelger('Tilbehør', 'side', s.sider); vaelger('Sovs', 'sovs', s.sovse); }
+    nyValg.replaceChildren(...rk);
+    const dele = kombiDele(ny);
+    nyVis.textContent = 'Når der står "' + (s.tekst || '…') + (dele.length ? ' med ' + oprems(dele) : '') + '", vises navnet i stedet.';
+  };
+  tegnNyValg();
+  const nyNavnForm = el('form', 'oenske-form');
+  nyNavnForm.append(nyNavn, el('button', 'knap', 'Tilføj'));
+  nyNavnForm.addEventListener('submit', e => {
+    e.preventDefault();
+    const t = nyNavn.value.trim();
+    if (!t) { nyNavn.focus(); return; }
+    const n = { navn: t, ...Object.fromEntries(Object.entries(ny).filter(([, x]) => x)) };
+    const samme = s.navne.findIndex(x => kombiDele(x).map(lavt).join('|') === kombiDele(n).map(lavt).join('|') && lavt(x.variant || '') === lavt(n.variant || ''));
+    if (samme >= 0) s.navne.splice(samme, 1);   // én kombination = ét navn
+    s.navne.push(n);
+    nyNavn.value = ''; tegnNavne();
+  });
   const flag = (tekst, felt, omvendt) => {
     const k = knap(tekst, null, () => { s[felt] = !s[felt]; k.setAttribute('aria-checked', omvendt ? !s[felt] : s[felt]); });
     k.setAttribute('role', 'checkbox');
@@ -382,8 +448,9 @@ function redigerRet(f) {
 
   const gem = knap('Gem', 'knap', async () => {
     if (!s.tekst.trim()) { navn.focus(); return; }
+    if (nyNavn.value.trim()) nyNavnForm.requestSubmit();   // et skrevet navn, man glemte at trykke Tilføj på, kommer med
     const felter = {
-      tekst: s.tekst.trim(), ikkeAuto: s.ikkeAuto, fyld: s.fyld,
+      tekst: s.tekst.trim(), ikkeAuto: s.ikkeAuto, fyld: s.fyld, navne: s.navne,
       varianter: s.varianter.map(v => Object.fromEntries(Object.entries(v).filter(([, x]) => x !== undefined && x !== false && x !== '')))
     };
     const orden = ['morgen', 'frokost', 'ret'].filter(m => s.maal.includes(m));
@@ -411,6 +478,11 @@ function redigerRet(f) {
   const det = dele[dele.length - 1];
   det.open = s.varianter.length > 0;
   det.append(el('summary', null, 'Varianter med eget navn (fx Franske hotdogs)'), varBoks, form);
+  const nd = el('details', 'var-detaljer');
+  nd.open = s.navne.length > 0;
+  nd.append(el('summary', null, 'Eget navn for en kombination (fx Spaghetti bolognese)'), navneBoks,
+    el('label', 'felt-label lille-label', 'Nyt navn'), nyNavnForm, nyValg, nyVis);
+  dele.push(nd);
   dele.push(el('p', 'hint', 'Fyld, tilbehør, sovs og ekstra vælges under dagen med "✎ Tilpas". Terningen vælger selv ét fyld og et tilbehør. Hold fingeren på et punkt for at omdøbe eller slette det.'), flag1, knapper);
   aabnArk(f.tekst, ...dele);
 }

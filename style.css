@@ -1970,3 +1970,11 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .svar-liste li:first-child { border-top: 0; }
 .svar-tekst { flex: 1; min-width: 0; }
 .svar-tid { font-size: 12px; white-space: nowrap; }
+
+/* Børnetavlen: voksne bladrer i ugerne (‹ ›) */
+.bt-uge-nav { display: flex; gap: 6px; align-items: center; margin-left: auto; }
+.bt-uge-nav .lille-knap { min-width: 40px; }
+
+/* Retter: egne navne for kombinationer */
+.kombi-dele { color: var(--daempet); font-weight: 400; }
+.kombi-valg .seg { margin-bottom: 6px; }

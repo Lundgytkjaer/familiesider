@@ -1131,6 +1131,24 @@ function fuldTekst(inp, visning) {
   return boks;
 }
 
+// Skriver man i et felt (madplan, faste måltider, skema), må det ikke tegnes forfra under én – det tog fokus,
+// lukkede tastaturet og fik siden til at hoppe (fx når en ændring kom ind fra en anden telefon).
+// Gentegningen venter så, til man forlader feltgruppen. Svarer true, når den venter.
+const udsatte = new WeakSet();
+function venterPaaSkriv(boks, tegn) {
+  const aktiv = document.activeElement;
+  if (!boks || !aktiv || !boks.contains(aktiv) || !aktiv.matches('input, textarea') || aktiv.readOnly) return false;
+  if (!udsatte.has(boks)) {
+    udsatte.add(boks);
+    const ud = e => {
+      if (boks.contains(e.relatedTarget)) return;   // videre til et andet felt i samme gruppe – vent stadig
+      boks.removeEventListener('focusout', ud); udsatte.delete(boks);
+      setTimeout(tegn, 0);
+    };
+    boks.addEventListener('focusout', ud);
+  }
+  return true;
+}
 async function tegnMadplan() {
   await hentTilbehoer();   // retter.js
   const ol = document.getElementById('mad-uge');
@@ -1147,6 +1165,7 @@ async function tegnMadplan() {
   document.getElementById('mad-titel').textContent = 'Uge ' + ugenummer(mandag) + (navn ? ' · ' + navn : '');
   document.getElementById('ugenr').textContent = ugeSpan(mandag);
   document.getElementById('mad-denne').hidden = madUge === 0;
+  if (venterPaaSkriv(ol, tegnMadplan)) return;   // man skriver – vent
   ol.replaceChildren();
 
   DAGE.forEach((dag, i) => {
@@ -1359,6 +1378,7 @@ async function tegnFastPlan() {
   const plan = (await Data.list('fastplan')).filter(r => r.barn === fastBarn);
   const fastFavs = await Data.list('favoritter');
   await hentTilbehoer();   // retter.js
+  if (venterPaaSkriv(boks, tegnFastPlan)) return;
   const seg = el('div', 'seg');
   seg.setAttribute('role', 'radiogroup');
   seg.append(...BOERN.map(b => {
@@ -1585,6 +1605,7 @@ async function tegnSkema() {
   const medFag = timer.filter(t => t.fag);
   const kontakt = await dagKontakt(skemaBarn, skemaDag);
   const friDag = await fastFri(skemaBarn, skemaDag);
+  if (venterPaaSkriv(document.getElementById('skema'), tegnSkema)) return;
   ol.replaceChildren();
 
   const knapEl = document.getElementById('rediger-skema');
@@ -2261,6 +2282,17 @@ async function tegnBoernetavle(barn) {
   const hovedTekst = el('div', 'bt-hoved-tekst');
   hovedTekst.append(dagNavn, el('p', 'bt-dato', valgt.getDate() + '. ' + MDR_LANG[valgt.getMonth()] + ' · uge ' + ugenummer(valgt)));
   hoved.append(hovedTekst);
+  // Voksne kan bladre frem (og lidt tilbage) i ugerne – fx for at rette et barns mad i næste uge
+  if (!erBarn()) {
+    const denneMan = mandagFor(new Date()), uger = Math.round((man - denneMan) / (7 * 864e5));
+    const flyt = d => { const n = new Date(valgt); n.setDate(n.getDate() + 7 * d); tavleValgt = isoDato(n) === isoDato(tavleAutoDato()) ? null : n; tegnOverblik(); };
+    const nav = el('div', 'bt-uge-nav');
+    const tilbage = knap('‹', 'lille-knap', () => flyt(-1)); tilbage.disabled = uger <= -2; tilbage.setAttribute('aria-label', 'Ugen før');
+    const frem = knap('›', 'lille-knap', () => flyt(1)); frem.disabled = uger >= 8; frem.setAttribute('aria-label', 'Ugen efter');
+    nav.append(tilbage, frem);
+    if (uger !== 0) nav.prepend(knap('I dag', 'lille-knap', () => { tavleValgt = null; tegnOverblik(); }));
+    hoved.append(nav);
+  }
 
   const kort = (titel, ...indhold) => {
     const k = el('div', 'kort');
