@@ -32,13 +32,19 @@ const aiKendteVarer = () => {
 };
 // En vare fra AI'en: jeres egen stavemåde, hvis den findes – ellers stort forbogstav
 // "Mælk (2 l)" → { tekst: 'Mælk', antal: '2 l' } – navnet passer med hurtigvalget, antallet står forrest på listen
+// Nyere svar: {navn, antal?, oeko?, pris?, vigtig?, note?, usikker?} – "Ø" = økologisk → "Øko …", pris = tilbudspris
 function aiVare(v) {
-  const m = aiT(v, 60).match(/^(.*?)\s*(?:\(([^)]*)\))?$/);
-  const t = aiT(m?.[1], 40);
+  const o = v && typeof v === 'object' ? v : { navn: v };
+  const m = aiT(o.navn, 60).match(/^(.*?)\s*(?:\(([^)]*)\))?$/);
+  let t = aiT(m?.[1], 40);
   if (!t) return null;
+  if (o.oeko && !/^øko/i.test(t)) t = 'Øko ' + t[0].toLowerCase() + t.slice(1);
   const tekst = aiKendteVarer().find(k => lavt(k) === lavt(t)) || t[0].toUpperCase() + t.slice(1);
-  return { tekst, antal: aiT(m?.[2], 12) };
+  const pris = aiT(o.pris, 20);
+  return { tekst, antal: aiT(o.antal, 12) || aiT(m?.[2], 12), vigtig: !!o.vigtig, pris: pris && !/kr/i.test(pris) ? pris + ' kr' : pris,
+    note: aiT(o.note, 80), usikker: aiT(o.usikker, 60) };
 }
+const aiVareTekst = v => (v.vigtig ? '★ ' : '') + (v.antal ? v.antal + ' ' : '') + v.tekst + (v.pris ? ' (tilbud ' + v.pris + ')' : '') + (v.note ? ' – ' + v.note : '') + (v.usikker ? ' ❓' : '');
 // Det AI'en får at vide – kun det, opgaven skal bruge
 async function aiKontekst(opgave = 'fri', uge = null) {
   const nu = new Date();
@@ -93,7 +99,7 @@ function aiTjek(r) {
       const varer = [...set.values()].slice(0, 60);
       if (!varer.length) return fejl('Ingen varer');
       const butik = Data.listNu('favoritter').find(f => f.type === 'butik' && lavt(f.tekst) === lavt(r.butik))?.tekst || '';
-      return { h: { type: r.type, varer, butik }, tekst: (butik ? butik + ': ' : '') + varer.map(v => (v.antal ? v.antal + ' ' : '') + v.tekst).join(', ') };
+      return { h: { type: r.type, varer, butik }, tekst: (butik ? butik + ': ' : 'Uden butik: ') + varer.map(aiVareTekst).join(', ') };
     }
     case 'todo_ny': {
       const tekst = aiT(r.tekst, 120);
@@ -190,7 +196,9 @@ async function aiUdfoer(h) {
       return;
     case 'indkob_ny':
       for (const v of h.varer) {
-        if (await tilfoejUdenDublet('indkob', { tekst: v.tekst, klaret: false, ...(v.antal ? { antal: v.antal } : {}), ...(h.butik ? { butik: h.butik } : {}) })) await gemFavorit('indkob', v.tekst);   // kommer i hurtigvalget som når man skriver selv
+        const note = [v.pris ? 'Tilbud ' + v.pris : '', v.note].filter(Boolean).join(' · ');
+        if (await tilfoejUdenDublet('indkob', { tekst: v.tekst, klaret: false, ...(v.antal ? { antal: v.antal } : {}), ...(h.butik ? { butik: h.butik } : {}),
+          ...(v.vigtig ? { vigtig: true } : {}), ...(v.pris ? { tilbud: true } : {}), ...(note ? { note } : {}) })) await gemFavorit('indkob', v.tekst);   // kommer i hurtigvalget som når man skriver selv
       }
       return;
     case 'todo_ny':
@@ -296,8 +304,21 @@ function aabnAI(opts = {}) {
         k.setAttribute('aria-checked', valgt.has(f)); opdater();
       });
       k.setAttribute('role', 'checkbox'); k.setAttribute('aria-checked', 'true');
-      k.append(el('span', 'ai-flueben'), el('span', 'ai-ikon', AI_IKON[f.h.type]), el('span', 'ai-tekst', f.tekst));
+      const tekstEl = el('span', 'ai-tekst', f.tekst);
+      k.append(el('span', 'ai-flueben'), el('span', 'ai-ikon', AI_IKON[f.h.type]), tekstEl);
       li.append(k);
+      if (f.h.type === 'indkob_ny') {   // AI'en var i tvivl → skriv selv, hvad der står
+        for (const v of f.h.varer.filter(v => v.usikker)) {
+          const r = el('div', 'ai-usikker');
+          const inp = input('text', '', v.tekst, 'Hvad står der?');
+          inp.maxLength = 40;
+          inp.setAttribute('aria-label', 'Usikker vare');
+          inp.addEventListener('input', () => { v.tekst = inp.value.trim() || v.tekst; v.usikker = ''; tekstEl.textContent = (f.h.butik ? f.h.butik + ': ' : 'Uden butik: ') + f.h.varer.map(aiVareTekst).join(', '); });
+          r.append(el('span', null, '❓ Står der "' + v.tekst + '"? Måske ' + v.usikker + '.'), inp);
+          r.append(knap('Fjern', 'lille-knap', () => { f.h.varer = f.h.varer.filter(x => x !== v); r.remove(); tekstEl.textContent = (f.h.butik ? f.h.butik + ': ' : 'Uden butik: ') + f.h.varer.map(aiVareTekst).join(', '); }));
+          li.append(r);
+        }
+      }
       if (f.h.type === 'kalender_ny') {   // ret selv, før den gemmes
         li.append(knap('Ret', 'lille-knap', () => { const h = f.h; redigerAftale({ titel: h.titel, dato: h.dato, tid: h.tid, slut: h.slut, hvem: h.hvem.length === 1 ? h.hvem[0] : h.hvem, gentag: h.gentag, gentagTil: h.gentagTil, note: h.note }); }));
       }
