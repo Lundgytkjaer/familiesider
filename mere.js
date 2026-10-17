@@ -604,6 +604,14 @@ async function skiftFlueben(barn, r, regel) {
   try { await skiftFluebenNu(barn, r, regel); } finally { setTimeout(() => travleFlueben.delete(noegle), 400); }
 }
 async function skiftFluebenNu(barn, r, regel) {
+  const idagIso = isoDato(new Date());
+  const glemt = !erVoksen() && r.dato && r.dato < idagIso;   // barnet melder en glemt dag – mor/far skal sige 👍
+  if (glemt && r.f) {
+    if (!(r.f.glemt && r.f.venter)) { besked('Den dag er klaret – spørg mor eller far, hvis den er forkert'); return; }   // sjov.js
+    await Data.remove('flueben', r.f.id);
+    tegnAlt();
+    return;
+  }
   // Et barn kan ikke fjerne et flueben, hvis stjernerne/pengene allerede er brugt (ellers: sæt flueben, ønsk, fjern flueben)
   if (r.f && !erVoksen() && (tal(r.f.stjerner) > 0 || tal(r.f.kr) > 0)) {
     const s = saldo(await pligtData(barn));
@@ -617,8 +625,10 @@ async function skiftFluebenNu(barn, r, regel) {
     opgave: r.o.id, barn, periode: r.periode, dato: r.dato || isoDato(new Date()), navn: r.o.navn,
     kr: regel.kr ? tal(r.o.kr) : 0,
     stjerner: regel.stjerner ? Math.round(tal(r.o.stjerner)) : 0,
-    ...(r.o.godkend ? { venter: true } : {})   // 👍: mor/far skal godkende, før det tæller
+    ...(r.o.godkend || glemt ? { venter: true } : {}),   // 👍: mor/far skal godkende, før det tæller
+    ...(glemt ? { glemt: true } : {})
   });
+  if (glemt) { besked('Sendt til mor og far 👍'); tegnAlt(); return; }
   const bonus = await opdaterStreakBonus(barn);   // fra sjov.js – giver/tager streak-bonus
   let fejret = false;
   if (!r.f && (!r.dato || r.dato === isoDato(new Date()))) {   // ingen fest, når en voksen retter en tidligere dag
@@ -728,6 +738,13 @@ async function pligtKort(barn, titel = 'Pligter i dag') {
     ul.append(el('li', 'todo-linje', '📝 ' + t.tekst + (t.frist ? ' · ' + (t.frist <= isoDato(new Date()) ? 'i dag' : kortDag(t.frist)) : '')));
   }
   k.append(top, ul);
+  // Barnet glemte at krydse af i går? Genvej til i går på Pligter (mor/far siger 👍)
+  const igaar = plusDage(isoDato(new Date()), -1);
+  if (loggetIndBarn() === barn && dagensOpgaver(d, igaar).some(r => !r.f && !r.o.frivillig && oprettetIso(r.o) <= igaar))
+    k.append(knap('🤔 Glemte du at krydse noget af i går? ›', 'link-knap glemt-link', () => {
+      if (typeof lukZoom === 'function') lukZoom();
+      pligtBarn = barn; visFane('pligter'); pligtDag = igaar; tegnPligter(); window.scrollTo(0, 0);
+    }));
   // Streak-bonus: lok med den, og vis den, når den er givet
   const bs = d.regel.stjerner ? bonusStatus(d) : { n: 0 };   // fra sjov.js
   const bl = bonusLinje(bs);
@@ -915,12 +932,13 @@ async function tegnPligter() {
 
   // I dag – voksne kan bladre tilbage (højst 14 dage) og rette en dag, barnet glemte at krydse af
   const dagIso = isoDato(new Date());
-  if (!erVoksen() || !pligtDag || pligtDag > dagIso) pligtDag = null;
+  const maxTilbage = erVoksen() ? 14 : erBarn() && erMig ? 7 : 0;   // børn: glemte dage, højst en uge tilbage
+  if (!maxTilbage || !pligtDag || pligtDag >= dagIso || pligtDag < plusDage(dagIso, -maxTilbage)) pligtDag = null;
   const visDag = pligtDag || dagIso;
-  if (erVoksen()) {
+  if (maxTilbage) {
     const bladr = el('div', 'pligt-dag-nav');
     const tilbage = knap('‹', 'lille-knap', () => { pligtDag = plusDage(visDag, -1); tegnPligter(); });
-    tilbage.disabled = visDag <= plusDage(dagIso, -14);
+    tilbage.disabled = visDag <= plusDage(dagIso, -maxTilbage);
     tilbage.setAttribute('aria-label', 'Dagen før');
     const frem = knap('›', 'lille-knap', () => { const n = plusDage(visDag, 1); pligtDag = n >= dagIso ? null : n; tegnPligter(); });
     frem.disabled = visDag >= dagIso;
@@ -929,10 +947,12 @@ async function tegnPligter() {
     bladr.append(tilbage, el('h3', 'lille-titel', navn), frem);
     if (pligtDag) bladr.append(knap('I dag', 'lille-knap', () => { pligtDag = null; tegnPligter(); }));
     dele.push(bladr);
-    if (pligtDag) dele.push(el('p', 'hint', '✏️ Du retter ' + navn.toLowerCase() + '. Stjerner, kr og dage i træk tæller med (bonus for dage i træk gives kun samme dag).'));
+    if (pligtDag && erVoksen()) dele.push(el('p', 'hint', '✏️ Du retter ' + navn.toLowerCase() + '. Stjerner, kr og dage i træk tæller med (bonus for dage i træk gives kun samme dag).'));
+    else if (pligtDag) dele.push(el('p', 'hint glemt-hint', '🤔 Glemte du at krydse af? Tryk på det, du nåede ' + navn.toLowerCase() + ' – så siger mor eller far 👍.'));
+    else if (!erVoksen() && dagensOpgaver(d, plusDage(dagIso, -1)).some(r => !r.f && !r.o.frivillig && oprettetIso(r.o) <= plusDage(dagIso, -1))) dele.push(el('p', 'hint', 'Glemte du at krydse af i går? Tryk ‹'));
   } else dele.push(el('h3', 'lille-titel', 'I dag'));
   const ul = el('ul', 'liste' + (pligtDag ? ' tidligere-dag' : ''));
-  const idag = dagensOpgaver(d, visDag);
+  const idag = dagensOpgaver(d, visDag).filter(r => erVoksen() || oprettetIso(r.o) <= visDag);   // barnet: kun pligter, der fandtes den dag
   idag.forEach(r => ul.append(opgaveLi(barn, r, d.regel)));
   if (!idag.length) ul.append(el('li', 'tom', d.opgaver.length ? 'Ingen pligter i dag' : 'Ingen pligter endnu'));
   dele.push(ul);
@@ -1433,7 +1453,7 @@ async function oenskerIndhold() {
   for (const f of venterFb) {
     const li = el('li', 'beloen oenske');
     const info = el('div', 'beloen-info');
-    info.append(el('span', 'beloen-navn', f.barn + ' har klaret: ' + f.navn), el('span', 'beloen-pris', [tal(f.stjerner) ? '★ ' + tal(f.stjerner) : '', tal(f.kr) ? kr(tal(f.kr)) : '', kortDato(f.dato)].filter(Boolean).join(' · ')));
+    info.append(el('span', 'beloen-navn', f.glemt ? f.barn + ' glemte at krydse af: ' + f.navn : f.barn + ' har klaret: ' + f.navn), el('span', 'beloen-pris', [tal(f.stjerner) ? '★ ' + tal(f.stjerner) : '', tal(f.kr) ? kr(tal(f.kr)) : '', kortDato(f.dato)].filter(Boolean).join(' · ')));
     const kn = el('div', 'oenske-knapper');
     kn.append(bekraeftKnap('Ikke klaret', 'afvise', 'lille-knap', async () => { await Data.remove('flueben', f.id); tegnAlt(); }),
       knap('👍', 'lille-knap godkend', async () => { Data.huskFoer(f.id, '👍 ' + f.navn); await Data.update('flueben', f.id, { venter: false }); tegnAlt(); }));

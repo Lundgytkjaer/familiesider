@@ -89,7 +89,7 @@ function dagKlaret(d, iso) {
   const planlagt = dagligeDen(d, iso);
   if (!planlagt.length) return null;
   // Opslag i et sæt (bygges én gang pr. d) – ellers bliver mange dage × mange flueben langsomt
-  if (!d._fb) Object.defineProperty(d, '_fb', { value: new Set(d.flueben.filter(f => !f.sprunget).map(f => f.opgave + '|' + f.periode)) });
+  if (!d._fb) Object.defineProperty(d, '_fb', { value: new Set(d.flueben.filter(f => !f.sprunget && !(f.glemt && f.venter)).map(f => f.opgave + '|' + f.periode)) });
   return planlagt.every(o => d._fb.has(o.id + '|' + iso));
 }
 // Syg den dag (simpel udgave som i databasen: en "Syg"-aftale uden gentagelse, der dækker dagen)
