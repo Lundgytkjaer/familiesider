@@ -904,3 +904,88 @@ async function nedtaellingKort(barn) {
     lille: (f.n <= 1 ? 'er det ' : 'til ') + f.tekst + ' ' + f.ikon };   // "I morgen er det efterårsferie" / "6 dage til halloween"
   return k;
 }
+
+
+// ---------- 🧩 Dagens sjove: gåde, vits, "vidste du" eller en lille udfordring på drengenes tavle ----------
+// Data: 'sjov' {dato, slags: 'gaade'|'vits'|'vidste'|'udfordring', tekst, loesning?} – samme indslag til begge drenge (så kan de snakke om det).
+// Laves af AI'en (Edge Function "ai", opgave 'sjov') 14 dage ad gangen: når en voksen åbner appen, og der er under 4 dage tilbage.
+// Højst ét forsøg pr. dag pr. enhed. Kan slås fra pr. barn (personvalg.sjov). Gamle indslag (over 30 dage) ryddes væk.
+const SJOV_SLAGS = { gaade: ['🧩', 'Dagens gåde'], vits: ['😂', 'Dagens vits'], vidste: ['🤓', 'Vidste du?'], udfordring: ['💪', 'Dagens udfordring'] };
+async function sjovKort(barn, iso) {
+  if ((await valgFor(barn)).sjov === false) return null;
+  const x = (await Data.list('sjov')).find(s => s.dato === iso && s.tekst);
+  if (!x) return null;
+  const [ikon, titel] = SJOV_SLAGS[x.slags] || SJOV_SLAGS.vits;
+  const k = el('div', 'kort sjov-kort');
+  const top = el('div', 'kort-top');
+  top.append(el('span', 'kort-label', titel + ' ' + ikon));
+  k.append(top, el('p', 'sjov-tekst', x.tekst));
+  if (x.loesning) {
+    const svar = el('p', 'sjov-svar', x.loesning);
+    svar.hidden = true;
+    const vis = knap(x.slags === 'gaade' ? '🤔 Se svaret' : 'Se pointen', 'lille-knap sjov-vis', () => { svar.hidden = false; vis.remove(); });
+    k.append(vis, svar);
+  }
+  k.tavle = { noegle: 'sjov', ikon, titel, linjer: [x.tekst.length > 90 ? x.tekst.slice(0, 88).replace(/\s+\S*$/, '') + ' …' : x.tekst],
+    lille: x.loesning ? (x.slags === 'gaade' ? 'Tryk for at se svaret' : 'Tryk for pointen') : '' };
+  return k;
+}
+let sjovHenter = false;
+async function sjovFyldOp() {
+  if (sjovHenter || Data.bruger()?.rolle !== 'voksen' || typeof Data.ai !== 'function') return;
+  if (!BOERN.some(b => Data.listNu('personvalg').find(p => p.navn === b)?.sjov !== false)) return;   // slået fra for alle børn
+  const idag = isoDato(new Date());
+  const alle = await Data.list('sjov');
+  const gamle = alle.filter(s => s.dato < plusDage(idag, -30)).map(s => s.id);
+  if (gamle.length) await Data.stille(() => Data.removeMange('sjov', gamle));
+  if (alle.filter(s => s.dato >= idag).length >= 4) return;
+  if (lokal.get('sjov-forsoeg') === idag) return;
+  lokal.set('sjov-forsoeg', idag);
+  sjovHenter = true;
+  try {
+    const d0 = new Date();
+    const kontekst = { dato: idag, ugedag: DAGE_LANG[(d0.getDay() + 6) % 7].toLowerCase(), personer: [], kategorier: [],
+      seneste: [...alle].sort((a, b) => (b.dato || '').localeCompare(a.dato || '')).slice(0, 40).map(s => String(s.tekst || '').slice(0, 80)) };
+    const res = await Data.ai('Lav 14 nye indslag.', kontekst, [], null, 'sjov');
+    const nye = (res?.handlinger || []).filter(h => h?.type === 'sjov_ny' && String(h.tekst || '').trim()).slice(0, 14);
+    const brugt = new Set(alle.map(s => s.dato));
+    let d = idag;
+    const rows = [];
+    for (const h of nye) {
+      while (brugt.has(d)) d = plusDage(d, 1);
+      brugt.add(d);
+      const loesning = String(h.loesning || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+      rows.push({ dato: d, slags: SJOV_SLAGS[h.slags] ? h.slags : 'vits', tekst: String(h.tekst).replace(/\s+/g, ' ').trim().slice(0, 240), ...(loesning ? { loesning } : {}) });
+    }
+    if (rows.length) { await Data.stille(() => Data.addMange('sjov', rows)); tegnAlt(); }
+  } catch (e) { console.warn('Dagens sjove:', e); }
+  finally { sjovHenter = false; }
+}
+
+// ---------- 🚴 Ugens konkurrence på tavlen ----------
+// Vises, når nogen har skrevet km i denne uge – så de andre kan se, at konkurrencen er i gang. barn = null: Familien (voksne).
+async function konkKort(barn) {
+  if (barn && (await valgFor(barn)).konk === false) return null;
+  const man = isoDato(mandagDenneUge()), son = plusDage(man, 6);
+  const ugens = (await Data.list('motion')).filter(m => m.dato >= man && m.dato <= son);
+  const st = DELTAGERE.map(p => ({ hvem: p, km: sum(ugens.filter(m => m.hvem === p), 'km') })).filter(s => s.km > 0).sort((a, b) => b.km - a.km);
+  if (!st.length) return null;
+  const mig = barn || Data.bruger()?.navn;
+  const foerst = st[0], minKm = st.find(s => s.hvem === mig)?.km || 0;
+  const k = el('div', 'kort konk-kort');
+  const top = el('div', 'kort-top');
+  top.append(el('span', 'kort-label', 'Ugens konkurrence 🚴'), knap('Skriv km ›', 'kort-pil link-knap', () => { if (typeof lukZoom === 'function') lukZoom(); visFane('konkurrence'); window.scrollTo(0, 0); }));
+  const ol = el('ol', 'konk-liste lille');
+  st.slice(0, 4).forEach((s, i) => {
+    const li = el('li', 'konk-raekke ' + (PK[s.hvem] || '') + (i === 0 ? ' foerer' : ''));
+    const bar = el('span', 'konk-bar'); const fyld = el('span'); fyld.style.width = Math.round(100 * s.km / foerst.km) + '%'; bar.append(fyld);
+    li.append(el('span', 'konk-plads', (i + 1) + '.'), el('span', 'konk-navn', s.hvem === mig && barn ? 'Dig' : s.hvem), bar, el('span', 'konk-km', fmtKm(s.km)));
+    ol.append(li);
+  });
+  k.append(top, ol);
+  if (barn && !minKm) k.append(el('p', 'hint', 'Du er ikke med endnu – en cykeltur tæller! 🚲'));
+  k.tavle = { noegle: 'konk', ikon: '🚴', titel: 'Konkurrence',
+    stor: foerst.hvem === mig ? 'Du fører! 🥇' : foerst.hvem + ' fører',
+    lille: (minKm ? 'Dig: ' + fmtKm(minKm) + ' · ' : '') + foerst.hvem + ': ' + fmtKm(foerst.km) };
+  return k;
+}

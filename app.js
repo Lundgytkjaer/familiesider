@@ -2481,7 +2481,9 @@ async function tegnBoernetavle(barn) {
   const pligter = pPause ? pausePligtKort(pPause) : await pligtKort(barn, iso === idagIso ? 'Pligter i dag' : 'Pligter i dag (' + DAGE_LANG[idagNr()].toLowerCase() + ')');   // fra mere.js
   const beloen = pPause ? null : await beloenningKort(barn);   // fra mere.js
   const nedtael = await nedtaellingKort(barn);   // fra sjov.js
-  const raekke = [skerKort, pligter, beloen, rutiner, skemaKort, madKort, nedtael].filter(Boolean);
+  const sjovK = await sjovKort(barn, iso);   // 🧩 dagens gåde/vits/vidste du/udfordring (sjov.js)
+  const konkK = await konkKort(barn);        // 🚴 ugens konkurrence, når nogen er gået i gang (sjov.js)
+  const raekke = [skerKort, pligter, beloen, rutiner, skemaKort, madKort, sjovK, konkK, nedtael].filter(Boolean);
   gitter.append(...raekke.filter(k => !k.kunTavle));
   // Vejr (og evt. sol) for den viste dag – efter barnets egne valg; hentes i baggrunden
   const barnValg = await valgFor(barn);
@@ -3159,6 +3161,10 @@ async function tegnOverblik() {
   // Én linje pr. barn (mere.js)
   const ovBoern = document.getElementById('ov-boern');
   if (ovBoern) { const bk = await boernLinjerKort(); ovBoern.replaceChildren(...(bk ? [...bk.childNodes] : [])); ovBoern.hidden = !bk; }
+  // 🚴 Ugens konkurrence – vises, når nogen har skrevet km i denne uge (sjov.js)
+  let ovKonk = document.getElementById('ov-konk');
+  if (!ovKonk && ovBoern) { ovKonk = el('div'); ovKonk.id = 'ov-konk'; ovBoern.after(ovKonk); }
+  if (ovKonk) { const kk = await konkKort(null); ovKonk.replaceChildren(...(kk ? [kk] : [])); ovKonk.hidden = !kk; }
 
   // Det vigtigste lige nu: morgen (møder, husk, madpakke), efter skole (fri), aften (i morgen)
   const ovNu = document.getElementById('ov-nu');
@@ -3461,7 +3467,7 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     ['sol', '🌅 Solopgang og solnedgang'], ['vejr', '🌦️ Vejret'], ['relationer', '👪 Familierelation ved fødselsdage – fx "Bente (mormor)"'],
     ['emoji', '😀 Automatisk emoji ved pligter og belønninger'],
     ...(hvem === mig && !erBarn() ? [['fortryd', '↩️ "Fortryd"-knap efter sletning og svar (ellers: Mere → Aktivitet)']] : []),
-    ...(BOERN.includes(hvem) ? [['nedtaelling', '⏳ Nedtælling på tavlen'], ['makker', '🐰 Makker på tavlen']] : [])];
+    ...(BOERN.includes(hvem) ? [['nedtaelling', '⏳ Nedtælling på tavlen'], ['makker', '🐰 Makker på tavlen'], ['sjov', '🧩 Dagens gåde/vits på tavlen'], ['konk', '🚴 Ugens konkurrence på tavlen']] : [])];
   const seg = el('div', 'seg wrap tilpas-valg');
   for (const [felt, tekst] of MULIGHEDER) {
     const k = knap(tekst, null, async () => {
@@ -3800,6 +3806,7 @@ async function startTavle() {
   noterAktiv();
   tegnAlt();
   Data.onChange(tegnAlt);
+  setTimeout(() => { if (typeof sjovFyldOp === 'function') sjovFyldOp(); }, 6000);   // 🧩 nye gåder/vitser til drengenes tavler (sjov.js, kun voksne)
   document.body.dataset.tilstand = 'klar';
   if (typeof pushOpfrisk === 'function') pushOpfrisk();   // push.js
   // Åbnet fra en notifikation? (sw.js sætter #gaa=<liste>-<id>)

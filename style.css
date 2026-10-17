@@ -1982,3 +1982,8 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 /* Ikon-emojis (pligter, rutiner, emoji-vælgeren) ser ens ud på alle enheder: Googles Noto-emojis i stedet for
    Windows' egne (som fx tegner 👓 skåret/anderledes). Fonten hentes kun i bidder for de emojis, der bruges. */
 .auto-emoji, .emoji-valg .emoji-knap { font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif; }
+
+/* 🧩 Dagens sjove og 🚴 ugens konkurrence på tavlen */
+.sjov-tekst { font-size: 17px; line-height: 1.4; margin: 4px 0 8px; }
+.sjov-svar { font-size: 16px; font-weight: 700; color: var(--accent); margin: 6px 0 0; }
+.konk-liste.lille .konk-raekke { min-height: 36px; }
