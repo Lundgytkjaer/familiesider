@@ -43,6 +43,31 @@ const Data = (() => {
   // _af = hvem der oprettede rækken (bruges fx til at børn kun kan slette deres egne indkøbsønsker)
   const tilPunkt = r => ({ ...r.data, id: r.id, oprettet: r.oprettet, _af: r.oprettet_af });
 
+  // ---------- Ændringer vises med det samme ----------
+  // Ret og slet ændrer først rækkerne her på telefonen (så skærmen svarer med det samme) og sendes så til databasen
+  // i baggrunden – én ad gangen og i rækkefølge. Siger databasen nej (fx intet net eller børnelåsen), rulles
+  // ændringen tilbage, der kommer en besked, og alt hentes forfra, så skærmen viser det, der faktisk er gemt.
+  let koe = Promise.resolve();
+  let udefra = 0;   // tæller op, når der kommer ændringer fra de andre (bruges til at vide, hvornår noget skal hentes igen)
+  const ventende = new Map();   // id → antal ændringer der endnu ikke er gemt (live-opdateringer af dem ignoreres imens)
+  const iKoe = fn => (koe = koe.then(fn, fn));   // det næste kører også, selvom det forrige fejlede
+  function iBaggrund(ids, send, rul) {
+    ids.forEach(id => ventende.set(id, (ventende.get(id) || 0) + 1));
+    iKoe(async () => {
+      try { await send(); }
+      catch (e) {
+        console.warn('Kunne ikke gemme:', e);
+        rul();
+        const nej = e?.code === '42501' || /voksne/.test(e?.message || '');
+        if (typeof visStatus === 'function') visStatus(nej ? 'Det kan kun de voksne ændre 🙂' : navigator.onLine ? 'Kunne ikke gemme – prøv igen.' : 'Ingen forbindelse – ændringen blev ikke gemt.', true);
+        fortaelLyttere();
+        setTimeout(genhent, 300);
+      } finally {
+        ids.forEach(id => { const n = (ventende.get(id) || 1) - 1; if (n > 0) ventende.set(id, n); else ventende.delete(id); });
+      }
+    });
+  }
+
   function gemLokalt(r) {
     const i = raekker.findIndex(x => x.id === r.id);
     if (i >= 0) raekker[i] = r; else raekker.push(r);
@@ -65,7 +90,15 @@ const Data = (() => {
     }
     raekker = alle;
   }
-  async function genhent() { try { await hentAlt(); fortaelLyttere(); } catch (e) { console.warn(e); } }
+  async function genhent() {
+    try {
+      await koe;   // først skal det, der venter på at blive gemt, være gemt
+      await hentAlt();
+      udefra++;
+      if (ventende.size) { setTimeout(genhent, 500); return; }   // nye ændringer imens – hent igen bagefter
+      fortaelLyttere();
+    } catch (e) { console.warn(e); }
+  }
 
   async function efterLogin() {
     const { data: { user } } = await db.auth.getUser();
@@ -79,6 +112,8 @@ const Data = (() => {
     // Live: når en anden ændrer noget, opdateres skærmen
     db.channel('punkter')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'punkter' }, payload => {
+        if (ventende.has((payload.new || payload.old)?.id)) return;   // vores egen ændring, som allerede står på skærmen
+        udefra++;
         if (payload.eventType === 'DELETE') raekker = raekker.filter(x => x.id !== payload.old.id);
         else gemLokalt(payload.new);
         fortaelLyttere();
@@ -108,6 +143,7 @@ const Data = (() => {
     },
 
     async logud() {
+      await koe;   // gem det, der venter, før man logges ud
       if (typeof pushFoerLogud === 'function') await pushFoerLogud();   // push.js: telefonen skal ikke have den udloggedes beskeder
       await db.auth.signOut();
       location.reload();
@@ -123,6 +159,7 @@ const Data = (() => {
     listNu(liste) { return raekker.filter(r => r.liste === liste).map(tilPunkt); },   // samme, uden at vente
 
     async add(liste, felter) {
+      await koe;   // efter de ændringer der venter (rækkefølgen bevares)
       const { data, error } = await db.from('punkter').insert({ liste, data: felter }).select().single();
       if (error) throw error;
       gemLokalt(data);
@@ -132,33 +169,59 @@ const Data = (() => {
 
     async addMange(liste, felterListe) {
       if (!felterListe.length) return;
+      await koe;
       const { data, error } = await db.from('punkter').insert(felterListe.map(f => ({ liste, data: f }))).select();
       if (error) throw error;
       data.forEach(gemLokalt);
     },
 
+    // Vises med det samme – gemmes i baggrunden (se iBaggrund)
     async update(liste, id, aendringer) {
       const r = raekker.find(x => x.id === id);
       if (!r) return;
-      const { data, error } = await db.from('punkter').update({ data: { ...r.data, ...aendringer } }).eq('id', id).select().single();
-      if (error) throw error;
-      gemLokalt(data);
-      pushOm(liste, id);
+      const ny = { ...r, data: { ...r.data, ...aendringer } };
+      gemLokalt(ny);
+      iBaggrund([id], async () => {
+        const { data, error } = await db.from('punkter').update({ data: ny.data }).eq('id', id).select().single();
+        if (error) throw error;
+        if ((ventende.get(id) || 0) <= 1) gemLokalt(data);   // ingen nyere ændring på vej
+        pushOm(liste, id);
+      }, () => { if (raekker.some(x => x.id === id)) gemLokalt(r); });
     },
 
     async remove(liste, id) {
       const r = raekker.find(x => x.id === id);
-      const { error } = await db.from('punkter').delete().eq('id', id);
-      if (error) throw error;
       raekker = raekker.filter(x => x.id !== id);
       husk(r);
+      iBaggrund([id], async () => {
+        const { error } = await db.from('punkter').delete().eq('id', id);
+        if (error) throw error;
+      }, () => { if (r) gemLokalt(r); });
     },
+
+    // Slet mange på én gang (fx "Ryd" og "Ryd kurven") – ét kald til databasen
+    async removeMange(liste, ids) {
+      ids = [...new Set(ids)];
+      if (!ids.length) return;
+      const s = new Set(ids);
+      const fjernet = raekker.filter(x => s.has(x.id));
+      raekker = raekker.filter(x => !s.has(x.id));
+      fjernet.forEach(r => husk(r));
+      iBaggrund(ids, async () => {
+        const { error } = await db.from('punkter').delete().in('id', ids);
+        if (error) throw error;
+      }, () => fjernet.forEach(gemLokalt));
+    },
+    nytUdefra() { return udefra; },
+    // Er alt gemt? (venter til køen er tom)
+    async gemt() { await koe; },
 
     // Kald før en ændring, der i praksis sletter noget (fx "slet kun denne dag" i en gentagen aftale)
     huskFoer(id, tekst) { husk(raekker.find(x => x.id === id), tekst); },
 
     // Sæt en fortrudt gruppe ind igen: slettede rækker kommer tilbage, ændrede får deres gamle indhold
     async gendan(g) {
+      await koe;   // en sletning, der stadig er på vej, må ikke ramme det gendannede
       const rows = g.raekker.map(r => ({ id: r.id, liste: r.liste, data: r.data, oprettet: r.oprettet, oprettet_af: r.oprettet_af }));
       const { data, error } = await db.from('punkter').upsert(rows).select();
       if (error) throw error;

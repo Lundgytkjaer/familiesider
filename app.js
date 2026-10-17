@@ -1029,7 +1029,7 @@ document.getElementById('ny-ret-form').addEventListener('submit', async e => {
 document.querySelectorAll('.ryd[data-liste]').forEach(knap => {
   knap.addEventListener('click', () => bekraeft(knap, async () => {
     const navn = knap.dataset.liste;
-    for (const p of (await Data.list(navn)).filter(p => p.klaret)) await Data.remove(navn, p.id);
+    await Data.removeMange(navn, (await Data.list(navn)).filter(p => p.klaret).map(p => p.id));
     tegnAlt();
   }));
 });
@@ -1495,7 +1495,7 @@ document.getElementById('mad-denne').addEventListener('click', () => { madUge = 
 
 const rydUge = document.getElementById('ryd-uge');
 rydUge.addEventListener('click', () => bekraeft(rydUge, async () => {
-  for (const r of await madplanForUge(madUgeIso())) await Data.remove('madplan', r.id);
+  await Data.removeMange('madplan', (await madplanForUge(madUgeIso())).map(r => r.id));
   tegnAlt();
 }));
 
@@ -3347,6 +3347,8 @@ function laasForBoern() {
   Data.addMange = async (liste, fl) => (fl.every(f => barnMaa('ny', liste, f)) ? orig.addMange(liste, fl) : nej());
   Data.update = async (liste, id, f) => (barnMaa('ret', liste, f, await find(liste, id)) ? orig.update(liste, id, f) : nej());
   Data.remove = async (liste, id) => (barnMaa('slet', liste, null, await find(liste, id)) ? orig.remove(liste, id) : nej());
+  const origMange = Data.removeMange;
+  Data.removeMange = async (liste, ids) => { for (const id of ids) if (!barnMaa('slet', liste, null, await find(liste, id))) return nej(); return origMange(liste, ids); };
 }
 
 // Syg / fri fra skolen / tidligere fri – gemmes som en kalenderaftale for barnet

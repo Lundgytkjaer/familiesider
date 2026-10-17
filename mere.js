@@ -1424,17 +1424,67 @@ function nyeSiden(noegle, liste) {
 }
 
 // Indhold til "Ønsker" på de voksnes I dag (tomt hvis intet venter)
+// ---------- Hvad har den anden voksne svaret? ----------
+// Så man ikke leder efter et ønske, der allerede er besvaret, når man åbner appen fra en notifikation.
+// Hentes fra aktivitetsloggen (kun voksne kan læse den) – kun svar fra de andre voksne, det seneste døgn.
+let svarHuske = { noegle: null, liste: [], hent: null };
+async function andresSvar() {
+  if (!erVoksen()) return [];
+  const noegle = Data.nytUdefra() + '|' + Math.floor(Date.now() / 600000);   // hent igen ved ændringer fra andre (og hvert 10. min)
+  if (svarHuske.noegle === noegle) return svarHuske.hent || svarHuske.liste;
+  svarHuske.noegle = noegle;
+  svarHuske.hent = (async () => {
+    try {
+      const mig = Data.bruger()?.navn, graense = new Date(Date.now() - 24 * 3600000).toISOString();
+      const raekker = (await Data.aktivitet(null, 120)).filter(a => a.tid >= graense && a.navn && a.navn !== mig && VOKSNE.includes(a.navn));
+      const res = [];
+      for (const a of raekker) {
+        const f = a.foer || {}, e = a.efter || {}, d = a.efter || a.foer || {};
+        const t = (d.barn ? d.barn + ': ' : '') + (typeof aktTitel === 'function' ? aktTitel(d, a.liste) : (d.navn || d.tekst || d.ret || ''));
+        let ikon = null, hvad = null;
+        if (['indloesninger', 'ekstra', 'madoensker'].includes(a.liste) && a.handling === 'ret' && f.status === 'afventer' && e.status !== 'afventer') {
+          if (e.status === 'godkendt') { ikon = '👍'; hvad = 'sagde ja'; }
+          else if (e.status === 'afvist') { ikon = '👎'; hvad = 'sagde nej'; }
+          else if (e.status === 'erstattet') { ikon = '🔁'; hvad = 'valgte noget andet'; }
+        } else if (a.liste === 'flueben' && f.venter && a.handling === 'ret' && !e.venter) { ikon = '👍'; hvad = 'godkendte'; }
+        else if (a.liste === 'flueben' && f.venter && a.handling === 'slet') { ikon = '✖'; hvad = 'sagde ikke klaret'; }
+        else if (a.liste === 'jobs' && a.handling === 'ret' && f.status === 'klaret' && e.status !== 'klaret') {
+          ikon = e.status === 'godkendt' ? '💼' : '↩️'; hvad = e.status === 'godkendt' ? 'godkendte jobbet' : 'sendte jobbet tilbage';
+        }
+        if (hvad) res.push({ tid: a.tid, tekst: ikon + ' ' + a.navn + ' ' + hvad + ' · ' + t });
+        if (res.length >= 5) break;
+      }
+      svarHuske.liste = res;
+    } catch (e) { console.warn('Svar:', e); svarHuske.liste = []; }
+    svarHuske.hent = null;
+    return svarHuske.liste;
+  })();
+  return svarHuske.hent;
+}
+function svarListe(svar) {
+  const ul = el('ul', 'svar-liste');
+  for (const s of svar) {
+    const li = el('li');
+    const t = new Date(s.tid);
+    li.append(el('span', 'svar-tekst', s.tekst), el('span', 'svar-tid', (isoDato(t) === isoDato(new Date()) ? '' : 'i går ') + klokken(t)));
+    ul.append(li);
+  }
+  return ul;
+}
+
 async function oenskerIndhold() {
   if (!erVoksen()) return [];
+  const svar = await andresSvar();
   const ventende = (await Data.list('indloesninger')).filter(x => x.status === 'afventer').sort((a, b) => a.dato.localeCompare(b.dato));
   const ekstra = (await Data.list('ekstra')).filter(x => x.status === 'afventer').sort((a, b) => a.dato.localeCompare(b.dato));
   const mad = await madOenskeLinjer();   // fra app.js
   const venterFb = (await Data.list('flueben')).filter(f => f.venter);
   const jobKlar = (await Data.list('jobs')).filter(j => j.status === 'klaret');
   const antal = ventende.length + ekstra.length + mad.length + venterFb.length + jobKlar.length;
-  if (!antal) return [];
+  if (!antal && !svar.length) return [];
   const top = el('div', 'kort-top');
-  top.append(el('span', 'kort-label', '🎁 Ønsker'), el('span', 'kort-pil', antal === 1 ? '1 venter' : antal + ' venter'));
+  top.append(el('span', 'kort-label', '🎁 Ønsker'), el('span', 'kort-pil', !antal ? 'Intet venter' : antal === 1 ? '1 venter' : antal + ' venter'));
+  if (!antal) return [top, el('p', 'svar-titel', 'Allerede svaret'), svarListe(svar)];
   const ul = el('ul', 'beloen-liste');
   ventende.forEach(x => ul.append(oenskeLi(x, false)));
   // Børnenes "jeg har gjort noget ekstra"
@@ -1469,7 +1519,7 @@ async function oenskerIndhold() {
       knap('Godkend', 'lille-knap godkend', async () => { Data.huskFoer(j.id, 'Godkendt: ' + j.navn); await Data.update('jobs', j.id, { status: 'godkendt', dato: isoDato(new Date()), fra: Data.bruger()?.navn }); tegnAlt(); }));
     li.append(info, kn); ul.append(li);
   }
-  return [top, ul];
+  return svar.length ? [top, ul, el('p', 'svar-titel', 'Allerede svaret'), svarListe(svar)] : [top, ul];
 }
 
 // ---------- 💼 Ekstra-jobs: de voksne lægger betalte job op, den første der tager det, får det ----------
@@ -1872,7 +1922,7 @@ async function tegnPakkelister() {
     knap('Omdøb', 'lille-knap', () => navnPakkeliste(valgt)),
     knap('Kopiér', 'lille-knap', () => kopierPakkeliste(valgt, alle)),
     bekraeftKnap('Slet liste', 'slette', 'lille-knap fare-knap', async () => {
-      for (const p of alle) await Data.remove('pakkepunkter', p.id);
+      await Data.removeMange('pakkepunkter', alle.map(p => p.id));
       await Data.remove('pakkelister', valgt.id);
       pakValgt = ''; lokal.set('pak-valgt', '');
       tegnPakkelister();

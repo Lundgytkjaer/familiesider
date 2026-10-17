@@ -234,7 +234,7 @@ async function tegnHandleliste(viste) {
     d.append(ul);
     // Ryd kurven: alt det købte fjernes fra listen (som "Ryd det købte") – to tryk
     if (!erBarn()) d.append(bekraeftKnap('🗑 Ryd kurven (' + kurv.length + ')', 'rydde kurven', 'ryd ryd-kurv', async () => {
-      for (const p of kurv) await Data.remove('indkob', p.id);
+      await Data.removeMange('indkob', kurv.map(p => p.id));
       tegnAlt();
     }));
     dele.push(d);
@@ -252,8 +252,15 @@ function handleLi(p, k) {
   if (p.antal) tekst.append(antalTag(p.antal));   // app.js
   tekst.append(el('span', p.vigtig && !p.klaret ? 'vigtig' : '', p.tekst));
   b.append(tjek, tekst);
-  const ekstra = [p.tilbud ? 'Tilbud' : '', p.note || '', p.butik && !butikFilter ? p.butik : ''].filter(Boolean);
-  if (ekstra.length) b.append(el('span', 'handle-ekstra' + (p.tilbud ? ' tilbud' : ''), ekstra.join(' · ')));
+  // Butikken står altid på varen – også når man har valgt en butik (så man kan se, hvad der SKAL købes her,
+  // og hvad der bare mangler og kan købes hvor som helst)
+  const ekstra = [p.tilbud ? 'Tilbud' : '', p.note || ''].filter(Boolean);
+  if (ekstra.length || p.butik) {
+    const linje = el('span', 'handle-ekstra' + (p.tilbud ? ' tilbud' : ''));
+    if (p.butik) linje.append(el('span', 'handle-butik' + (p.butik === butikFilter ? ' her' : ''), '📍 ' + p.butik));
+    if (ekstra.length) linje.append(el('span', null, ekstra.join(' · ')));
+    b.append(linje);
+  }
   li.append(b);
   // Kun varer uden kategori har en knap – ellers ændres kategorien ved at holde fingeren på varen
   if (!erBarn() && !p.klaret && k === 'andet') {

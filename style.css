@@ -1958,3 +1958,15 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .ai-usikker { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 4px 8px 6px 46px; font-size: 14px; }
 .ai-usikker span { flex: 1 1 100%; color: var(--daempet); }
 .ai-usikker input { flex: 1 1 160px; min-width: 0; }
+
+/* Handletilstand: butikken på varen (📍) – fremhævet, når det er den butik, man står i */
+.handle-ekstra .handle-butik { margin-right: 6px; color: var(--daempet); font-weight: 600; }
+.handle-ekstra .handle-butik.her { color: var(--accent); }
+
+/* 🎁 Ønsker: hvad den anden voksne allerede har svaret (seneste døgn) */
+.svar-titel { margin: 10px 0 4px; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--daempet); }
+.svar-liste { list-style: none; margin: 0; padding: 0; }
+.svar-liste li { display: flex; gap: 8px; align-items: baseline; padding: 5px 0; border-top: 1px solid var(--linje); font-size: 14px; color: var(--daempet); }
+.svar-liste li:first-child { border-top: 0; }
+.svar-tekst { flex: 1; min-width: 0; }
+.svar-tid { font-size: 12px; white-space: nowrap; }
