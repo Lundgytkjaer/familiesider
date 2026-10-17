@@ -1161,7 +1161,7 @@ function beloenLi(barn, b, d, s) {
 
 // 🏆 Ugepokal-linje på pligt-kortet: "3 af 5 dage" – og fest, når den er vundet (én gang pr. uge pr. enhed)
 function ugepokalLinje(barn, d) {
-  if (typeof ugeStatus !== 'function') return null;
+  if (typeof ugeStatus !== 'function' || !BOERN.includes(barn)) return null;   // ugepokalen er kun for børnene (ikke "Mine pligter i dag")
   const man = isoDato(mandagDenneUge());
   const st = ugeStatus(d, man);   // sjov.js
   if (!st.maal) return null;
