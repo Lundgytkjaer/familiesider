@@ -1936,3 +1936,19 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .note-seddel-bund { font-size: 12px; color: #5b5848; min-height: 4px; }
 .ov-sedler.to-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 8px; }
 .ov-sedler.to-links .seddel-skriv-link { margin: 18px 0 4px; }
+
+/* Budget – bankposteringer */
+.b-aar-pknap { all: unset; cursor: pointer; display: block; text-decoration: underline dotted; text-underline-offset: 3px; }
+.b-aar-pknap:focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; border-radius: 4px; }
+.b-bank-kort h3 { margin-top: 0; }
+.b-bank-sum { font-weight: 700; margin: 8px 0; font-variant-numeric: tabular-nums; }
+.b-bank-liste { list-style: none; margin: 0; padding: 0; }
+.b-bank-raekke { all: unset; cursor: pointer; box-sizing: border-box; width: 100%; display: flex; gap: 10px; align-items: baseline; justify-content: space-between; padding: 8px 2px; border-bottom: 1px solid var(--linje); }
+.b-bank-raekke.rettet { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.b-bank-v { display: flex; flex-direction: column; min-width: 0; }
+.b-bank-tekst { overflow-wrap: anywhere; }
+.b-bank-info { font-size: 12px; color: var(--daempet); }
+.b-bank-beloeb { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.b-bank-beloeb.plus { color: #1e8449; }
+.b-flyt-post { display: block; width: 100%; margin: 4px 0; text-align: left; }
+.b-flyt-post[aria-current="true"] { outline: 2px solid var(--accent); }

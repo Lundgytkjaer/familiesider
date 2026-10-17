@@ -8,6 +8,10 @@
 //   Årsbillede (📌 Gem årets budget): række i samme liste {snap: 'ÅÅÅÅ', dato, poster: [{navn, gruppe, konto?, type?, aar}], ejer?}
 //   Forbrug (fra banken): {snap: 'ÅÅÅÅ', art: 'forbrug', maaneder: antal måneder, periode: 'jan–okt', dato, poster: [{navn, gruppe, aar}]}
 //     – aar = det brugte beløb i perioden; kr/md = aar / maaneder. Vises kun under fanen År.
+//   Bankposteringer: én række {snap: '_bank', art: 'bankfil', sti, navn, lavet, fra, til, antal} peger på en JSON-fil i Storage
+//     (voksne/…, laves af Claude ud fra bankeksporten – ingen kontonumre): {rows: [{id, d, k (konto), t, b, ty, n (post), g (gruppe)}]}.
+//     Hentes først, når man trykker på en post under År. Rettelser: {snap: '_bank', art: 'bankret', pid, aar, dato, tekst, beloeb,
+//     fra: {navn, gruppe}, til: {navn, gruppe}} – lægges oven på filen og på forbruget i tabellen, så en ny fil ikke overskriver dem.
 //     – bruges til "År for år" og Sammenlign. Poster-funktionerne springer snap-rækker over.
 // Behov pr. konto = summen af posterne / 12. "Hver af jer" = behov delt i BUDGET_DELES, rundet op til nærmeste BUDGET_RUND kr.
 // En post er "ikke tjekket", når den ikke er set i en gennemgang/rettet i 12 måneder – så ved man, hvad der skal opdateres.
@@ -561,7 +565,7 @@ function budgetGennemgang(alle, kilde = bKilde('faelles')) {
 }
 
 // ---------- År for år: 📌 gem årets budget og sammenlign ----------
-const bSnaps = kilde => kilde.alle().filter(p => p.snap && p.art !== 'forbrug').sort((a, b) => String(a.snap).localeCompare(String(b.snap)));
+const bSnaps = kilde => kilde.alle().filter(p => p.snap && !p.art).sort((a, b) => String(a.snap).localeCompare(String(b.snap)));
 function bSnapPoster(kilde) {
   const ps = kilde.poster().map(p => ({ navn: p.navn, gruppe: p.gruppe || 'Andet', ...(p.konto ? { konto: p.konto } : {}), ...(p.type ? { type: p.type } : {}), aar: Math.round(bAar(p) * 100) / 100 }));
   if (!kilde.faelles) ps.push({ navn: 'Andel af fælles budget', gruppe: 'Fælles budget', type: 'ud', aar: bAndel() * 12 });
@@ -659,11 +663,19 @@ function bAarData(poster) {
   const aar = new Map();   // 'ÅÅÅÅ' → { b: Map|null, f: Map|null, fMdr, periode }
   const hent = a => { if (!aar.has(a)) aar.set(a, { b: null, f: null }); return aar.get(a); };
   const tilMap = (ps, del) => { const m = new Map(); for (const p of ps || []) { if (p.type === 'ind') continue; const k = bNoegle(p); const x = m.get(k) || { navn: p.navn, gruppe: p.gruppe || 'Andet', md: 0 }; x.md += (Number(p.aar) || 0) / del; m.set(k, x); } return m; };
-  for (const s of alle.filter(p => p.snap && p.art !== 'forbrug')) if (String(s.snap) !== nu) hent(String(s.snap)).b = tilMap(s.poster, 12);
+  for (const s of alle.filter(p => p.snap && !p.art)) if (String(s.snap) !== nu) hent(String(s.snap)).b = tilMap(s.poster, 12);
   hent(nu).b = tilMap(poster.map(p => ({ navn: p.navn, gruppe: p.gruppe, aar: bAar(p) })), 12);
   for (const s of alle.filter(p => p.snap && p.art === 'forbrug')) {
     const x = hent(String(s.snap)), mdr = Number(s.maaneder) || 12;
-    x.f = tilMap(s.poster, mdr); x.periode = s.periode || ''; x.fDato = s.dato;
+    x.f = tilMap(s.poster, mdr); x.fMdr = mdr; x.periode = s.periode || ''; x.fDato = s.dato;
+  }
+  // Rettede bankposteringer flytter beløbet fra den ene post til den anden i forbruget
+  for (const r of bRettelser()) {
+    const x = aar.get(String(r.aar));
+    if (!x || !x.f) continue;
+    const md = (Number(r.beloeb) || 0) / (x.fMdr || 12);
+    const flyt = (p, fortegn) => { const k = bNoegle(p); const y = x.f.get(k) || { navn: p.navn, gruppe: p.gruppe || 'Andet', md: 0 }; y.md += fortegn * md; x.f.set(k, y); };
+    flyt(r.fra, -1); flyt(r.til, 1);
   }
   return [...aar].sort((a, b) => a[0].localeCompare(b[0]));
 }
@@ -730,7 +742,10 @@ function budgetAarVis(poster) {
     tb.append(tr);
     if (aaben) for (const k of ngl) {
       const pr = el('tr', 'b-aar-post');
-      pr.append(el('th', null, grupper.get(g).get(k)));
+      const th = el('th');
+      const pk = knap(grupper.get(g).get(k), 'b-aar-pknap', () => bPosteringer(grupper.get(g).get(k), g));
+      pk.title = 'Se posteringerne';
+      th.append(pk); pr.append(th);
       for (const [, x] of kol) {
         const bb = x.b ? (x.b.get(k)?.md ?? null) : null, ff = x.f ? (x.f.get(k)?.md ?? null) : null;
         pr.append(celle(bb, ff));
@@ -748,7 +763,118 @@ function budgetAarVis(poster) {
   if (fk.length) noter.push('Forbruget er regnet om til kr. om måneden for den periode, banken dækker (' + fk.map(([a, x]) => a + ': ' + x.periode).join(', ') + ').');
   noter.push('Nogle ting kan kun ses samlet i banken – fx GF, der står som én post under forbrug.');
   dele.push(el('p', 'hint', noter.join(' ')));
+  dele.push(bBankKort());
   return dele;
+}
+
+// ---------- Bankposteringer (fil i Storage) + rettelser ----------
+const bBankRaekke = () => bAlleFaelles().find(p => p.art === 'bankfil');
+const bRettelser = () => bAlleFaelles().filter(p => p.art === 'bankret');
+let bBankData = null, bBankSti = null;
+async function bHentBank() {
+  const r = bBankRaekke();
+  if (!r) return null;
+  if (bBankData && bBankSti === r.sti) return bBankData;
+  const res = await fetch(await Data.filUrl(r.sti));
+  if (!res.ok) throw new Error('Kunne ikke hente posteringerne');
+  bBankData = await res.json(); bBankSti = r.sti;
+  return bBankData;
+}
+// Posteringens post efter jeres rettelser
+function bEffektiv(x, ret) { const r = ret.get(x.id); return r ? { navn: r.til.navn, gruppe: r.til.gruppe, rettet: r } : { navn: x.n, gruppe: x.g }; }
+const bKrOere = n => (Math.round(n * 100) / 100).toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+function bBankKort() {
+  const r = bBankRaekke();
+  const kort = el('div', 'kort b-bank-kort');
+  kort.append(el('h3', null, '🏦 Bankposteringer'));
+  if (r) kort.append(el('p', 'hint', bKr(r.antal) + ' posteringer fra ' + bDato(r.fra) + ' til ' + bDato(r.til) + ' (lavet ' + bDato(r.lavet) + '). Tryk på en post i tabellen for at se dens posteringer og rette dem.'));
+  else kort.append(el('p', 'hint', 'Læg filen med bankposteringer ind (posteringer.json fra Claude). Så kan I trykke på en post og se hver eneste betaling.'));
+  const filInp = el('input'); filInp.type = 'file'; filInp.accept = '.json,application/json'; filInp.hidden = true;
+  filInp.addEventListener('change', async () => {
+    const fil = filInp.files?.[0]; filInp.value = '';
+    if (!fil) return;
+    let d;
+    try { d = JSON.parse(await fil.text()); if (!Array.isArray(d.rows)) throw 0; } catch { visStatus('Det er ikke en fil med posteringer', true); return; }
+    try {
+      visStatus('Lægger posteringerne op …');
+      const op = await Data.uploadFil('voksne', fil);
+      const felter = { snap: '_bank', art: 'bankfil', sti: op.sti, navn: op.navn, lavet: d.lavet || bIdag(), fra: d.fra || '', til: d.til || '', antal: d.rows.length };
+      if (r) { await Data.update('budget', r.id, felter); Data.sletFiler([r.sti]); } else await Data.add('budget', felter);
+      bBankData = d; bBankSti = op.sti;
+      visStatus('🏦 ' + bKr(d.rows.length) + ' posteringer er lagt ind'); tegnBudget();
+    } catch (e) { console.warn(e); visStatus('Filen kunne ikke lægges op', true); }
+  });
+  kort.append(filInp, knap(r ? '📂 Udskift filen' : '📂 Læg posteringer ind', 'lille-knap', () => filInp.click()));
+  const n = bRettelser().length;
+  if (n) kort.append(el('p', 'hint', '✏️ I har rettet ' + n + (n === 1 ? ' postering' : ' posteringer') + '. Rettelserne bliver liggende, når filen udskiftes.'));
+  return kort;
+}
+// Ark: posteringerne bag én post (vælg år, søg). Tryk på en postering = flyt den til en anden post.
+async function bPosteringer(navn, gruppe, valgtAar) {
+  if (!bBankRaekke()) { visStatus('Læg først filen med bankposteringer ind (nederst under År)', true); return; }
+  aabnArk('🧾 ' + navn, el('p', 'hint', 'Henter posteringer …'));
+  let d;
+  try { d = await bHentBank(); } catch { aabnArk('🧾 ' + navn, el('p', 'hint', 'Posteringerne kunne ikke hentes. Prøv igen om lidt.')); return; }
+  const ret = new Map(bRettelser().map(r => [r.pid, r]));
+  const k = bNoegle({ navn, gruppe });
+  const alle = d.rows.filter(x => (x.n || ret.has(x.id)) && bNoegle(bEffektiv(x, ret)) === k);
+  const aarListe = [...new Set(alle.map(x => x.d.slice(0, 4)))].sort().reverse();
+  let aarV = valgtAar && aarListe.includes(valgtAar) ? valgtAar : aarListe[0] || '';
+  let soeg = '';
+  const liste = el('div');
+  const tegn = () => {
+    const q = soeg.trim().toLowerCase();
+    const vis = alle.filter(x => (!aarV || x.d.startsWith(aarV)) && (!q || x.t.toLowerCase().includes(q)));
+    const sum = vis.reduce((s, x) => s - x.b, 0);
+    const ul = el('ul', 'b-bank-liste');
+    for (const x of vis.slice(0, 400)) {
+      const e = bEffektiv(x, ret);
+      const li = el('li');
+      const b = knap('', 'b-bank-raekke' + (e.rettet ? ' rettet' : ''), () => bFlytPostering(x, ret.get(x.id), () => bPosteringer(navn, gruppe, aarV)));
+      const v = el('span', 'b-bank-v');
+      v.append(el('span', 'b-bank-tekst', x.t), el('span', 'b-bank-info', bDato(x.d) + ' · ' + x.k + (e.rettet ? ' · ✏️ flyttet hertil' : '')));
+      b.append(v, el('b', 'b-bank-beloeb' + (x.b > 0 ? ' plus' : ''), (x.b > 0 ? '+' : '') + bKrOere(x.b)));
+      li.append(b); ul.append(li);
+    }
+    liste.replaceChildren(el('p', 'b-bank-sum', vis.length + (vis.length === 1 ? ' postering' : ' posteringer') + ' · i alt ' + bKr(sum) + ' kr'),
+      vis.length ? ul : el('p', 'tom', 'Ingen posteringer.'), vis.length > 400 ? el('p', 'hint', 'Viser de 400 nyeste – søg for at finde andre.') : '');
+  };
+  const valg = aarListe.length > 1 ? chipValg(aarListe, aarV, v => { aarV = v; tegn(); }) : '';
+  const s = input('search', 'bank-soeg', '', 'Søg i teksten');
+  s.addEventListener('input', () => { soeg = s.value; tegn(); });
+  tegn();
+  aabnArk('🧾 ' + navn, valg, s, liste, el('p', 'hint', 'Tryk på en postering for at flytte den til en anden post. Kun betalinger og refusioner er med – ikke overførsler mellem jeres egne konti.'));
+}
+// Flyt én postering til en anden post (gemmes som rettelse oven på filen)
+function bFlytPostering(x, gl, tilbage) {
+  const kol = bAarData(bPoster());
+  const grupper = new Map();
+  for (const p of bPoster()) { const g = p.gruppe || 'Andet'; if (!grupper.has(g)) grupper.set(g, new Set()); grupper.get(g).add(p.navn); }
+  for (const [, y] of kol) for (const m of [y.b, y.f]) if (m) for (const [, p] of m) { if (!grupper.has(p.gruppe)) grupper.set(p.gruppe, new Set()); grupper.get(p.gruppe).add(p.navn); }
+  const nu = gl ? gl.til : { navn: x.n, gruppe: x.g };
+  let g = nu.gruppe;
+  const postBoks = el('div');
+  const gemTil = async til => {
+    const fra = { navn: x.n, gruppe: x.g };
+    if (bNoegle(til) === bNoegle(fra)) { if (gl) await Data.remove('budget', gl.id); }
+    else {
+      const felter = { snap: '_bank', art: 'bankret', pid: x.id, aar: x.d.slice(0, 4), dato: x.d, tekst: x.t, beloeb: -x.b, fra, til };
+      if (gl) await Data.update('budget', gl.id, felter); else await Data.add('budget', felter);
+    }
+    visStatus('✏️ Flyttet til ' + til.navn); tegnBudget(); tilbage();
+  };
+  const tegnPoster = () => postBoks.replaceChildren(...[...(grupper.get(g) || [])].sort((a, b) => a.localeCompare(b, 'da')).map(n => {
+    const b = knap(n, 'knap sekundaer b-flyt-post', () => gemTil({ navn: n, gruppe: g }));
+    if (n === nu.navn && g === nu.gruppe) b.setAttribute('aria-current', 'true');
+    return b;
+  }));
+  const gValg = chipValg([...grupper.keys()], g, v => { g = v; tegnPoster(); }, v => bIkon(v) + ' ' + v);
+  tegnPoster();
+  const knapper = el('div', 'ark-knapper');
+  if (gl) knapper.append(knap('↩️ Tilbage til ' + x.n, 'knap sekundaer', () => gemTil({ navn: x.n, gruppe: x.g })));
+  knapper.append(knap('Annullér', 'knap', () => tilbage()));
+  aabnArk('Flyt postering', el('p', null, x.t), el('p', 'hint', bDato(x.d) + ' · ' + x.k + ' · ' + bKrOere(x.b) + ' kr · nu: ' + nu.navn),
+    el('label', 'felt-label', 'Kategori'), gValg, el('label', 'felt-label', 'Post'), postBoks, knapper);
 }
 
 // ---------- Personligt budget ----------
