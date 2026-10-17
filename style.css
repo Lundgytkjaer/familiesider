@@ -1978,3 +1978,7 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 /* Retter: egne navne for kombinationer */
 .kombi-dele { color: var(--daempet); font-weight: 400; }
 .kombi-valg .seg { margin-bottom: 6px; }
+
+/* Ikon-emojis (pligter, rutiner, emoji-vælgeren) ser ens ud på alle enheder: Googles Noto-emojis i stedet for
+   Windows' egne (som fx tegner 👓 skåret/anderledes). Fonten hentes kun i bidder for de emojis, der bruges. */
+.auto-emoji, .emoji-valg .emoji-knap { font-family: "Noto Color Emoji", "Apple Color Emoji", "Segoe UI Emoji", sans-serif; }
