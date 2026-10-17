@@ -1345,24 +1345,30 @@ function dagMenu(i, dato, { egen, fast, ude, vist, retter, faste }) {
 }
 
 // 🎉 Vi er ude: kort tekst på dagen (fx "Fødselsdag hos Lisbeth") – bliver aldrig en ret på listerne
+// Valgfrit: hvad I skal spise derude – står så på tavlen: "🎉 Hos morfar · Frikadeller"
 function udeArk(i, dato, nu) {
-  const tekst = input('text', 'ude-tekst', (nu || '').replace(/^🎉\s*/, ''), 'Fx Fødselsdag hos Lisbeth');
+  const [nuTekst, nuMad = ''] = (nu || '').replace(/^🎉\s*/, '').split(' · ');
+  const tekst = input('text', 'ude-tekst', nuTekst, 'Fx Fødselsdag hos Lisbeth');
   tekst.maxLength = 60;
+  const mad = input('text', 'ude-mad', nuMad, 'Fx Frikadeller (valgfrit)');
+  mad.maxLength = 60;
+  mad.setAttribute('list', 'retter-forslag');
   const forslag = el('div', 'seg wrap');
   const iso = isoDato(dato);
   Promise.all([Data.list('kalender'), Data.list('kalender_voksne')]).then(([a, b]) => {
     const fra = aftalerDen([...a, ...b], iso).filter(x => !x.fri && !x.type).map(x => x.titel);
-    for (const t of [...new Set([...fra, 'Spiser ude', 'Hver for sig'])]) forslag.append(knap(t, null, () => { tekst.value = t; }));
+    for (const t of [...new Set([...fra, 'Spiser ude', 'Hver for sig', 'Ingen aftensmad'])]) forslag.append(knap(t, null, () => { tekst.value = t; }));
   });
   const knapper = el('div', 'ark-knapper');
   if (nu) knapper.append(knap('Vi spiser hjemme', 'knap sekundaer', async () => { await gemDag(i, ''); lukArk(); tegnMadplan(); }));
   knapper.append(knap('Gem', 'knap', async () => {
     const t = tekst.value.trim();
     if (!t) { tekst.focus(); return; }
-    await gemDag(i, '🎉 ' + t, true);
+    const m = mad.value.trim().replace(/ · /g, ', ');
+    await gemDag(i, '🎉 ' + t.replace(/ · /g, ', ') + (m ? ' · ' + m : ''), true);
     lukArk(); tegnMadplan();
   }));
-  aabnArk('🎉 Vi er ude · ' + DAGE_LANG[i].toLowerCase() + ' ' + dato.getDate() + '/' + (dato.getMonth() + 1), felt('Hvad skal I?', tekst), forslag,
+  aabnArk('🎉 Vi er ude · ' + DAGE_LANG[i].toLowerCase() + ' ' + dato.getDate() + '/' + (dato.getMonth() + 1), felt('Hvad skal I?', tekst), forslag, felt('Hvad skal I spise?', mad),
     el('p', 'hint', 'Står kun på dagen – kommer ikke på listen over retter eller i terningen.'), knapper);
   setTimeout(() => tekst.focus(), 50);
 }
@@ -2380,7 +2386,7 @@ async function tegnBoernetavle(barn) {
     const fremtid = iso >= idagIso && !plan.pause?.[felt];
     const r = erBarn() ? (fremtid ? knap('', 'maaltid', () => oenskMad(barn, valgt, felt)) : el('div', 'maaltid')) : knap('', 'maaltid', () => redigerMaaltid(barn, valgt, felt));
     if (!erBarn()) r.setAttribute('aria-label', navn + ': ' + (ret || 'ikke bestemt') + '. Tryk for at ændre');
-    const retEl = el('span', 'm-ret' + (ret ? '' : ' tom-ret'), plan.visning[felt] || ret || 'Ikke bestemt');
+    const retEl = el('span', 'm-ret' + (ret && ret !== INGEN_MAD ? '' : ' tom-ret'), ret === INGEN_MAD ? 'Ingenting 🚫' : plan.visning[felt] || ret || 'Ikke bestemt');
     // Kun de voksne ser, at retten er ændret for netop denne dag (barnet ser bare maden)
     if (plan.eget[felt] && !plan.oenske?.[felt] && !erBarn()) retEl.append(el('span', 'eget-tag', 'Kun denne dag'));
     if (plan.oenske?.[felt]) retEl.append(el('span', 'eget-tag', erBarn() ? 'Dit valg' : genitiv(barn) + ' valg'));
@@ -2732,6 +2738,8 @@ function redigerInfo(barn, iso, x) {
     ...vaelger.dele, el('p', 'hint', ny ? 'Vises under "Det sker" på de valgte tavler og på familiens I dag.' : 'Vises på ' + barn + 's tavle under "Det sker" og på familiens I dag.'), knapper);
 }
 
+// "Ingenting": et måltid der springes over (gemmes som tekst, så det også kan gøres fast, fx ingen morgenmad om søndagen)
+const INGEN_MAD = 'Ingenting';
 // Vælg et måltid til et barn (direkte fra børnetavlen)
 async function redigerMaaltid(barn, dato, felt) {
   const NAVN = { morgen: 'Morgenmad', frokost: 'Frokost', ret: 'Aftensmad' };
@@ -2743,13 +2751,21 @@ async function redigerMaaltid(barn, dato, felt) {
   const fastLabel = el('label', 'check');
   const fastTjek = el('input'); fastTjek.type = 'checkbox'; fastTjek.id = 'goer-fast';
   fastLabel.append(fastTjek, 'Gør det fast hver ' + DAGE_LANG[dag].toLowerCase());
+  // Samme til de andre børn? (fx begge drenge skal have noget andet onsdag)
+  const andre = voksen ? BOERN.filter(b => b !== barn) : [];
+  const ogsaaLabel = el('label', 'check');
+  const ogsaaTjek = el('input'); ogsaaTjek.type = 'checkbox'; ogsaaTjek.id = 'ogsaa-andre';
+  ogsaaLabel.append(ogsaaTjek, 'Samme til ' + andre.join(' og '));
+  const hvem = () => [barn, ...(ogsaaTjek.checked ? andre : [])];
   const vaelg = async v => {
-    await erstatOensker(barn, isoDato(dato), felt);   // en voksens valg gælder frem for barnets ønske
-    if (kanGoereFast && fastTjek.checked) {
-      await gemFast(barn, dag, felt, v);
-      if (plan.eget[felt]) await gemMad(dag, felt, '', ugeIso, barn);   // fjern dagens undtagelse
-    } else {
-      await gemMad(dag, felt, v, ugeIso, barn);
+    for (const b of hvem()) {
+      await erstatOensker(b, isoDato(dato), felt);   // en voksens valg gælder frem for barnets ønske
+      if (kanGoereFast && fastTjek.checked) {
+        await gemFast(b, dag, felt, v);
+        await gemMad(dag, felt, '', ugeIso, b);   // fjern evt. dagens undtagelse
+      } else {
+        await gemMad(dag, felt, v, ugeIso, b);
+      }
     }
     lukArk(); tegnAlt();
   };
@@ -2790,17 +2806,18 @@ async function redigerMaaltid(barn, dato, felt) {
   });
   terning.innerHTML = IKON_TERNING + '<span>Slå med terningen</span>';
   knapper.append(terning);
+  if (voksen && plan[felt] !== INGEN_MAD) knapper.append(knap('🚫 Ingenting', 'knap sekundaer-knap', () => vaelg(INGEN_MAD)));
   const standard = felt === 'ret' ? plan.faelles.ret : plan.fast[felt];
   if (plan.eget[felt]) {
     knapper.append(knap(felt === 'ret' ? 'Brug familiens' : 'Brug den faste', 'knap sekundaer-knap',
-      async () => { await gemMad(dag, felt, '', ugeIso, barn); lukArk(); tegnAlt(); }));
+      async () => { for (const b of hvem()) await gemMad(dag, felt, '', ugeIso, b); lukArk(); tegnAlt(); }));
   }
 
   const forklaring = felt === 'ret'
     ? (standard ? 'Familiens madplan: ' + standard : 'Der står ikke noget i familiens madplan.')
     : (standard ? 'Fast hver ' + DAGE_LANG[dag].toLowerCase() + ': ' + standard : 'Der er ikke noget fast for ' + DAGE_LANG[dag].toLowerCase() + '.');
   aabnArk(NAVN[felt] + ' til ' + barn + ' · ' + DAGE_LANG[dag].toLowerCase(),
-    el('p', 'hint', forklaring), form, chips, kanGoereFast ? fastLabel : '', knapper);
+    el('p', 'hint', forklaring), andre.length ? ogsaaLabel : '', form, chips, kanGoereFast ? fastLabel : '', knapper);
 }
 
 // ---------- Madønsker fra børnene ----------
