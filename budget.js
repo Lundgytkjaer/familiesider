@@ -192,6 +192,7 @@ function bIAarKort(iaar) {
   top.append(el('b', null, bKr(iaar.f) + ' kr/md'), el('span', null, 'budget ' + bKr(iaar.b) + ' kr/md'),
     el('span', 'b-diff ' + (d > 1 ? 'op' : d < -1 ? 'ned' : ''), Math.abs(d) < 1 ? 'som budgettet' : (d > 0 ? '▲ ' : '▼ ') + bKr(Math.abs(d)) + (d > 0 ? ' over' : ' under')));
   k.append(top, el('p', 'hint', 'Faktisk forbrug ifølge banken ' + iaar.periode + ', i gennemsnit pr. måned – uden opsparing. Se det pr. kategori nedenfor og alle år under År.'));
+  if (bBankRaekke()) k.append(knap('📥 Sortér det ukendte i Andet', 'lille-knap', () => bSortering()));
   return k;
 }
 function budgetOverblik(poster) {
@@ -1100,7 +1101,7 @@ function bBankKort(bk = bBankF) {
   if (n) kort.append(el('p', 'hint', (bk.mig ? '✏️ Du har rettet ' : '✏️ I har rettet ') + n + (n === 1 ? ' postering' : ' posteringer') + '. Rettelserne bliver liggende, når der kommer nye posteringer.'));
   const egne = (bReglerRaekke(bk)?.regler?.post || []).filter(x => x.egen).length;
   const sm = el('div', 'b-bank-knapper');
-  if (r) sm.append(knap('📊 Hent som Excel-ark', 'lille-knap', () => bEksport(bk)));
+  if (r) sm.append(knap('📥 Til sortering', 'lille-knap', () => bSortering(bk)), knap('📊 Hent som Excel-ark', 'lille-knap', () => bEksport(bk)));
   sm.append(knap('🧩 Egne regler' + (egne ? ' (' + egne + ')' : ''), 'lille-knap', () => bEgneRegler(bk)),
     knap(r ? '📂 Udskift filen (fra Claude)' : '📂 Læg posteringer ind (fra Claude)', 'lille-knap', () => filInp.click()));
   kort.append(sm);
@@ -1210,6 +1211,43 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF, tilbageFra = fa
   tegn();
   const ny = knap('+ Udgift, der ikke står i banken', 'lille-knap', () => { st.scroll = bArkRul()?.scrollTop || 0; bManuel(null, { navn, gruppe }, () => bPosteringer(navn, gruppe, aarV, bk, true), bk, aarV); });
   aabnArk('🧾 ' + navn, valg, s, sv, liste, ny, el('p', 'hint', 'Tryk på en postering for at flytte den til en anden post eller et andet år – eller skrive en kommentar til den. Kun betalinger og refusioner er med – ikke overførsler mellem jeres egne konti. Er noget betalt kontant, med gavepenge eller før bankfilen starter, så tilføj det med knappen.'));
+  if (tilbageFra && st.scroll) requestAnimationFrame(() => { const r = bArkRul(); if (r) r.scrollTop = st.scroll; });
+}
+// 📥 Til sortering: alt, der ligger i kategorien Andet uden en kommentar – som en indbakke.
+// Flyt posteringen til den rigtige post eller skriv en kommentar (fx "OK – gave"), så forsvinder den herfra.
+const bSortSt = new Map();
+async function bSortering(bk = bBankF, tilbageFra = false) {
+  if (!bBankRaekke(bk)) { visStatus('Læg først en bankfil ind (nederst under År)', true); return; }
+  const st = bSortSt.get(bk.liste) || {}; bSortSt.set(bk.liste, st);
+  if (!tilbageFra) st.scroll = 0;
+  aabnArk('📥 Til sortering', el('p', 'hint', 'Henter posteringer …'));
+  let d;
+  try { d = await bHentBank(bk); } catch { aabnArk('📥 Til sortering', el('p', 'hint', 'Posteringerne kunne ikke hentes. Prøv igen om lidt.')); return; }
+  const ret = new Map(bRettelser(bk).map(r => [r.pid, r])), noter = bNoter(bk);
+  const alle = bMedDele(d.rows, ret).filter(x => (x.n || ret.has(x.id)) && (bEffektiv(x, ret).gruppe || 'Andet') === 'Andet' && !noter.get(x.id)?.note);
+  const aarListe = [...new Set(alle.map(x => bEffektiv(x, ret).aar))].sort().reverse();
+  let aarV = st.aar && aarListe.includes(st.aar) ? st.aar : aarListe[0] || '';
+  const liste = el('div');
+  const tegn = () => {
+    const vis = alle.filter(x => !aarV || bEffektiv(x, ret).aar === aarV).sort((a, b) => Math.abs(b.b) - Math.abs(a.b));
+    const sum = vis.reduce((s, x) => s - x.b, 0);
+    const ul = el('ul', 'b-bank-liste');
+    for (const x of vis.slice(0, 300)) {
+      const e = bEffektiv(x, ret);
+      const hel = x.delTil ? { ...x, b: x.helB, delTil: undefined } : x;
+      const b = knap('', 'b-bank-raekke', () => { st.scroll = bArkRul()?.scrollTop || 0; bFlytPostering(hel, ret.get(x.id), () => bSortering(bk, true), bk); });
+      const v = el('span', 'b-bank-v');
+      v.append(el('span', 'b-bank-tekst', x.t), el('span', 'b-bank-info', bDato(x.d) + ' · ' + x.k + ' · ' + e.navn));
+      b.append(v, el('b', 'b-bank-beloeb' + (x.b > 0 ? ' plus' : ''), (x.b > 0 ? '+' : '') + bKrOere(x.b)));
+      const li = el('li'); li.append(b); ul.append(li);
+    }
+    liste.replaceChildren(el('p', 'b-bank-sum', vis.length ? vis.length + (vis.length === 1 ? ' postering' : ' posteringer') + ' · i alt ' + bKr(sum) + ' kr' : '🎉 Intet at sortere' + (aarV ? ' i ' + aarV : '')),
+      vis.length ? ul : '', vis.length > 300 ? el('p', 'hint', 'Viser de 300 største.') : '');
+  };
+  const valg = aarListe.length > 1 ? chipValg(aarListe, aarV, v => { aarV = v; st.aar = v; tegn(); }) : '';
+  tegn();
+  aabnArk('📥 Til sortering', el('p', 'hint', 'Det, der ligger i "Andet" og endnu ikke har en kommentar – største beløb først. Tryk på en postering og flyt den til den rigtige post, eller skriv en kommentar (fx "OK – gave til fødselsdag"), så forsvinder den herfra.'),
+    valg, liste);
   if (tilbageFra && st.scroll) requestAnimationFrame(() => { const r = bArkRul(); if (r) r.scrollTop = st.scroll; });
 }
 // Forslag til regel-tekst: butikkens navn uden "Forretning:", DK-NOTA-numre, datoer og tal
