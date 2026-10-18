@@ -132,6 +132,7 @@ const Bank = (() => {
   // Fælles betingelser for en regel
   function betingelser(r, x, T, katNavn) {
     const a = Math.abs(x.b);
+    if (r.id && !r.id.includes(x.id)) return false;   // bestemte posteringer (fx modposter, der hører sammen)
     if (r.t && !passer(r.t, T)) return false;
     if (r.ikkeT && passer(r.ikkeT, T)) return false;
     if (r.tn && !passer(r.tn, norm(x.t))) return false;

@@ -885,6 +885,7 @@ const bReglerRaekke = (bk = bBankF) => bk.alle().find(p => p.art === 'regler');
 const bKontiRaekke = (bk = bBankF) => bk.alle().find(p => p.art === 'konti');
 const bManuelle = (bk = bBankF) => bk.alle().filter(p => p.art === 'manuel');
 // Kommentarer på posteringer: {snap:'_bank', art:'banknote', pid, dato, tekst, note} – fx "Båd: motor til jollen"
+const bModNej = (bk = bBankF) => new Set(bk.alle().filter(p => p.art === 'modnej').map(p => p.pid));
 const bNoter = (bk = bBankF) => new Map(bk.alle().filter(p => p.art === 'banknote').map(p => [p.pid, p]));
 async function bGemNote(bk, x, note) {
   const gl = bNoter(bk).get(x.id);
@@ -1101,7 +1102,7 @@ function bBankKort(bk = bBankF) {
   if (n) kort.append(el('p', 'hint', (bk.mig ? '✏️ Du har rettet ' : '✏️ I har rettet ') + n + (n === 1 ? ' postering' : ' posteringer') + '. Rettelserne bliver liggende, når der kommer nye posteringer.'));
   const egne = (bReglerRaekke(bk)?.regler?.post || []).filter(x => x.egen).length;
   const sm = el('div', 'b-bank-knapper');
-  if (r) sm.append(knap('📥 Til sortering', 'lille-knap', () => bSortering(bk)), knap('📊 Hent som Excel-ark', 'lille-knap', () => bEksport(bk)));
+  if (r) sm.append(knap('📥 Til sortering', 'lille-knap', () => bSortering(bk)), knap('🔗 Modposter', 'lille-knap', () => bModposter(bk)), knap('📊 Hent som Excel-ark', 'lille-knap', () => bEksport(bk)));
   sm.append(knap('🧩 Egne regler' + (egne ? ' (' + egne + ')' : ''), 'lille-knap', () => bEgneRegler(bk)),
     knap(r ? '📂 Udskift filen (fra Claude)' : '📂 Læg posteringer ind (fra Claude)', 'lille-knap', () => filInp.click()));
   kort.append(sm);
@@ -1213,6 +1214,109 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF, tilbageFra = fa
   aabnArk('🧾 ' + navn, valg, s, sv, liste, ny, el('p', 'hint', 'Tryk på en postering for at flytte den til en anden post eller et andet år – eller skrive en kommentar til den. Kun betalinger og refusioner er med – ikke overførsler mellem jeres egne konti. Er noget betalt kontant, med gavepenge eller før bankfilen starter, så tilføj det med knappen.'));
   if (tilbageFra && st.scroll) requestAnimationFrame(() => { const r = bArkRul(); if (r) r.scrollTop = st.scroll; });
 }
+// 🔗 Modposter: en indbetaling, der præcis dækker ét eller flere køb kort før/efter (fx Winnie betaler sit eget køb tilbage,
+// Oliver betaler sin cykel). Også sammenlagte: én indbetaling for 2–3 køb, eller ét køb betalt tilbage i 2 omgange.
+const B_MOD_DAGE = 10;
+function bModForslag(rows, ret, nej) {
+  const dag = iso => Date.parse(iso) / 864e5;
+  const eff = x => { const r = ret.get(x.id); return r && !r.dele?.length ? r.til : x.n ? { navn: x.n, gruppe: x.g } : null; };
+  // Faste indbetalinger (løn, månedlige overførsler) er ikke modposter: samme tekst og beløb mindst 3 gange
+  const tael = new Map();
+  for (const x of rows) if (x.b > 0) { const k = x.t + '|' + x.b; tael.set(k, (tael.get(k) || 0) + 1); }
+  const ind = rows.filter(x => x.b > 0 && ['fra løn', 'retur'].includes(x.ty) && !nej.has(x.id) && (tael.get(x.t + '|' + x.b) || 0) < 3 && !ret.get(x.id)?.dele?.length);
+  const ud = rows.filter(x => x.b < 0 && x.ty === 'udgift' && eff(x) && eff(x).gruppe !== 'Opsparing' && !ret.get(x.id)?.dele?.length);
+  // "Fri" indbetaling = har ingen rigtig post endnu (ingen eller Andet). Har den sin egen post (fx en refusion), kun 1:1.
+  const fri = x => { const e = eff(x); return !e || e.gruppe === 'Andet'; };
+  const flere = x => /[+&,]| og /i.test(x.t);
+  const ens = (a, b) => a && b && bNoegle(a) === bNoegle(b);
+  const brugt = new Set(), forslag = [];
+  const naer = (x, liste) => liste.filter(y => !brugt.has(y.id) && Math.abs(dag(y.d) - dag(x.d)) <= B_MOD_DAGE).sort((a, b) => Math.abs(dag(a.d) - dag(x.d)) - Math.abs(dag(b.d) - dag(x.d))).slice(0, 12);
+  const rund = v => Math.round(v * 100);
+  for (const x of ind.slice().sort((a, b) => a.d.localeCompare(b.d))) {
+    if (brugt.has(x.id)) continue;
+    const ex = eff(x);
+    const kand = naer(x, ud).filter(y => !ens(eff(y), ex));
+    const maksK = !fri(x) ? 1 : flere(x) ? 3 : 2;
+    let fund = null;
+    for (let k = 1; k <= maksK && !fund; k++) {
+      const kk = k === 1 ? kand : kand.filter(y => Math.abs(dag(y.d) - dag(x.d)) <= 5);
+      const vaelg = (start, valgt, sum) => {
+        if (fund) return;
+        if (valgt.length === k) { if (sum === rund(x.b)) fund = valgt.slice(); return; }
+        for (let i = start; i < kk.length; i++) { valgt.push(kk[i]); vaelg(i + 1, valgt, sum - rund(kk[i].b)); valgt.pop(); }
+      };
+      vaelg(0, [], 0);
+    }
+    if (fund) { brugt.add(x.id); fund.forEach(y => brugt.add(y.id)); forslag.push({ ind: [x], ud: fund }); }
+  }
+  // Ét køb betalt tilbage i to omgange
+  for (const y of ud) {
+    if (brugt.has(y.id)) continue;
+    const kand = naer(y, ind).filter(x => fri(x) && Math.abs(dag(x.d) - dag(y.d)) <= 7);
+    for (let i = 0; i < kand.length; i++) for (let j = i + 1; j < kand.length; j++)
+      if (!brugt.has(y.id) && rund(kand[i].b) + rund(kand[j].b) === -rund(y.b)) { brugt.add(y.id); brugt.add(kand[i].id); brugt.add(kand[j].id); forslag.push({ ind: [kand[i], kand[j]], ud: [y] }); }
+  }
+  return forslag.sort((a, b) => b.ind[0].d.localeCompare(a.ind[0].d));
+}
+// Hører sammen: har indbetalingen sin egen post (fx "Udlæg for drengene"), flyttes købene dertil.
+// Ellers bliver indbetalingen en refusion på købets post (regel på posteringens id) – ligger købene på flere poster, deles den op.
+async function bModJa(bk, f, ret) {
+  const rk = bReglerRaekke(bk), d = await bHentBank(bk);
+  const std = bNoegle({ navn: rk?.regler?.standard?.post, gruppe: rk?.regler?.standard?.gruppe });
+  const egen = f.ind.length === 1 && f.ind[0].n && bNoegle({ navn: f.ind[0].n, gruppe: f.ind[0].g }) !== std ? { navn: f.ind[0].n, gruppe: f.ind[0].g } : null;
+  if (egen) {
+    for (const y of f.ud) {
+      const gl = ret.get(y.id), oprAar = y.d.slice(0, 4);
+      const felter = { ...bk.ekstra, snap: '_bank', art: 'bankret', pid: y.id, aar: oprAar, tilAar: gl?.tilAar || null, dato: y.d, tekst: y.t, beloeb: -y.b, fra: { navn: y.n, gruppe: y.g }, til: egen, dele: null };
+      if (gl) await Data.update(bk.liste, gl.id, felter); else await Data.add(bk.liste, felter);
+    }
+    visStatus('🔗 Købet er flyttet til ' + egen.navn); return;
+  }
+  if (!rk?.regler || !bNyFil(d)) { visStatus('Det kræver, at reglerne og den nye posteringsfil er lagt ind', true); return; }
+  const postAf = y => { const r = ret.get(y.id); return r ? r.til : { navn: y.n, gruppe: y.g }; };
+  const pr = new Map();
+  for (const y of f.ud) { const p = postAf(y), k = bNoegle(p); if (!pr.has(k)) pr.set(k, { til: p, kr: 0 }); pr.get(k).kr += -y.b; }
+  const dele = [...pr.values()].sort((a, b) => b.kr - a.kr);
+  const nye = f.ind.map(x => ({ id: [x.id], vis: x.t + ' ' + bKrOere(x.b) + ' kr', post: dele[0].til.navn, gruppe: dele[0].til.gruppe, mod: true, lavet: bIdag() }));
+  const R = { ...rk.regler, refusion: [...nye, ...(rk.regler.refusion || [])] };
+  await Data.update(bk.liste, rk.id, { regler: R });
+  const rows = Bank.inddel(d.rows, R);
+  await bGemBank(bk, rows, R, '🔗 Hører sammen – ' + (dele.length > 1 ? 'fordelt på ' + dele.length + ' poster' : 'refusion på ' + dele[0].til.navn));
+  if (dele.length > 1) {
+    const x = rows.find(r => r.id === f.ind[0].id);
+    await Data.add(bk.liste, { ...bk.ekstra, snap: '_bank', art: 'bankret', pid: x.id, aar: x.d.slice(0, 4), tilAar: null, dato: x.d, tekst: x.t, beloeb: -x.b,
+      fra: { navn: x.n, gruppe: x.g }, til: dele[0].til, dele: dele.map(p => ({ kr: -p.kr, til: p.til })) });
+  }
+}
+async function bModposter(bk = bBankF) {
+  if (!bBankRaekke(bk)) { visStatus('Læg først en bankfil ind (nederst under År)', true); return; }
+  aabnArk('🔗 Modposter', el('p', 'hint', 'Leder efter beløb, der passer sammen …'));
+  let d;
+  try { d = await bHentBank(bk); } catch { aabnArk('🔗 Modposter', el('p', 'hint', 'Posteringerne kunne ikke hentes. Prøv igen om lidt.')); return; }
+  const ret = new Map(bRettelser(bk).map(r => [r.pid, r]));
+  const fs = bModForslag(d.rows, ret, bModNej(bk));
+  const linje = (x, plus) => {
+    const li = el('li', 'b-mod-linje');
+    const v = el('span', 'b-bank-v');
+    const r = ret.get(x.id), post = r && !r.dele?.length ? r.til.navn : x.n || (plus ? 'ingen post – tæller ikke' : '');
+    v.append(el('span', 'b-bank-tekst', x.t), el('span', 'b-bank-info', bDato(x.d) + ' · ' + x.k + (post ? ' · ' + post : '')));
+    li.append(v, el('b', 'b-bank-beloeb' + (plus ? ' plus' : ''), (plus ? '+' : '') + bKrOere(x.b)));
+    return li;
+  };
+  const kort = fs.map(f => {
+    const k = el('div', 'kort b-mod');
+    const ul = el('ul', 'b-bank-liste');
+    ul.append(...f.ind.map(x => linje(x, true)), ...f.ud.map(y => linje(y, false)));
+    const egen = f.ind.length === 1 && f.ind[0].n && f.ind[0].g !== 'Andet' ? f.ind[0].n : null;
+    const ja = knap('✓ Hører sammen', 'knap', async () => { ja.disabled = nej.disabled = true; try { await bModJa(bk, f, ret); } catch (e) { console.warn(e); visStatus('Kunne ikke gemmes', true); } bModposter(bk); });
+    const nej = knap('✕ Nej', 'knap sekundaer', async () => { ja.disabled = nej.disabled = true; for (const x of f.ind) await Data.add(bk.liste, { ...bk.ekstra, snap: '_bank', art: 'modnej', pid: x.id }); bModposter(bk); });
+    const kn = el('div', 'b-mod-knapper'); kn.append(nej, ja);
+    k.append(ul, el('p', 'hint', egen ? 'Ja = købet flyttes til ' + egen + ', så det går i nul.' : 'Ja = indbetalingen trækkes fra på købets post, så det går i nul.'), kn);
+    return k;
+  });
+  aabnArk('🔗 Modposter', el('p', 'hint', 'Indbetalinger, der præcis dækker ét eller flere køb inden for ' + B_MOD_DAGE + ' dage – fx når nogen betaler deres del tilbage. Siger I ja, går de i nul i forbruget.'),
+    ...(kort.length ? kort : [el('p', 'tom', '🎉 Ingen mulige modposter lige nu.')]));
+}
 // 📥 Til sortering: alt, der ligger i kategorien Andet uden en kommentar – som en indbakke.
 // Flyt posteringen til den rigtige post eller skriv en kommentar (fx "OK – gave"), så forsvinder den herfra.
 const bSortSt = new Map();
@@ -1247,7 +1351,7 @@ async function bSortering(bk = bBankF, tilbageFra = false) {
   const valg = aarListe.length > 1 ? chipValg(aarListe, aarV, v => { aarV = v; st.aar = v; tegn(); }) : '';
   tegn();
   aabnArk('📥 Til sortering', el('p', 'hint', 'Det, der ligger i "Andet" og endnu ikke har en kommentar – største beløb først. Tryk på en postering og flyt den til den rigtige post, eller skriv en kommentar (fx "OK – gave til fødselsdag"), så forsvinder den herfra.'),
-    valg, liste);
+    knap('🔗 Se mulige modposter først', 'lille-knap', () => bModposter(bk)), valg, liste);
   if (tilbageFra && st.scroll) requestAnimationFrame(() => { const r = bArkRul(); if (r) r.scrollTop = st.scroll; });
 }
 // Forslag til regel-tekst: butikkens navn uden "Forretning:", DK-NOTA-numre, datoer og tal

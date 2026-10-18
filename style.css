@@ -2033,3 +2033,8 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .b-dele-rest { font-size: 13px; color: var(--daempet); margin: 0 0 8px; }
 .b-dele-rest.fejl { color: #c0392b; font-weight: 600; }
 .b-del-linje select { min-height: 44px; padding: 6px 8px; border: 1px solid var(--linje); border-radius: 10px; background: var(--kort, transparent); color: inherit; font: inherit; }
+
+.b-mod { padding: 10px 12px; margin: 10px 0; }
+.b-mod-linje { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--linje); }
+.b-mod-linje:last-child { border-bottom: 0; }
+.b-mod-knapper { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 6px; }
