@@ -281,7 +281,8 @@ function budgetOverblik(poster) {
   ford.append(ul, el('p', 'hint', iaar ? 'Rød = over budget. Opsparing er ikke med. Tryk for at se posterne.' : 'Kr. om måneden i gennemsnit. Tryk for at se posterne.'));
   dele.push(ford);
 
-  // Konti og overførsler
+  // Konti og overførsler (+ saldo fra bankfilen, hvis den er hentet)
+  const saldi = bSaldi(bBankF);
   const kk = el('div', 'kort');
   kk.append(el('h3', null, '🏦 Konti og overførsler'));
   const tab = el('ul', 'b-konti');
@@ -290,6 +291,16 @@ function budgetOverblik(poster) {
     const b = knap('', 'b-konto', () => redigerKonto(k));
     const venstre = el('span', 'b-konto-v');
     venstre.append(el('b', null, k.navn), el('span', 'hint', 'Behov ' + bKr(k.md) + ' kr/md · hver af jer ' + bKr(k.hver)));
+    const sl = saldi && bSaldoFor(saldi, k.navn);
+    if (sl) {
+      sl.brugt = true;
+      const mt = bMaanedTotal(poster.filter(p => p.konto === k.navn));
+      // Skøn for slutningen af næste måned: saldo + to overførsler − resten af denne måned − hele næste måned
+      const sd = new Date(sl.d + 'T12:00:00'), dim = new Date(sd.getFullYear(), sd.getMonth() + 1, 0).getDate();
+      const rest = sd.getMonth() === nu ? Math.max(0, dim - sd.getDate()) / dim : 1;
+      const ind = k.overfoert ?? k.md, om2 = sl.s + 2 * ind - rest * mt[nu] - mt[(nu + 1) % 12];
+      venstre.append(el('span', 'b-saldo' + (om2 < 0 ? ' minus' : ''), '💰 ' + bKr(sl.s) + ' kr den ' + bDato(sl.d) + ' · slut ' + MDR_LANG[(nu + 1) % 12] + ' ca. ' + bKr(om2) + ' kr' + (om2 < 0 ? ' ⚠️' : '')));
+    }
     let status;
     if (k.overfoert == null) status = el('span', 'b-status tom', 'Sæt overførsel');
     else {
@@ -304,8 +315,31 @@ function budgetOverblik(poster) {
   const iAlt = konti.reduce((s, k) => s + (k.overfoert || 0), 0);
   kk.append(tab, el('p', 'hint', 'Behov i alt ' + bKr(md) + ' kr/md · hver af jer ' + bKr(hver) + ' kr/md (delt i ' + BUDGET_DELES + ', rundet op til ' + BUDGET_RUND + ' kr)' +
     (iAlt ? ' · overføres nu ' + bKr(iAlt) + ' kr/md i alt' : '') + '. Tryk på en konto for at skrive, hvad der overføres nu.'));
+  if (saldi) {
+    const andre = [...saldi.values()].filter(x => !x.brugt);
+    if (andre.length) kk.append(el('p', 'hint', 'Andre konti: ' + andre.map(x => x.k + ' ' + bKr(x.s) + ' kr').join(' · ')));
+    kk.append(el('p', 'hint', '💰 Saldo fra den seneste bankfil. "Slut ' + MDR_LANG[(nu + 1) % 12] + '" = saldo + det, der overføres, minus budgettets udgifter fra kontoen resten af denne måned og hele næste – et groft skøn.'));
+  } else if (bBankRaekke(bBankF) && !bSaldiHenter) { bSaldiHenter = true; bHentBank(bBankF).then(() => { if (budgetVis === 'overblik') tegnBudget(); }).catch(() => {}); }
   dele.push(kk);
   return dele;
+}
+// Saldo pr. konto = saldoen på kontoens seneste postering i bankfilen (kun hvis filen er hentet)
+let bSaldiHenter = false;
+function bSaldi(bk) {
+  const r = bBankRaekke(bk);
+  if (!r || !bBankData || bBankSti !== r.sti) return null;
+  const m = new Map();
+  for (const x of bBankData.rows) {
+    if (x.s == null || x.ty === 'flyttet') continue;
+    const g = m.get(x.k);
+    if (!g || x.d > g.d || x.d === g.d && (x.o ?? 0) > (g.o ?? 0)) m.set(x.k, { k: x.k, s: x.s, d: x.d, o: x.o });
+  }
+  return m;
+}
+function bSaldoFor(saldi, navn) {
+  const n = navn.toLowerCase();
+  if (saldi.has(navn)) return saldi.get(navn);
+  return [...saldi.values()].find(x => { const k = x.k.toLowerCase(); return n.includes(k) || k.includes(n); }) || null;
 }
 
 function redigerKonto(k) {

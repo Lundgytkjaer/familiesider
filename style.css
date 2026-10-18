@@ -2038,3 +2038,6 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .b-mod-linje { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--linje); }
 .b-mod-linje:last-child { border-bottom: 0; }
 .b-mod-knapper { display: grid; grid-template-columns: 1fr 2fr; gap: 8px; margin-top: 6px; }
+
+.b-saldo { font-size: 13px; color: var(--fg); font-variant-numeric: tabular-nums; }
+.b-saldo.minus { color: var(--fare); font-weight: 600; }
