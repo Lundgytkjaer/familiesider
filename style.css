@@ -1789,6 +1789,12 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .b-vaerdi { color: var(--daempet); font-variant-numeric: tabular-nums; }
 .b-spor { grid-column: 1 / -1; height: 8px; border-radius: 4px; background: var(--accent-blod); overflow: hidden; }
 .b-fyld { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
+.b-spor { position: relative; overflow: visible; }
+.b-spor .b-fyld { border-radius: 4px; }
+.b-fyld.op { background: var(--fare); }
+.b-maal { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--fg); opacity: .55; border-radius: 1px; }
+.b-af { color: var(--daempet); font-weight: 400; }
+.b-vaerdi .b-f { display: inline; }
 .b-konti { list-style: none; margin: 0 0 8px; padding: 0; }
 .b-konto { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 2px; background: none; border: 0; border-bottom: 1px solid var(--linje); color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
 .b-konto-v { display: grid; min-width: 0; }

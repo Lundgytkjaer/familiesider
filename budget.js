@@ -172,6 +172,28 @@ function tegnBudget() {
 }
 
 // ---------- Overblik ----------
+// Faktisk forbrug i år mod budget pr. kategori (kr/md) – samme tal som under År. null hvis der ikke er forbrug for i år.
+function bIAar(poster, kilde = bKilde('faelles'), bk = kilde.faelles ? bBankF : null) {
+  const nu = String(new Date().getFullYear());
+  const x = (bAarData(poster, kilde, bk).find(([a]) => a === nu) || [])[1];
+  if (!x || !x.f) return null;
+  const grupper = new Map();
+  const laeg = (m, felt) => { for (const [, p] of m || []) { const g = p.gruppe || 'Andet'; if (!grupper.has(g)) grupper.set(g, { b: 0, f: 0 }); grupper.get(g)[felt] += p.md; } };
+  laeg(x.b, 'b'); laeg(x.f, 'f');
+  let b = 0, f = 0;
+  for (const [g, v] of grupper) if (g !== 'Opsparing') { b += v.b; f += v.f; }
+  return { grupper, b, f, periode: x.periode || 'i år', fMdr: x.fMdr };
+}
+function bIAarKort(iaar) {
+  const d = iaar.f - iaar.b;
+  const k = el('div', 'kort b-iaar');
+  k.append(el('h3', null, '📊 Forbrug i år'));
+  const top = el('div', 'b-kom-top');
+  top.append(el('b', null, bKr(iaar.f) + ' kr/md'), el('span', null, 'budget ' + bKr(iaar.b) + ' kr/md'),
+    el('span', 'b-diff ' + (d > 1 ? 'op' : d < -1 ? 'ned' : ''), Math.abs(d) < 1 ? 'som budgettet' : (d > 0 ? '▲ ' : '▼ ') + bKr(Math.abs(d)) + (d > 0 ? ' over' : ' under')));
+  k.append(top, el('p', 'hint', 'Faktisk forbrug ifølge banken ' + iaar.periode + ', i gennemsnit pr. måned – uden opsparing. Se det pr. kategori nedenfor og alle år under År.'));
+  return k;
+}
 function budgetOverblik(poster) {
   const aar = poster.reduce((s, p) => s + bAar(p), 0), md = aar / 12;
   const konti = bKonti(poster);
@@ -195,6 +217,8 @@ function budgetOverblik(poster) {
       knap('Gennemgå alle alligevel', 'lille-knap', () => budgetGennemgang(true)));
   }
   dele.push(g);
+  const iaar = bIAar(poster);
+  if (iaar) dele.push(bIAarKort(iaar));
   dele.push(bAarKort(bKilde('faelles'), md));
 
   // Store betalinger de næste to måneder (dem, der ikke kommer hver måned)
@@ -219,23 +243,41 @@ function budgetOverblik(poster) {
   kom.append(mere);
   dele.push(kom);
 
-  // Fordeling pr. kategori – én farve, længste øverst
-  const grp = [...bGrupper(poster)].map(([navn, ps]) => ({ navn, md: ps.reduce((s, p) => s + bAar(p), 0) / 12 })).sort((a, b) => b.md - a.md);
-  const maks = Math.max(1, ...grp.map(x => x.md));
+  // Fordeling pr. kategori – faktisk forbrug i år (bjælke) mod budget (streg), ellers kun budget
+  let grp = [...bGrupper(poster)].map(([navn, ps]) => ({ navn, md: ps.reduce((s, p) => s + bAar(p), 0) / 12, f: null }));
+  if (iaar) {
+    const m = new Map(grp.map(x => [x.navn, x]));
+    for (const [navn, v] of iaar.grupper) { if (!m.has(navn)) { const x = { navn, md: v.b, f: null }; grp.push(x); m.set(navn, x); } m.get(navn).f = v.f; }
+    grp = grp.filter(x => x.navn !== 'Opsparing' && (x.md >= 1 || Math.abs(x.f || 0) >= 1));
+  }
+  grp.sort(budgetSort === 'stoerst' ? (a, b) => (b.f ?? b.md) - (a.f ?? a.md) : (a, b) => bGruppeSort(a.navn, b.navn));
+  const maks = Math.max(1, ...grp.map(x => Math.max(x.md, x.f || 0)));
   const ford = el('div', 'kort');
   ford.append(el('h3', null, 'Hvor går pengene hen?'));
+  if (iaar) ford.append(el('p', 'hint b-ford-forkl', 'Forbrug i år (' + iaar.periode + ') i kr. om måneden. Stregen er budgettet.'));
   const ul = el('ul', 'b-bjaelker');
   for (const x of grp) {
     const li = el('li');
     const b = knap('', 'b-bjaelke', () => { budgetVis = 'poster'; budgetGruppe = x.navn; lokal.set('budget-vis', 'poster'); tegnBudget(); window.scrollTo(0, 0); });
-    b.setAttribute('aria-label', x.navn + ': ' + bKr(x.md) + ' kr om måneden, ' + Math.round(x.md / md * 100) + ' %');
     const spor = el('span', 'b-spor'), fyld = el('span', 'b-fyld');
-    fyld.style.width = Math.max(1.5, x.md / maks * 100) + '%';
     spor.append(fyld);
-    b.append(el('span', 'b-navn', bIkon(x.navn) + ' ' + x.navn), el('span', 'b-vaerdi', bKr(x.md) + ' kr'), spor);
+    if (x.f != null) {
+      const over = x.f > x.md + Math.max(50, x.md * 0.05), under = x.f < x.md - Math.max(50, x.md * 0.05);
+      fyld.style.width = Math.max(1.5, Math.max(0, x.f) / maks * 100) + '%';
+      if (over) fyld.classList.add('op');
+      const maal = el('span', 'b-maal'); maal.style.left = Math.min(99.5, x.md / maks * 100) + '%'; spor.append(maal);
+      const v = el('span', 'b-vaerdi');
+      v.append(el('span', 'b-f' + (over ? ' op' : under ? ' ned' : ''), bKr(x.f) + ' kr'), el('span', 'b-af', ' / ' + bKr(x.md)));
+      b.setAttribute('aria-label', x.navn + ': forbrug ' + bKr(x.f) + ' kr om måneden, budget ' + bKr(x.md) + ' kr');
+      b.append(el('span', 'b-navn', bIkon(x.navn) + ' ' + x.navn), v, spor);
+    } else {
+      fyld.style.width = Math.max(1.5, x.md / maks * 100) + '%';
+      b.setAttribute('aria-label', x.navn + ': ' + bKr(x.md) + ' kr om måneden, ' + Math.round(x.md / md * 100) + ' %');
+      b.append(el('span', 'b-navn', bIkon(x.navn) + ' ' + x.navn), el('span', 'b-vaerdi', bKr(x.md) + ' kr'), spor);
+    }
     li.append(b); ul.append(li);
   }
-  ford.append(ul, el('p', 'hint', 'Kr. om måneden i gennemsnit. Tryk for at se posterne.'));
+  ford.append(ul, el('p', 'hint', iaar ? 'Rød = over budget. Opsparing er ikke med. Tryk for at se posterne.' : 'Kr. om måneden i gennemsnit. Tryk for at se posterne.'));
   dele.push(ford);
 
   // Konti og overførsler
