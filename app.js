@@ -3505,6 +3505,59 @@ function gemBackup() {
   visStatus('💾 Kopi gemt (' + data.antal + ' rækker) – find den i Overførsler/Filer');
 }
 
+// 📦 Fuld backup i én zip: alle data du kan se + filerne i Storage + appens kode (som den ligger på GitHub Pages)
+let jszipLoefte = null;
+function hentJsZip() {
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  return jszipLoefte ||= new Promise((ok, fejl) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js';
+    sc.onload = () => ok(window.JSZip); sc.onerror = () => { jszipLoefte = null; fejl(new Error('Kunne ikke hente zip-værktøjet')); };
+    document.head.append(sc);
+  });
+}
+async function fuldBackup() {
+  const dato = isoDato(new Date());
+  try {
+    visStatus('📦 Gør backup klar …');
+    const JSZip = await hentJsZip();
+    const zip = new JSZip();
+    const data = Data.eksport();
+    zip.file('data/alle-data.json', JSON.stringify(data, null, 1));
+    // Filer i Storage
+    const filer = await Data.listFiler();
+    let n = 0, fejlF = [];
+    for (const f of filer) {
+      visStatus('📦 Henter filer ' + (++n) + '/' + filer.length + ' …');
+      try { zip.file('filer/' + f.sti, await Data.hentFil(f.sti)); } catch { fejlF.push(f.sti); }
+    }
+    // Koden: index.html + alt hvad den henter lokalt + ikoner og manifest
+    let html = '';
+    try { html = await (await fetch('index.html', { cache: 'no-store' })).text(); } catch { /* koden springes over */ }
+    const lokale = [...html.matchAll(/(?:src|href)="([^"#:]+?)(?:\?[^"]*)?"/g)].map(m => m[1]).filter(x => !x.startsWith('//'));
+    const kode = [...new Set(['index.html', ...lokale, 'sw.js', 'manifest.webmanifest', 'favicon.svg', 'favicon-32.png', 'apple-touch-icon.png', 'ikon-192.png', 'ikon-512.png', 'ikon-maskable-512.png'])];
+    const kodeFejl = [];
+    for (const k of kode) {
+      try { const r = await fetch(k, { cache: 'no-store' }); if (!r.ok) throw 0; zip.file('kode/' + k, await r.blob()); } catch { kodeFejl.push(k); }
+    }
+    zip.file('LAES-MIG.txt', [
+      'Familietavlen – backup ' + dato + ' (lavet af ' + data.bruger + ')', '',
+      'data/alle-data.json  – alle rækker, ' + data.bruger + ' kunne se (' + data.antal + ' rækker). Andres private ting er ikke med.',
+      'filer/               – filerne i Storage (' + (filer.length - fejlF.length) + ' filer): alle/, voksne/ og mine egne under mig/.',
+      'kode/                – appen som den ligger på GitHub Pages (' + (kode.length - kodeFejl.length) + ' filer).', '',
+      'Databasens opbygning (SQL-filerne) ligger i Claude-projektet "Familiesiden" under claude/sql.',
+      ...(fejlF.length || kodeFejl.length ? ['', 'Kunne ikke hentes: ' + [...fejlF, ...kodeFejl].join(', ')] : [])].join('\r\n'));
+    visStatus('📦 Pakker zip-filen …');
+    const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'familietavlen-backup-' + dato + '.zip';
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 20000);
+    lokal.set('backup-sidst', new Date().toISOString());
+    visStatus('📦 Backup hentet (' + data.antal + ' rækker, ' + (filer.length - fejlF.length) + ' filer, ' + (kode.length - kodeFejl.length) + ' kodefiler)' + (fejlF.length + kodeFejl.length ? ' – ' + (fejlF.length + kodeFejl.length) + ' kunne ikke hentes' : ''));
+  } catch (e) { console.warn(e); visStatus('Backup kunne ikke laves – tjek forbindelsen', true); }
+}
+
 async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
   const mig = Data.bruger()?.navn;
   const folk = erBarn() ? [mig] : [mig, ...BOERN.filter(b => b !== mig)];
@@ -3603,6 +3656,7 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     const dage = sidst ? Math.floor((Date.now() - new Date(sidst)) / 864e5) : null;
     dele.push(el('h3', 'lille-titel indst-titel', '💾 Sikkerhedskopi'),
       knap('💾 Gem en kopi af alle data', 'lille-knap', () => gemBackup()),
+      knap('📦 Hent fuld backup (zip: data, filer og kode)', 'lille-knap', () => fuldBackup()),
       el('p', 'hint', (sidst ? 'Sidste kopi på denne enhed: ' + (dage === 0 ? 'i dag' : 'for ' + dage + (dage === 1 ? ' dag' : ' dage') + ' siden') + '. ' : 'Der er ikke gemt en kopi fra denne enhed endnu. ')
         + 'Gem en kopi en gang om måneden og før større opdateringer. Filen indeholder alt det, du kan se – også private ting – så gem den et sikkert sted.'));
   }

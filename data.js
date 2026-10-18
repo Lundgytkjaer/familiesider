@@ -291,6 +291,24 @@ const Data = (() => {
       filUrlCache.set(sti, { url: data.signedUrl, til: Date.now() + 50 * 60000 });
       return data.signedUrl;
     },
+    // Alle filer, den indloggede må se (til fuld backup): alle/, voksne/ og mig/<eget id>/
+    async listFiler() {
+      const ud = [];
+      for (const mappe of ['alle', 'voksne', 'mig/' + profil.id]) {
+        for (let offset = 0; ; offset += 1000) {
+          const { data, error } = await db.storage.from('filer').list(mappe, { limit: 1000, offset });
+          if (error || !data) break;
+          ud.push(...data.filter(f => f.id).map(f => ({ sti: mappe + '/' + f.name, str: f.metadata?.size || 0 })));
+          if (data.length < 1000) break;
+        }
+      }
+      return ud;
+    },
+    async hentFil(sti) {
+      const { data, error } = await db.storage.from('filer').download(sti);
+      if (error) throw error;
+      return data;
+    },
     async sletFiler(stier) {
       const s = (stier || []).filter(Boolean);
       if (!s.length) return;
