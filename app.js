@@ -3373,6 +3373,7 @@ function barnMaa(handling, liste, felter, gammel) {
   if (handling === 'ny') {
     if (liste === 'flueben') return felter.barn === navn;
     if (liste === 'streakbonus' || liste === 'streakjoker') return felter.barn === navn;
+    if (liste === 'makker_snak') return felter.barn === navn;   // makkerens replikker (databasen tjekker resten – makker_snak_ok)
     if (liste === 'ekstra') return felter.barn === navn && felter.status === 'afventer';   // databasen tjekker antal (ekstra_ok)
     if (liste === 'madoensker') return felter.barn === navn && felter.status === 'afventer';   // databasen tjekker resten (madoensker_ok)   // databasen tjekker selve reglen (streakbonus_ok / streakjoker_ok)
     if (liste === 'indloesninger') return felter.barn === navn && felter.status === 'afventer';
@@ -3384,6 +3385,7 @@ function barnMaa(handling, liste, felter, gammel) {
   if (!gammel) return false;
   if (handling === 'ret') {
     if (liste === 'personvalg') return gammel.navn === navn && (!('navn' in felter) || felter.navn === navn);
+    if (liste === 'makker_snak') return gammel.barn === navn && (!('barn' in felter) || felter.barn === navn);
     if (liste === 'sedler') return gammel.til === navn && Object.keys(felter).every(k => ['aabnet', 'reaktion', 'svarTekst', 'svaret'].includes(k));   // åbne og svare på egne sedler
     if (liste === 'jobs') {   // ekstra-job: tage et ledigt, melde det færdigt eller give det fra sig (databasen tjekker det samme)
       if (Object.keys(felter).some(k => k !== 'status' && k !== 'barn')) return false;

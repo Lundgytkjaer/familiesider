@@ -804,13 +804,22 @@ async function makkerEmner(barn, d, ialt, klaret) {
   if (sj && sj.slags === 'gaade') e.push('Dagens gåde på tavlen: ' + sj.tekst);
   return e;
 }
+// Dagens replikker gemmes i databasen ('makker_snak', én række pr. barn – opdatering-makker.sql),
+// så de voksne ser det samme som barnet. Hvilken af de 3 replikker der står i boblen, huskes kun på enheden.
+const makkerI = new Map();
 function makkerHuske(barn) {
-  let c = {};
-  try { c = JSON.parse(lokal.get('makker-ai-' + barn) || '{}') || {}; } catch { c = {}; }
   const dag = isoDato(new Date());
-  return c.dag === dag ? c : { dag, kald: 0, linjer: [], i: 0, emner: '' };
+  const r = Data.listNu('makker_snak').filter(x => x.barn === barn).sort((a, b) => (b.dag || '').localeCompare(a.dag || '') || (b.kald || 0) - (a.kald || 0))[0];
+  const i = makkerI.get(barn) || 0;
+  return r && r.dag === dag ? { dag, kald: r.kald || 0, linjer: Array.isArray(r.linjer) ? r.linjer : [], emner: r.emner || '', i, _id: r.id }
+    : { dag, kald: 0, linjer: [], emner: '', i: 0, _id: r?.id };
 }
-const makkerGem = (barn, c) => lokal.set('makker-ai-' + barn, JSON.stringify(c));
+async function makkerGem(barn, c) {
+  makkerI.set(barn, c.i || 0);
+  const felter = { barn, dag: c.dag, emner: String(c.emner || '').slice(0, 2000), linjer: c.linjer || [], kald: c.kald || 0 };
+  if (c._id) await Data.stille(() => Data.update('makker_snak', c._id, felter));
+  else { const r = await Data.add('makker_snak', felter); c._id = r?.id; }
+}
 const makkerHenter = new Map();   // barn → igangværende hentning (en ny tegning venter på den i stedet for at spørge igen)
 function makkerHent(barn, m, emner) {
   if (makkerHenter.has(barn)) return makkerHenter.get(barn);
@@ -821,8 +830,8 @@ function makkerHent(barn, m, emner) {
   return p;
 }
 async function makkerHentNu(barn, m, emner, c) {
-  c.kald++; makkerGem(barn, c);
   try {
+    c.kald++; await makkerGem(barn, c);   // tæller også, hvis AI'en fejler (så der ikke spørges igen og igen)
     const kontekst = { dato: isoDato(new Date()), ugedag: DAGE_LANG[(new Date().getDay() + 6) % 7].toLowerCase(), personer: [], kategorier: [],
       barn, makker: { navn: m.navn, eksempler: (m.siger || []).slice(0, 6) }, emner };
     const res = await Data.ai('Sig noget til ' + barn + '.', kontekst, [], null, 'makker');
@@ -830,7 +839,7 @@ async function makkerHentNu(barn, m, emner, c) {
       .map(h => String(h.tekst).replace(/\s+/g, ' ').trim().slice(0, 120)).slice(0, 3);
     if (!linjer.length) return null;
     const ny = { ...makkerHuske(barn), linjer, i: 0, emner: emner.join('|') };
-    makkerGem(barn, ny);
+    await makkerGem(barn, ny);
     return linjer[0];
   } catch (e) { console.warn('Makker:', e.message || e); return null; }
   finally { makkerHenter.delete(barn); }
@@ -867,12 +876,16 @@ async function alfieKort(barn) {
   figur.innerHTML = m.svg(hvordan, nv.pynt);
   const boble = el('div', 'alfie-boble', tekst);
   boble.setAttribute('aria-live', 'polite');
-  // AI-replikker kun på barnets egen enhed og ikke når makkeren sover/er syg
-  const egenAI = loggetIndBarn() === barn && hvordan !== 'sover' && !syg;
+  // AI-replikker – ikke når makkeren sover/er syg. Barnets egen enhed henter nye, når emnerne ændrer sig;
+  // en voksen, der kigger på tavlen, ser de samme replikker (og henter kun, hvis der slet ingen er i dag)
+  const egen = loggetIndBarn() === barn;
+  const egenAI = (egen || erVoksen()) && hvordan !== 'sover' && !syg;
   if (egenAI) {
     // Passer replikkerne stadig (samme emner), står den aktuelle i boblen; ellers bedes om nye i baggrunden.
     // Indtil da (og hvis dagens kald er brugt) står den almindelige status ("2 ting tilbage …")
-    makkerEmner(barn, d, ialt, klaret).then(async emner => {
+    const c0 = makkerHuske(barn);
+    if (!egen && c0.linjer.length) boble.textContent = c0.linjer[c0.i] || c0.linjer[0];
+    else makkerEmner(barn, d, ialt, klaret).then(async emner => {
       const c = makkerHuske(barn);
       if (emner.join('|') === c.emner && c.linjer.length) { boble.textContent = c.linjer[c.i] || c.linjer[0]; return; }
       const l = await makkerHent(barn, m, emner);
@@ -892,7 +905,7 @@ async function alfieKort(barn) {
     // Barnets egen tavle: næste AI-replik om det, der sker (og en ny omgang, når de er brugt) – ellers en fast sætning
     if (egenAI) {
       const c = makkerHuske(barn);
-      if (c.linjer.length && c.i + 1 < c.linjer.length) { c.i++; makkerGem(barn, c); boble.textContent = c.linjer[c.i]; return; }
+      if (c.linjer.length && c.i + 1 < c.linjer.length) { c.i++; makkerI.set(barn, c.i); boble.textContent = c.linjer[c.i]; return; }
       if (c.kald < 4 && !makkerHenter.has(barn)) {
         boble.textContent = '…';
         const l = await makkerHent(barn, m, await makkerEmner(barn, d, ialt, klaret));
