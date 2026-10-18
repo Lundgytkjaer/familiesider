@@ -438,10 +438,27 @@ function bSortValg() {
 function budgetMaanederVis(poster, kilde = bKilde('faelles')) {
   const andel = kilde.faelles ? 0 : bAndel();
   if (!kilde.faelles) poster = poster.filter(p => !bErInd(p));
-  const mt = bMaanedTotal(poster).map(x => x + andel), snit = mt.reduce((s, x) => s + x, 0) / 12, maks = Math.max(1, ...mt);
+  const mt = bMaanedTotal(poster).map(x => x + andel);
   if (budgetMaaned == null) budgetMaaned = new Date().getMonth();
+  // Faktisk forbrug pr. måned fra bankfilen (hvis den er hentet)
+  const bk = kilde.faelles ? bBankF : kilde.hvem === bMig() ? bBankMig() : null;
+  const fb = bk ? bMdrForbrug(bk) : null;
+  if (bk && !fb && bBankRaekke(bk) && !bMdrHenter) { bMdrHenter = true; bHentBank(bk).then(() => { bMdrHenter = false; if (budgetVis === 'maaneder') tegnBudget(); }).catch(() => { bMdrHenter = false; }); }
+  const aarL = fb ? [...fb.keys()].sort().reverse() : [];
+  if (!aarL.includes(budgetMdrAar)) budgetMdrAar = aarL[0] || '';
+  const fA = fb && budgetMdrAar ? fb.get(budgetMdrAar) : null;
+  // Med forbrug sammenlignes uden opsparing (i banken er opsparing ikke en udgift, men en saldo, der stiger)
+  if (fA) { const ops = bMaanedTotal(poster.filter(p => p.gruppe === 'Opsparing')); for (let i = 0; i < 12; i++) mt[i] -= ops[i]; }
+  const maks = Math.max(1, ...mt, ...(fA ? fA.sum.filter(x => x != null) : []));
+  const snit = mt.reduce((s, x) => s + x, 0) / 12;
   const kort = el('div', 'kort');
   kort.append(el('h3', null, kilde.faelles ? 'Udgifter måned for måned' : 'Dine udgifter måned for måned'));
+  if (aarL.length) {
+    kort.append(chipValg(aarL, budgetMdrAar, v => { budgetMdrAar = v; tegnBudget(); }));
+    const fork = el('p', 'hint b-mdr-forkl');
+    fork.append(el('span', 'b-prik budget'), ' budget  ', el('span', 'b-prik forbrug'), ' forbrug ' + budgetMdrAar + ' · uden opsparing');
+    kort.append(fork);
+  }
   const graf = el('div', 'b-graf');
   graf.setAttribute('role', 'group'); graf.setAttribute('aria-label', 'Udgifter pr. måned');
   const linje = el('span', 'b-snit');
@@ -450,11 +467,18 @@ function budgetMaanederVis(poster, kilde = bKilde('faelles')) {
   graf.append(linje);
   mt.forEach((t, i) => {
     const b = knap('', 'b-soejle' + (i === budgetMaaned ? ' valgt' : ''), () => { budgetMaaned = i; tegnBudget(); });
-    b.setAttribute('aria-label', MDR_LANG[i] + ': ' + bKr(t) + ' kr');
+    const f = fA ? fA.sum[i] : null;
+    b.setAttribute('aria-label', MDR_LANG[i] + ': budget ' + bKr(t) + ' kr' + (f != null ? ', forbrug ' + bKr(f) + ' kr' : ''));
     b.setAttribute('aria-pressed', i === budgetMaaned);
     const s = el('span', 'b-soejle-fyld'); s.style.height = Math.max(1, t / maks * 100) + '%';
-    s.append(el('span', 'b-soejle-tal', bKr(t / 1000) + 'k'));
     const spor = el('span', 'b-soejle-spor'); spor.append(s);
+    if (fA) {
+      spor.classList.add('to');
+      const sf = el('span', 'b-soejle-fyld forbrug' + (f != null && f > t * 1.05 + 50 ? ' op' : '')); sf.style.height = (f == null ? 0 : Math.max(1, Math.max(0, f) / maks * 100)) + '%';
+      if (f == null) sf.classList.add('tom');
+      sf.append(el('span', 'b-soejle-tal', bKr((f ?? t) / 1000) + 'k'));
+      spor.append(sf);
+    } else s.append(el('span', 'b-soejle-tal', bKr(t / 1000) + 'k'));
     b.append(spor, el('span', 'b-soejle-md', MDR[i].replace('.', '')));
     graf.append(b);
   });
@@ -465,6 +489,23 @@ function budgetMaanederVis(poster, kilde = bKilde('faelles')) {
   top.append(el('b', null, MDR_LANG[m][0].toUpperCase() + MDR_LANG[m].slice(1)), el('span', null, bKr(mt[m]) + ' kr'),
     el('span', 'b-diff ' + (diff > 1 ? 'op' : diff < -1 ? 'ned' : ''), Math.abs(diff) < 1 ? 'som et gennemsnit' : (diff > 0 ? '▲ ' : '▼ ') + bKr(Math.abs(diff)) + (diff > 0 ? ' over' : ' under') + ' gennemsnittet'));
   liste.append(top);
+  const fm = fA ? fA.sum[m] : null;
+  if (fm != null) {
+    const fd = fm - mt[m];
+    const ft = el('div', 'b-kom-top');
+    ft.append(el('b', null, 'Forbrug ' + budgetMdrAar), el('span', null, bKr(fm) + ' kr'),
+      el('span', 'b-diff ' + (fd > 1 ? 'op' : fd < -1 ? 'ned' : ''), (fd > 0 ? '▲ ' : '▼ ') + bKr(Math.abs(fd)) + (fd > 0 ? ' over' : ' under') + ' budgettet'));
+    liste.append(ft);
+    const top5 = [...fA.poster[m].values()].filter(x => Math.abs(x.kr) >= 1).sort((a, b) => b.kr - a.kr).slice(0, 8);
+    const ul2 = el('ul', 'b-kom-liste');
+    ul2.append(...top5.map(x => {
+      const li = el('li');
+      const b = knap('', 'b-linje', () => bPosteringer(x.navn, x.gruppe, budgetMdrAar, bk));
+      b.append(el('span', null, bIkon(x.gruppe) + ' ' + x.navn), el('span', 'b-beloeb', bKr(x.kr) + ' kr'));
+      li.append(b); return li;
+    }));
+    liste.append(el('p', 'hint', 'Det største forbrug i ' + MDR_LANG[m] + ' ' + budgetMdrAar + ' (tryk for posteringerne):'), ul2, el('h3', 'b-mdr-budget-h', 'Budgettet for ' + MDR_LANG[m]));
+  }
   const ps = poster.filter(p => bMdr(p)[m]).sort((a, b) => (bMoenster(a) === 'hver måned') - (bMoenster(b) === 'hver måned') || bMdr(b)[m] - bMdr(a)[m]);
   const ul = el('ul', 'b-kom-liste');
   ul.append(...ps.map(p => {
@@ -479,6 +520,34 @@ function budgetMaanederVis(poster, kilde = bKilde('faelles')) {
   return [kort, liste];
 }
 
+// Faktisk forbrug pr. måned og år fra bankfilen (efter jeres rettelser og tilføjede udgifter). null, hvis filen ikke er hentet.
+let bMdrHenter = false, budgetMdrAar = '';
+function bMdrForbrug(bk) {
+  const r = bBankRaekke(bk);
+  if (!r || !bBankData || bBankSti !== r.sti) return null;
+  const ret = new Map(bRettelser(bk).map(x => [x.pid, x]));
+  const ud = new Map();
+  const fra = bBankData.fra || r.fra || '', til = bBankData.til || r.til || '';
+  for (const x of [...bMedDele(bBankData.rows, ret), ...bManuelRaekker(bk)]) {
+    if (!(x.n || x.manuel || ret.has(x.id))) continue;
+    const e = bEffektiv(x, ret);
+    if (e.gruppe === 'Opsparing') continue;
+    const aar = e.aar, m = e.aar === x.d.slice(0, 4) ? Number(x.d.slice(5, 7)) - 1 : 0;
+    if (!ud.has(aar)) ud.set(aar, { sum: Array(12).fill(null), poster: Array.from({ length: 12 }, () => new Map()) });
+    const a = ud.get(aar);
+    a.sum[m] = (a.sum[m] || 0) - x.b;
+    const k = bNoegle(e), pm = a.poster[m];
+    if (!pm.has(k)) pm.set(k, { navn: e.navn, gruppe: e.gruppe, kr: 0 });
+    pm.get(k).kr -= x.b;
+  }
+  // Måneder helt uden for filen vises ikke som 0
+  for (const [aar, a] of ud) for (let m = 0; m < 12; m++) {
+    const start = aar + '-' + String(m + 1).padStart(2, '0') + '-01', slut = aar + '-' + String(m + 1).padStart(2, '0') + '-31';
+    if ((fra && slut < fra) || (til && start > til)) a.sum[m] = null;
+    else if (a.sum[m] == null) a.sum[m] = 0;
+  }
+  return ud;
+}
 // ---------- Beløb: hver måned / bestemte måneder / forskellige beløb ----------
 function beloebFelt(mdr, onSkift) {
   const v = Array.from({ length: 12 }, (_, i) => Number((mdr || [])[i]) || 0);

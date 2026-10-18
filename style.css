@@ -2041,3 +2041,19 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 
 .b-saldo { font-size: 13px; color: var(--fg); font-variant-numeric: tabular-nums; }
 .b-saldo.minus { color: var(--fare); font-weight: 600; }
+
+.b-soejle-spor.to { flex-direction: row; align-items: flex-end; gap: 1px; }
+.b-soejle-spor.to .b-soejle-fyld { flex: 1; }
+.b-soejle-spor.to .b-soejle-fyld:not(.forbrug) { background: color-mix(in srgb, var(--accent) 25%, var(--flade)); }
+.b-soejle-fyld.forbrug { background: color-mix(in srgb, var(--fg) 70%, var(--flade)); }
+.b-soejle-fyld.forbrug.op { background: var(--fare); }
+.b-soejle-fyld.forbrug.tom { visibility: hidden; }
+.b-soejle-spor.to .b-soejle-fyld:not(.forbrug) .b-soejle-tal { display: none; }
+.b-soejle-spor.to .b-soejle-tal { left: 0; transform: translateX(-50%); }
+.b-soejle.valgt .b-soejle-spor.to .b-soejle-fyld:not(.forbrug) { background: color-mix(in srgb, var(--accent) 45%, var(--flade)); }
+.b-soejle.valgt .b-soejle-fyld.forbrug:not(.op) { background: var(--fg); }
+.b-mdr-forkl { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.b-prik { display: inline-block; width: 10px; height: 10px; border-radius: 2px; }
+.b-prik.budget { background: color-mix(in srgb, var(--accent) 45%, var(--flade)); }
+.b-prik.forbrug { background: color-mix(in srgb, var(--fg) 70%, var(--flade)); }
+.b-mdr-budget-h { margin-top: 14px; font-size: 1rem; }
