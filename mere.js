@@ -1513,10 +1513,27 @@ async function oenskerIndhold() {
   for (const j of jobKlar) {
     const li = el('li', 'beloen oenske');
     const info = el('div', 'beloen-info');
-    info.append(el('span', 'beloen-navn', '💼 ' + j.barn + ' har lavet: ' + j.navn), el('span', 'beloen-pris', [tal(j.stjerner) ? '★ ' + tal(j.stjerner) : '', tal(j.kr) ? kr(tal(j.kr)) : ''].filter(Boolean).join(' · ')));
+    info.append(el('span', 'beloen-navn', '💼 ' + j.barn + ' har lavet: ' + j.navn), el('span', 'beloen-pris', jobPrisTekst(j)));
     const kn = el('div', 'oenske-knapper');
+    // Pr. stk./minut: antallet kan rettes, før det godkendes
+    let antalInp = null;
+    if (jobPrStk(j)) {
+      antalInp = input('text', 'job-antal-' + j.id, String(tal(j.antal) || ''), 'Antal');
+      antalInp.inputMode = 'numeric'; antalInp.className = 'job-antal-ret';
+      antalInp.setAttribute('aria-label', 'Antal ' + jobEnhed(j, 2));
+      info.append(antalInp);
+    }
     kn.append(bekraeftKnap('Ikke færdig', 'sende tilbage', 'lille-knap', async () => { await Data.update('jobs', j.id, { status: 'taget' }); tegnAlt(); }),
-      knap('Godkend', 'lille-knap godkend', async () => { Data.huskFoer(j.id, 'Godkendt: ' + j.navn); await Data.update('jobs', j.id, { status: 'godkendt', dato: isoDato(new Date()), fra: Data.bruger()?.navn }); tegnAlt(); }));
+      knap('Godkend', 'lille-knap godkend', async () => {
+        Data.huskFoer(j.id, 'Godkendt: ' + j.navn);
+        const n = antalInp ? Math.max(0, Math.round(tal(antalInp.value))) : 0;
+        await Data.update('jobs', j.id, { status: 'godkendt', dato: isoDato(new Date()), fra: Data.bruger()?.navn, ...(antalInp ? { antal: n, ...jobSum(j, n) } : {}) });
+        if (j.igen) {   // ↻ samme job lægges op igen
+          const { id, oprettet, _af, status, barn, dato, fra, antal, ...rest } = j;
+          await Data.add('jobs', { ...rest, ...(jobPrStk(j) ? { stjerner: 0, kr: 0 } : {}), status: 'ledig' });
+        }
+        tegnAlt();
+      }));
     li.append(info, kn); ul.append(li);
   }
   return svar.length ? [top, ul, el('p', 'svar-titel', 'Allerede svaret'), svarListe(svar)] : [top, ul];
@@ -1524,6 +1541,39 @@ async function oenskerIndhold() {
 
 // ---------- 💼 Ekstra-jobs: de voksne lægger betalte job op, den første der tager det, får det ----------
 // Data: 'jobs' {navn, stjerner, kr, til?: barn (ellers alle), status 'ledig'|'taget'|'klaret'|'godkendt', barn?, dato?, fra?}
+//   Betaling pr. stk./minut (okt. 2026): enhed ('stk'|'min'), enhedNavn? (fx "højbed"), prKr, prStjerner, maks?, igen?
+//   – barnet skriver antal, når det melder klaret (antal); ved godkendelse sættes kr/stjerner = antal × pris. igen = lægges op igen.
+const jobPrStk = j => j.enhed === 'stk' || j.enhed === 'min';
+const jobEnhed = (j, n = 2) => j.enhed === 'min' ? (n === 1 ? 'minut' : 'minutter') : (j.enhedNavn ? (n === 1 ? j.enhedNavn : (j.enhedFlertal || j.enhedNavn)) : 'stk.');
+const jobPrisTekst = j => {
+  if (!jobPrStk(j)) return [tal(j.stjerner) ? '★ ' + tal(j.stjerner) : '', tal(j.kr) ? kr(tal(j.kr)) : ''].filter(Boolean).join(' · ');
+  const pr = [tal(j.prStjerner) ? '★ ' + tal(j.prStjerner) : '', tal(j.prKr) ? kr(tal(j.prKr)) : ''].filter(Boolean).join(' + ');
+  return pr + ' pr. ' + jobEnhed(j, 1) + (tal(j.antal) ? ' · ' + tal(j.antal) + ' ' + jobEnhed(j, tal(j.antal)) + ' = ' + jobSumTekst(j, tal(j.antal)) : '');
+};
+const jobSum = (j, n) => ({ kr: Math.round(n * tal(j.prKr) * 100) / 100, stjerner: Math.round(n * tal(j.prStjerner)) });
+const jobSumTekst = (j, n) => { const s = jobSum(j, n); return [s.stjerner ? '★ ' + s.stjerner : '', s.kr ? kr(s.kr) : ''].filter(Boolean).join(' · ') || '0'; };
+// Barnet melder klaret: hvor mange / hvor længe?
+function jobAntal(j, efter) {
+  const inp = input('text', 'job-antal', '', j.enhed === 'min' ? 'Fx 45' : 'Fx 3');
+  inp.inputMode = 'numeric';
+  const vis = el('p', 'job-sum');
+  const op = () => { const n = Math.max(0, Math.round(tal(inp.value))); vis.textContent = n ? n + ' ' + jobEnhed(j, n) + ' = ' + jobSumTekst(j, n) : ''; };
+  inp.addEventListener('input', op);
+  const plusMinus = el('div', 'seg wrap');
+  plusMinus.append(...(j.enhed === 'min' ? [15, 30, 45, 60] : [1, 2, 3, 4, 5]).map(n => knap(String(n), null, () => { inp.value = String(n); op(); })));
+  const fejl = el('p', 'fejl'); fejl.hidden = true;
+  const gem = knap('Meld klaret ✓', 'knap', async () => {
+    const n = Math.round(tal(inp.value));
+    const maks = tal(j.maks) || (j.enhed === 'min' ? 600 : 100);
+    if (!(n > 0)) { fejl.textContent = 'Skriv et tal'; fejl.hidden = false; return; }
+    if (n > maks) { fejl.textContent = 'Højst ' + maks + ' ' + jobEnhed(j, maks); fejl.hidden = false; return; }
+    await Data.update('jobs', j.id, { status: 'klaret', antal: n });
+    lukArk(); efter();
+  });
+  const knapper = el('div', 'ark-knapper'); knapper.append(gem);
+  aabnArk(j.navn, felt(j.enhed === 'min' ? 'Hvor mange minutter?' : 'Hvor mange ' + jobEnhed(j, 2) + '?', inp), plusMinus, vis, fejl, knapper);
+  setTimeout(() => inp.focus(), 50);
+}
 // Børnelåsen (opdatering-jobs.sql): barnet må kun tage et ledigt job, melde det klaret eller give det fra sig igen.
 function jobsKort(barn, d) {
   const mine = (d.jobs || []).filter(j => j.status === 'taget' || j.status === 'klaret');
@@ -1532,7 +1582,7 @@ function jobsKort(barn, d) {
   const boks = el('div', 'jobs-boks');
   boks.append(el('h3', 'lille-titel', '💼 Ekstra-jobs'));
   const ul = el('ul', 'beloen-liste');
-  const pris = j => [tal(j.stjerner) ? '★ ' + tal(j.stjerner) : '', tal(j.kr) ? kr(tal(j.kr)) : ''].filter(Boolean).join(' · ');
+  const pris = jobPrisTekst;
   for (const j of mine) {
     const li = el('li', 'beloen');
     const info = el('div', 'beloen-info');
@@ -1540,7 +1590,10 @@ function jobsKort(barn, d) {
     const kn = el('div', 'oenske-knapper');
     if (j.status === 'taget' && loggetIndBarn() === barn) kn.append(
       knap('Giv fra mig', 'lille-knap', async () => { await Data.update('jobs', j.id, { status: 'ledig', barn: null }); tegnAlt(); }),
-      knap('Færdig ✓', 'lille-knap godkend', async () => { await Data.update('jobs', j.id, { status: 'klaret' }); fejr('Sejt! Mor og far kigger på det 💼'); tegnAlt(); }));
+      knap('Færdig ✓', 'lille-knap godkend', async () => {
+        if (jobPrStk(j)) { jobAntal(j, () => { fejr('Sejt! Mor og far kigger på det 💼'); tegnAlt(); }); return; }   // pr. stk./minut: hvor mange?
+        await Data.update('jobs', j.id, { status: 'klaret' }); fejr('Sejt! Mor og far kigger på det 💼'); tegnAlt();
+      }));
     li.append(info, kn); ul.append(li);
   }
   for (const j of ledige) {
@@ -1564,18 +1617,43 @@ function nytJob(barn) {
   const navn = input('text', 'job-navn', '', 'Fx vask bilen, ryd garagen');
   const stj = input('text', 'job-stj', '', '★'); stj.inputMode = 'numeric';
   const krI = input('text', 'job-kr', '', 'kr'); krI.inputMode = 'decimal';
-  let til = '';
+  let til = '', betaling = 'fast', igen = false;
   const tilValg = chipValg(['', ...BOERN], til, v => { til = v; }, v => v || 'Den første der tager det');
   const raekke = el('div', 'to-felter');
   raekke.append(felt('Stjerner', stj), felt('Kroner', krI));
+  // Pr. stk. (fx pr. højbed, pr. bil) eller pr. minut (fx havearbejde) – barnet skriver selv, hvor meget det blev til
+  const enhedNavn = input('text', 'job-enhed', '', 'Fx højbed (tom = stk.)');
+  const enhedFlertal = input('text', 'job-enhed-fl', '', 'Flertal, fx højbede');
+  const maks = input('text', 'job-maks', '', 'Højst (valgfri)'); maks.inputMode = 'numeric';
+  const enhedBoks = el('div');
+  const enhedRaekke = el('div', 'to-felter'); enhedRaekke.append(felt('Hvad tælles?', enhedNavn), felt('Flertal', enhedFlertal));
+  const hint = el('p', 'hint');
+  const tegnBetaling = () => {
+    enhedBoks.hidden = betaling === 'fast';
+    enhedRaekke.hidden = betaling !== 'stk';
+    raekke.querySelectorAll('.felt-label')[0].textContent = betaling === 'fast' ? 'Stjerner' : 'Stjerner pr. ' + (betaling === 'min' ? 'minut' : (enhedNavn.value.trim() || 'stk.'));
+    raekke.querySelectorAll('.felt-label')[1].textContent = betaling === 'fast' ? 'Kroner' : 'Kroner pr. ' + (betaling === 'min' ? 'minut' : (enhedNavn.value.trim() || 'stk.'));
+    hint.textContent = betaling === 'fast' ? '' : 'Barnet skriver selv, hvor ' + (betaling === 'min' ? 'mange minutter det tog' : 'mange det blev til') + ', når jobbet meldes klaret – I kan rette tallet, før I godkender.';
+  };
+  enhedNavn.addEventListener('input', tegnBetaling);
+  const betalingValg = chipValg(['fast', 'stk', 'min'], betaling, v => { betaling = v; tegnBetaling(); }, v => ({ fast: 'Fast pris', stk: 'Pr. stk.', min: 'Pr. minut' })[v]);
+  const igenValg = chipValg([false, true], igen, v => { igen = v; }, v => (v ? '↻ Lægges op igen efter godkendelse' : 'Kun én gang'));
+  enhedBoks.append(enhedRaekke, felt('Højst', maks));
+  tegnBetaling();
   const gem = knap('Læg jobbet op', 'knap', async () => {
     const n = navn.value.trim();
     if (!n) { navn.focus(); return; }
-    await Data.add('jobs', { navn: n, stjerner: Math.max(0, Math.round(tal(stj.value))), kr: Math.max(0, tal(krI.value)), status: 'ledig', ...(til ? { til } : {}) });
+    const s = Math.max(0, betaling === 'fast' ? Math.round(tal(stj.value)) : tal(stj.value)), k = Math.max(0, tal(krI.value));
+    const felter = betaling === 'fast' ? { navn: n, stjerner: s, kr: k }
+      : { navn: n, stjerner: 0, kr: 0, enhed: betaling, prStjerner: s, prKr: k,
+          ...(betaling === 'stk' && enhedNavn.value.trim() ? { enhedNavn: enhedNavn.value.trim(), enhedFlertal: enhedFlertal.value.trim() || enhedNavn.value.trim() } : {}),
+          ...(tal(maks.value) > 0 ? { maks: Math.round(tal(maks.value)) } : {}) };
+    await Data.add('jobs', { ...felter, status: 'ledig', ...(til ? { til } : {}), ...(igen ? { igen: true } : {}) });
     lukArk(); tegnAlt();
   });
   const knapper = el('div', 'ark-knapper'); knapper.append(gem);
-  aabnArk('Nyt ekstra-job', felt('Hvad skal laves?', navn), raekke, el('label', 'felt-label', 'Hvem må tage det?'), tilValg, knapper);
+  aabnArk('Nyt ekstra-job', felt('Hvad skal laves?', navn), el('label', 'felt-label', 'Betaling'), betalingValg, enhedBoks, raekke, hint,
+    el('label', 'felt-label', 'Hvem må tage det?'), tilValg, el('label', 'felt-label', 'Gentages?'), igenValg, knapper);
   setTimeout(() => navn.focus(), 50);
 }
 
