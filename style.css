@@ -2019,3 +2019,10 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .job-sum { font-weight: 700; color: var(--accent); margin: 6px 0 0; min-height: 1.3em; }
 .job-antal-ret { width: 90px; margin-top: 6px; padding: 6px 8px; font-size: 15px; }
 .b-sort-valg { margin: 4px 0 10px; }
+.b-dele { display: grid; gap: 8px; margin: 10px 0 6px; }
+.b-del-linje { display: grid; grid-template-columns: 6.5em 1fr auto; gap: 8px; align-items: center; }
+.b-del-linje input, .b-del-linje select { min-width: 0; width: 100%; box-sizing: border-box; }
+.b-del-linje input[readonly] { opacity: .75; }
+.b-dele-rest { font-size: 13px; color: var(--daempet); margin: 0 0 8px; }
+.b-dele-rest.fejl { color: #c0392b; font-weight: 600; }
+.b-del-linje select { min-height: 44px; padding: 6px 8px; border: 1px solid var(--linje); border-radius: 10px; background: var(--kort, transparent); color: inherit; font: inherit; }

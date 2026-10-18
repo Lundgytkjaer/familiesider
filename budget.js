@@ -711,7 +711,12 @@ function bAarData(poster, kilde = bKilde('faelles'), bk = kilde.faelles ? bBankF
     const k = bNoegle(p); const y = x.f.get(k) || { navn: p.navn, gruppe: p.gruppe || 'Andet', md: 0 };
     y.md += kr / (x.fMdr || 12); x.f.set(k, y);
   };
-  for (const r of bk ? bRettelser(bk) : []) { const kr = Number(r.beloeb) || 0; flyt(r.aar, r.fra, -kr); flyt(r.tilAar || r.aar, r.til, kr); }
+  for (const r of bk ? bRettelser(bk) : []) {
+    const kr = Number(r.beloeb) || 0;
+    flyt(r.aar, r.fra, -kr);
+    if (r.dele?.length) for (const d of r.dele) flyt(r.tilAar || r.aar, d.til, Number(d.kr) || 0);   // delt op på flere poster
+    else flyt(r.tilAar || r.aar, r.til, kr);
+  }
   // Udgifter, der ikke står i banken (kontant, gavepenge, betalt før bankfilen starter)
   for (const m of bk ? bManuelle(bk) : []) flyt(m.aar, m.til, Number(m.beloeb) || 0);
   return [...aar].sort((a, b) => a[0].localeCompare(b[0]));
@@ -843,7 +848,18 @@ async function bHentBank(bk = bBankF) {
 function bEffektiv(x, ret) {
   const r = ret.get(x.id);
   if (x.manuel) return { navn: x.manuel.til.navn, gruppe: x.manuel.til.gruppe, aar: String(x.manuel.aar) };
+  if (x.delTil) return { navn: x.delTil.navn, gruppe: x.delTil.gruppe, rettet: r, aar: String(r?.tilAar || x.d.slice(0, 4)), del: true };
   return r ? { navn: r.til.navn, gruppe: r.til.gruppe, rettet: r, aar: String(r.tilAar || x.d.slice(0, 4)) } : { navn: x.n, gruppe: x.g, aar: x.d.slice(0, 4) };
+}
+// En postering, der er delt op, bliver til én række pr. del (samme id, beløbet for delen)
+function bMedDele(rows, ret) {
+  const ud = [];
+  for (const x of rows) {
+    const r = ret.get(x.id);
+    if (r?.dele?.length) for (const d of r.dele) ud.push({ ...x, b: -(Number(d.kr) || 0), delTil: d.til, helB: x.b });
+    else ud.push(x);
+  }
+  return ud;
 }
 // Manuelle udgifter som "posteringer" i listen
 const bManuelRaekker = bk => bManuelle(bk).map(m => ({ id: 'm:' + m.id, d: m.dato || String(m.aar) + '-01-01', k: 'Uden for banken', t: m.tekst || 'Udgift', b: -(Number(m.beloeb) || 0), manuel: m }));
@@ -869,7 +885,7 @@ async function bGemBank(bk, rows, R, info) {
       const x = ny.get(r.pid);
       if (!x || !x.n) continue;
       const fra = { navn: x.n, gruppe: x.g };
-      if (bNoegle(fra) === bNoegle(r.til) && !r.tilAar) await Data.remove(bk.liste, r.id);
+      if (bNoegle(fra) === bNoegle(r.til) && !r.tilAar && !r.dele?.length) await Data.remove(bk.liste, r.id);
       else if (bNoegle(fra) !== bNoegle(r.fra || {})) await Data.update(bk.liste, r.id, { fra });
     }
   });
@@ -1048,12 +1064,12 @@ async function bEksport(bk = bBankF) {
   try { [X, d] = await Promise.all([bHentXlsx(), bHentBank(bk)]); } catch (e) { console.warn(e); visStatus('Excel-arket kunne ikke laves – tjek forbindelsen', true); return; }
   const ret = new Map(bRettelser(bk).map(r => [r.pid, r]));
   const TY = { udgift: 'Udgift', retur: 'Retur/refusion', intern: 'Overførsel mellem egne konti', indskud: 'Indskud', 'fra løn': 'Fra lønkonto', 'til løn': 'Til lønkonto', 'indtægt': 'Indtægt', flyttet: 'Flyttet' };
-  const rows = [...d.rows, ...bManuelRaekker(bk)].sort((a, b) => a.d.localeCompare(b.d) || (a.o ?? 0) - (b.o ?? 0));
+  const rows = [...bMedDele(d.rows, ret), ...bManuelRaekker(bk)].sort((a, b) => a.d.localeCompare(b.d) || (a.o ?? 0) - (b.o ?? 0));
   const post = [['Dato', 'Tæller i år', 'Måned', 'Konto', 'Tekst', 'Beløb', 'Kategori', 'Post', 'Flyttet af jer', 'Oprindelig post', 'Type']];
   for (const x of rows) {
     const e = bEffektiv(x, ret), med = !!(x.n || x.manuel || ret.has(x.id));
     post.push([new Date(x.d + 'T12:00:00'), Number(e.aar), Number(x.d.slice(5, 7)), x.k, String(x.t).replace(/\s+/g, ' ') + (x.manuel?.note ? ' (' + x.manuel.note + ')' : ''), x.b,
-      med ? e.gruppe : '', med ? e.navn : '', e.rettet ? (bNoegle(e.rettet.til) === bNoegle(e.rettet.fra) ? 'andet år' : 'ja') : x.manuel ? 'tilføjet' : '', e.rettet ? x.n || '' : '', x.manuel ? 'Uden for banken' : TY[x.ty] || x.ty || '']);
+      med ? e.gruppe : '', med ? e.navn : '', x.delTil ? 'delt op' : e.rettet ? (bNoegle(e.rettet.til) === bNoegle(e.rettet.fra) ? 'andet år' : 'ja') : x.manuel ? 'tilføjet' : '', e.rettet ? x.n || '' : '', x.manuel ? 'Uden for banken' : TY[x.ty] || x.ty || '']);
   }
   // Oversigt: forbrug pr. post og år (kr. i alt) – samme tal som tabellen under År
   const aarL = [...new Set(rows.map(x => bEffektiv(x, ret).aar))].sort();
@@ -1090,7 +1106,7 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF) {
   try { d = await bHentBank(bk); } catch { aabnArk('🧾 ' + navn, el('p', 'hint', 'Posteringerne kunne ikke hentes. Prøv igen om lidt.')); return; }
   const ret = new Map(bRettelser(bk).map(r => [r.pid, r]));
   const k = bNoegle({ navn, gruppe });
-  const alle = [...d.rows, ...bManuelRaekker(bk)].filter(x => (x.n || x.manuel || ret.has(x.id)) && bNoegle(bEffektiv(x, ret)) === k);
+  const alle = [...bMedDele(d.rows, ret), ...bManuelRaekker(bk)].filter(x => (x.n || x.manuel || ret.has(x.id)) && bNoegle(bEffektiv(x, ret)) === k);
   const aarListe = [...new Set(alle.map(x => bEffektiv(x, ret).aar))].sort().reverse();
   let aarV = valgtAar && aarListe.includes(valgtAar) ? valgtAar : aarListe[0] || '';
   let soeg = '', sortV = 'nyeste';
@@ -1105,10 +1121,11 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF) {
       const e = bEffektiv(x, ret);
       const li = el('li');
       const igen = () => bPosteringer(navn, gruppe, aarV, bk);
-      const b = knap('', 'b-bank-raekke' + (e.rettet || x.manuel ? ' rettet' : ''), () => x.manuel ? bManuel(x.manuel, { navn, gruppe }, igen, bk) : bFlytPostering(x, ret.get(x.id), igen, bk));
+      const hel = x.delTil ? { ...x, b: x.helB, delTil: undefined } : x;
+      const b = knap('', 'b-bank-raekke' + (e.rettet || x.manuel ? ' rettet' : ''), () => x.manuel ? bManuel(x.manuel, { navn, gruppe }, igen, bk) : bFlytPostering(hel, ret.get(x.id), igen, bk));
       const v = el('span', 'b-bank-v');
       const andetAar = e.aar !== x.d.slice(0, 4);
-      v.append(el('span', 'b-bank-tekst', x.t), el('span', 'b-bank-info', bDato(x.d) + ' · ' + x.k + (x.manuel ? ' · ✍️ tilføjet af ' + (bk.mig ? 'dig' : 'jer') : e.rettet && bNoegle(e.rettet.til) !== bNoegle(e.rettet.fra) ? ' · ✏️ flyttet hertil' : '') + (andetAar ? ' · 📅 tæller i ' + e.aar : '')));
+      v.append(el('span', 'b-bank-tekst', x.t), el('span', 'b-bank-info', bDato(x.d) + ' · ' + x.k + (x.manuel ? ' · ✍️ tilføjet af ' + (bk.mig ? 'dig' : 'jer') : x.delTil ? ' · ✂️ del af ' + bKrOere(Math.abs(x.helB)) + ' kr' : e.rettet && bNoegle(e.rettet.til) !== bNoegle(e.rettet.fra) ? ' · ✏️ flyttet hertil' : '') + (andetAar ? ' · 📅 tæller i ' + e.aar : '')));
       b.append(v, el('b', 'b-bank-beloeb' + (x.b > 0 ? ' plus' : ''), (x.b > 0 ? '+' : '') + bKrOere(x.b)));
       li.append(b); ul.append(li);
     }
@@ -1154,7 +1171,7 @@ function bFlytPostering(x, gl, tilbage, bk = bBankF) {
     const fra = { navn: x.n, gruppe: x.g };
     if (bNoegle(til) === bNoegle(fra) && tilAar === oprAar) { if (gl) await Data.remove(bk.liste, gl.id); }
     else {
-      const felter = { ...bk.ekstra, snap: '_bank', art: 'bankret', pid: x.id, aar: oprAar, tilAar: tilAar === oprAar ? null : tilAar, dato: x.d, tekst: x.t, beloeb: -x.b, fra, til };
+      const felter = { ...bk.ekstra, snap: '_bank', art: 'bankret', pid: x.id, aar: oprAar, tilAar: tilAar === oprAar ? null : tilAar, dato: x.d, tekst: x.t, beloeb: -x.b, fra, til, dele: null };
       if (gl) await Data.update(bk.liste, gl.id, felter); else await Data.add(bk.liste, felter);
     }
     const tekst = rt.value.trim();
@@ -1174,6 +1191,7 @@ function bFlytPostering(x, gl, tilbage, bk = bBankF) {
   tegnPoster();
   const knapper = el('div', 'ark-knapper');
   if (gl) knapper.append(knap('↩️ Tilbage til ' + x.n, 'knap sekundaer', () => gemTil({ navn: x.n, gruppe: x.g })));
+  knapper.append(knap('✂️ Del op', 'knap sekundaer', () => bDelPostering(x, gl, tilbage, bk, grupper, () => tilAar === oprAar ? null : tilAar)));
   knapper.append(knap('Annullér', 'knap', () => tilbage()));
   const regel = el('div', 'b-regel-valg');
   if (kanRegel) {
@@ -1185,6 +1203,61 @@ function bFlytPostering(x, gl, tilbage, bk = bBankF) {
     el('p', 'hint', 'Fx en forsikring betalt i december for hele næste år. Vælg året og tryk så på posten.')] : [];
   aabnArk('Flyt postering', el('p', null, x.t), el('p', 'hint', bDato(x.d) + ' · ' + x.k + ' · ' + bKrOere(x.b) + ' kr · nu: ' + nu.navn + (gl?.tilAar ? ' i ' + gl.tilAar : '')),
     regel, ...aarValg, el('label', 'felt-label', 'Kategori'), gValg, el('label', 'felt-label', 'Post'), postBoks, knapper);
+}
+// Del én postering op på flere poster (fx "briller, vitaminer + div")
+function bDelPostering(x, gl, tilbage, bk, grupper, tilAarFn) {
+  const hel = -x.b, fortegn = hel < 0 ? -1 : 1, total = Math.abs(hel);
+  const muligheder = [...grupper].flatMap(([g, ns]) => [...ns].sort((a, b) => a.localeCompare(b, 'da')).map(n => ({ navn: n, gruppe: g })));
+  const vaelger = (valgt) => {
+    const sel = el('select');
+    for (const [g, ns] of grupper) {
+      const og = el('optgroup'); og.label = bIkon(g) + ' ' + g;
+      for (const n of [...ns].sort((a, b) => a.localeCompare(b, 'da'))) { const o = el('option', null, n); o.value = g + ' ' + n; if (valgt && valgt.navn === n && valgt.gruppe === g) o.selected = true; og.append(o); }
+      sel.append(og);
+    }
+    return sel;
+  };
+  const start = gl?.dele?.length ? gl.dele.map(d => ({ kr: Math.abs(d.kr), til: d.til })) : [{ kr: '', til: gl?.til || { navn: x.n, gruppe: x.g } }, { kr: '', til: null }];
+  const boks = el('div', 'b-dele');
+  const linjer = [];
+  const rest = el('p', 'b-dele-rest');
+  const opdater = () => {
+    const brugt = linjer.slice(0, -1).reduce((s, l) => s + (bTal(l.kr.value) || 0), 0);
+    const r = Math.round((total - brugt) * 100) / 100;
+    linjer[linjer.length - 1].kr.value = r > 0 ? String(r).replace('.', ',') : '0';
+    rest.textContent = r < 0 ? '⚠️ Delene er ' + bKrOere(-r) + ' kr for meget' : 'Den sidste linje får resten automatisk.';
+    rest.classList.toggle('fejl', r < 0);
+  };
+  const tegn = () => {
+    boks.replaceChildren(...linjer.map((l, i) => {
+      const r = el('div', 'b-del-linje');
+      l.kr.readOnly = i === linjer.length - 1;
+      r.append(l.kr, l.sel);
+      if (linjer.length > 2) r.append(knap('✕', 'ikon-knap', () => { linjer.splice(i, 1); tegn(); }));
+      return r;
+    }));
+    opdater();
+  };
+  const nyLinje = d => { const kr = input('text', '', d.kr === '' ? '' : String(d.kr).replace('.', ','), 'kr'); kr.inputMode = 'decimal'; kr.addEventListener('input', opdater); return { kr, sel: vaelger(d.til) }; };
+  for (const d of start) linjer.push(nyLinje(d));
+  if (linjer.length < 2) linjer.push(nyLinje({ kr: '', til: null }));
+  tegn();
+  const gem = async () => {
+    opdater();
+    const dele = linjer.map(l => { const [gruppe, navn] = l.sel.value.split(' '); return { kr: fortegn * (Math.round((bTal(l.kr.value) || 0) * 100) / 100), til: { navn, gruppe } }; }).filter(d => d.kr);
+    const sum = dele.reduce((s, d) => s + d.kr, 0);
+    if (dele.length < 2 || Math.abs(sum - hel) > 0.01) { visStatus('Delene skal tilsammen give ' + bKrOere(total) + ' kr', true); return; }
+    const tilAar = tilAarFn(), oprAar = x.d.slice(0, 4);
+    const stoerst = dele.slice().sort((a, b) => Math.abs(b.kr) - Math.abs(a.kr))[0].til;
+    const felter = { ...bk.ekstra, snap: '_bank', art: 'bankret', pid: x.id, aar: oprAar, tilAar, dato: x.d, tekst: x.t, beloeb: hel, fra: { navn: x.n, gruppe: x.g }, til: stoerst, dele };
+    if (gl) await Data.update(bk.liste, gl.id, felter); else await Data.add(bk.liste, felter);
+    visStatus('✂️ Delt op på ' + dele.length + ' poster'); tegnBudget(); tilbage();
+  };
+  const knapper = el('div', 'ark-knapper');
+  if (gl?.dele?.length) knapper.append(knap('↩️ Ikke delt', 'knap sekundaer', async () => { await Data.remove(bk.liste, gl.id); visStatus('↩️ Posteringen er samlet igen'); tegnBudget(); tilbage(); }));
+  knapper.append(knap('Annullér', 'knap sekundaer', () => tilbage()), knap('Gem', 'knap', gem));
+  aabnArk('✂️ Del postering op', el('p', null, x.t), el('p', 'hint', bDato(x.d) + ' · ' + x.k + ' · ' + bKrOere(x.b) + ' kr i alt'),
+    boks, rest, knap('+ Endnu en del', 'lille-knap', () => { linjer.splice(linjer.length - 1, 0, nyLinje({ kr: '', til: null })); tegn(); }), knapper);
 }
 // Udgift, der ikke står i banken: kontant, betalt med gavepenge, eller betalt før bankfilen starter
 function bManuel(m, post, tilbage, bk = bBankF, forslagAar) {
