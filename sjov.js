@@ -810,6 +810,8 @@ async function makkerEmner(barn, d, ialt, klaret) {
 // Dagens replikker gemmes i databasen ('makker_snak', én række pr. barn – opdatering-makker.sql),
 // så de voksne ser det samme som barnet. Hvilken af de 3 replikker der står i boblen, huskes kun på enheden.
 const makkerI = new Map();
+// Ekstra sikring (samme liste som i Edge Function'en): replikker med voksenord vises aldrig
+const MAKKER_FORBUDT = /pigelørdag|drengelørdag|fest|druk|fuld\b|alkohol|(^|[^a-zæøå])øl([^a-zæøå]|$)|\bvin\b|bajer|shots?\b|tømmermænd|kæreste|forelsk|kys|date|sexy|sex|død|dræb|blod|vægt|slank|fed\b|tyk\b/i;
 // Nøglen afgør, hvornår replikkerne er forældede: ændres maden (eller er alle pligter klaret), skal der nye til.
 // Tid på dagen og antal klarede pligter tæller ikke med – ellers ville dagens 4 kald være brugt før frokost.
 const makkerNoegle = emner => emner.filter(e => /^Aftensmad /.test(e) || e === 'Alle dagens pligter er klaret').join('|');
@@ -817,7 +819,7 @@ function makkerHuske(barn) {
   const dag = isoDato(new Date());
   const r = Data.listNu('makker_snak').filter(x => x.barn === barn).sort((a, b) => (b.dag || '').localeCompare(a.dag || '') || (b.kald || 0) - (a.kald || 0))[0];
   const i = makkerI.get(barn) || 0;
-  return r && r.dag === dag ? { dag, kald: r.kald || 0, linjer: Array.isArray(r.linjer) ? r.linjer : [], emner: r.emner || '', i, _id: r.id }
+  return r && r.dag === dag ? { dag, kald: r.kald || 0, linjer: (Array.isArray(r.linjer) ? r.linjer : []).filter(l => !MAKKER_FORBUDT.test(l)), emner: r.emner || '', i, _id: r.id }
     : { dag, kald: 0, linjer: [], emner: '', i: 0, _id: r?.id };
 }
 async function makkerGem(barn, c) {
@@ -842,7 +844,7 @@ async function makkerHentNu(barn, m, emner, c) {
       barn, makker: { navn: m.navn, eksempler: (m.siger || []).slice(0, 6) }, emner };
     const res = await Data.ai('Sig noget til ' + barn + '.', kontekst, [], null, 'makker');
     const linjer = (res?.handlinger || []).filter(h => h?.type === 'makker_replik' && String(h.tekst || '').trim())
-      .map(h => String(h.tekst).replace(/\s+/g, ' ').trim().slice(0, 120)).slice(0, 3);
+      .map(h => String(h.tekst).replace(/\s+/g, ' ').trim().slice(0, 120)).filter(l => !MAKKER_FORBUDT.test(l)).slice(0, 3);
     if (!linjer.length) return null;
     const ny = { ...makkerHuske(barn), linjer, i: 0, emner: makkerNoegle(emner) };
     await makkerGem(barn, ny);
