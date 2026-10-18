@@ -74,10 +74,12 @@ const Bank = (() => {
   };
   // Giver hver postering id + kontonavn. konti: Map(kode → navn; '' = kontoen er ikke med).
   // Ukendte konti returneres (slut = sidste 4 cifre, antal, eksempler), så appen kan spørge.
-  async function klarRaekker(raa, konti) {
+  // modKonti: andre konti, der kun bruges til at kende modkontoen (fx de fælles konti i et personligt budget)
+  async function klarRaekker(raa, konti, modKonti = new Map()) {
     const koder = new Map();
     for (const nr of new Set(raa.flatMap(r => [r.nr, r.afs, r.mod]).filter(Boolean))) koder.set(nr, await kontoKode(nr));
     const navn = nr => (nr && konti.has(koder.get(nr)) ? konti.get(koder.get(nr)) : null) || null;
+    const modNavn = nr => navn(nr) || (nr && modKonti.get(koder.get(nr))) || null;
     const ukendte = [...new Set(raa.map(r => r.nr))].filter(nr => !konti.has(koder.get(nr))).map(nr => {
       const rk = raa.filter(r => r.nr === nr);
       return { nr, kode: koder.get(nr), slut: nr.slice(-4), antal: rk.length, eks: [...new Set(rk.map(r => r.t))].slice(0, 4) };
@@ -89,7 +91,7 @@ const Bank = (() => {
       const k = navn(r.nr);
       if (!k) continue;
       const id = await idFor(k, r, tael);
-      const mk = navn(r.b < 0 ? r.mod : r.afs);
+      const mk = modNavn(r.b < 0 ? r.mod : r.afs);
       const x = { id, d: r.d, k, t: r.t, b: Math.round(r.b * 100) / 100, s: r.s, o: o++ };
       if (r.sp) x.sp = r.sp;
       if (r.ib) x.ib = r.ib;
@@ -137,6 +139,7 @@ const Bank = (() => {
     if (r.ib && !passer(r.ib, x.ib || '')) return false;
     if (r.ikkeIb && passer(r.ikkeIb, (x.ib || '').toUpperCase())) return false;
     if (r.k && !r.k.includes(x.k)) return false;
+    if (r.mk && !r.mk.includes(x.mk)) return false;
     if (r.ikkeK && r.ikkeK.includes(x.k)) return false;
     if (r.kat && !r.kat.includes(katNavn)) return false;
     if (r.min != null && a < r.min) return false;
@@ -153,7 +156,7 @@ const Bank = (() => {
     for (const r of rows) r.ty = null;
     const dage = (a, b) => Math.abs((Date.parse(a) - Date.parse(b)) / 864e5);
     for (const r of rows) {
-      if (r.b < 0 && r.mk) {
+      if (r.b < 0 && r.mk && !R.modkontoErUdgift) {
         r.ty = 'intern';
         for (let i = 0; i < ind.length; i++) {
           const q = ind[i];

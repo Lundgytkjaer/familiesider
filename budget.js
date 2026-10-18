@@ -18,6 +18,7 @@
 // Personlige data (beløb, navne på poster) ligger kun i databasen – aldrig i koden.
 const BUDGET_DELES = 2, BUDGET_RUND = 50, BUDGET_GAMMEL_MDR = 12;
 const BUDGET_IKONER = [
+  [/fælles ting/i, '🤝'], [/fælles budget/i, '👨‍👩‍👦‍👦'], [/personligt/i, '👤'],
   [/feriehus|sommerhus/i, '🏖️'], [/husholdning|dagligvar|mad/i, '🛒'], [/hus|bolig/i, '🏠'], [/transport|bil/i, '🚗'],
   [/forsikring/i, '🛡️'], [/fritid|sfo|sport/i, '⚽'], [/kæledyr|dyr/i, '🐰'], [/stream|abonnement/i, '📺'],
   [/børn/i, '🧒'], [/ferie|rejse/i, '✈️'], [/opsparing|buffer|pension/i, '🐷'], [/egne/i, '🧾'], [/indtægt/i, '💰']
@@ -133,8 +134,6 @@ function tegnBudget() {
     b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', budgetHvem === id);
     hvemSeg.append(b);
   }
-  if (budgetHvem !== 'faelles') { boks.replaceChildren(hvemSeg, ...budgetPersonVis(bKilde(budgetHvem))); return; }
-  const poster = bPoster();
   const seg = el('div', 'seg budget-faner');
   seg.setAttribute('role', 'radiogroup');
   for (const [id, tekst] of [['overblik', 'Overblik'], ['poster', 'Poster'], ['maaneder', 'Måneder'], ['aar', 'År']]) {
@@ -142,6 +141,15 @@ function tegnBudget() {
     b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', budgetVis === id);
     seg.append(b);
   }
+  if (budgetHvem !== 'faelles') {
+    const kilde = bKilde(budgetHvem), ps = kilde.poster();
+    if (!ps.length) { boks.replaceChildren(hvemSeg, ...budgetPersonVis(kilde)); return; }
+    const indhold = budgetVis === 'poster' ? budgetPosterVis(ps, kilde) : budgetVis === 'maaneder' ? budgetMaanederVis(ps, kilde)
+      : budgetVis === 'aar' ? budgetAarVis(ps, kilde) : budgetPersonVis(kilde);
+    boks.replaceChildren(hvemSeg, seg, ...indhold);
+    return;
+  }
+  const poster = bPoster();
   if (!poster.length) {
     const tom = el('div', 'kort budget-tom');
     tom.append(el('p', null, 'Her samler I familiens faste udgifter – hvad de koster om måneden og året, hvilken konto de betales fra, og hvor meget hver af jer skal overføre.'),
@@ -268,13 +276,15 @@ function redigerKonto(k) {
 }
 
 // ---------- Poster ----------
-function budgetPosterVis(poster) {
-  const grupper = bGrupper(poster);
+function budgetPosterVis(poster, kilde = bKilde('faelles')) {
+  const ind = kilde.faelles ? [] : poster.filter(bErInd).sort(bSort);
+  const grupper = kilde.faelles ? bGrupper(poster) : new Map([...(ind.length ? [['Indtægter', ind]] : []), ...bGrupper(poster.filter(p => !bErInd(p)))]);
   if (budgetGruppe && !grupper.has(budgetGruppe)) budgetGruppe = '';
   const dele = [];
   const top = el('div', 'b-poster-top');
-  top.append(knap('+ Ny post', 'lille-knap', () => redigerPost(null, budgetGruppe)),
-    knap('🔄 Gennemgang', 'lille-knap', () => budgetGennemgang(!poster.some(bGammel))));
+  if (kilde.faelles) top.append(knap('+ Ny post', 'lille-knap', () => redigerPost(null, budgetGruppe)));
+  else top.append(knap('+ Indtægt', 'lille-knap', () => redigerPost(null, '', kilde, 'ind')), knap('+ Udgift', 'lille-knap', () => redigerPost(null, budgetGruppe === 'Indtægter' ? '' : budgetGruppe, kilde, 'ud')));
+  top.append(knap('🔄 Gennemgang', 'lille-knap', () => budgetGennemgang(!poster.some(bGammel), kilde)));
   dele.push(top);
   const soeg = input('search', 'budget-soeg', budgetSoeg, 'Søg efter en post');
   soeg.addEventListener('input', () => { budgetSoeg = soeg.value; tegnListe(); });
@@ -296,12 +306,12 @@ function budgetPosterVis(poster) {
       const vist = ps.filter(p => !q || [p.navn, p.note, p.konto, g].join(' ').toLowerCase().includes(q));
       if (!vist.length) continue;
       const h = el('div', 'b-gruppe-hoved');
-      h.append(el('b', null, bIkon(g) + ' ' + g), el('span', null, bKr(ps.reduce((s, p) => s + bAar(p), 0) / 12) + ' kr/md'));
+      h.append(el('b', null, (g === 'Indtægter' && !kilde.faelles ? '💰' : bIkon(g)) + ' ' + g), el('span', null, bKr(ps.reduce((s, p) => s + bAar(p), 0) / 12) + ' kr/md'));
       const ul = el('ul', 'b-post-liste');
       ul.append(...vist.map(p => {
         const li = el('li');
         const a = bAar(p);
-        const b = knap('', 'b-post' + (a ? '' : ' nul'), () => redigerPost(p));
+        const b = knap('', 'b-post' + (a ? '' : ' nul'), () => redigerPost(p, '', kilde));
         const v = el('span', 'b-post-v');
         v.append(el('span', 'b-post-navn', p.navn || 'Uden navn'),
           el('span', 'b-post-info', [p.konto, bMoenster(p), bGammel(p) ? '🔄 tjek' : ''].filter(Boolean).join(' · ')));
@@ -321,11 +331,13 @@ function budgetPosterVis(poster) {
 }
 
 // ---------- Måneder ----------
-function budgetMaanederVis(poster) {
-  const mt = bMaanedTotal(poster), snit = mt.reduce((s, x) => s + x, 0) / 12, maks = Math.max(1, ...mt);
+function budgetMaanederVis(poster, kilde = bKilde('faelles')) {
+  const andel = kilde.faelles ? 0 : bAndel();
+  if (!kilde.faelles) poster = poster.filter(p => !bErInd(p));
+  const mt = bMaanedTotal(poster).map(x => x + andel), snit = mt.reduce((s, x) => s + x, 0) / 12, maks = Math.max(1, ...mt);
   if (budgetMaaned == null) budgetMaaned = new Date().getMonth();
   const kort = el('div', 'kort');
-  kort.append(el('h3', null, 'Udgifter måned for måned'));
+  kort.append(el('h3', null, kilde.faelles ? 'Udgifter måned for måned' : 'Dine udgifter måned for måned'));
   const graf = el('div', 'b-graf');
   graf.setAttribute('role', 'group'); graf.setAttribute('aria-label', 'Udgifter pr. måned');
   const linje = el('span', 'b-snit');
@@ -353,10 +365,12 @@ function budgetMaanederVis(poster) {
   const ul = el('ul', 'b-kom-liste');
   ul.append(...ps.map(p => {
     const li = el('li');
-    const b = knap('', 'b-linje', () => redigerPost(p));
+    const b = knap('', 'b-linje', () => redigerPost(p, '', kilde));
     b.append(el('span', null, bIkon(p.gruppe) + ' ' + p.navn + (bMoenster(p) === 'hver måned' ? '' : ' ★')), el('span', 'b-beloeb', bKr(bMdr(p)[m]) + ' kr'));
     li.append(b); return li;
   }));
+  if (andel) { const li = el('li'); const b = knap('', 'b-linje', () => { budgetHvem = 'faelles'; lokal.set('budget-hvem', 'faelles'); budgetVis = 'overblik'; tegnBudget(); window.scrollTo(0, 0); });
+    b.append(el('span', null, '👨‍👩‍👦‍👦 Andel af fælles budget'), el('span', 'b-beloeb', bKr(andel) + ' kr')); li.append(b); ul.prepend(li); }
   liste.append(ul, el('p', 'hint', '★ = betales ikke hver måned. Tryk på en måned i grafen for at se den.'));
   return [kort, liste];
 }
@@ -613,7 +627,7 @@ function bAarKort(kilde, nuMd) {
   knapper.append(gem);
   const tidligere = [...snaps].reverse().find(x => String(x.snap) < aar) || sidste;   // helst et tidligere år
   if (snaps.length) knapper.append(knap('Sammenlign ›', 'lille-knap', () => budgetSammenlign(kilde, tidligere)));
-  if (kilde.faelles) knapper.append(knap('Alle år og forbrug ›', 'lille-knap', () => { budgetVis = 'aar'; lokal.set('budget-vis', 'aar'); tegnBudget(); window.scrollTo(0, 0); }));
+  knapper.append(knap('Alle år og forbrug ›', 'lille-knap', () => { budgetVis = 'aar'; lokal.set('budget-vis', 'aar'); tegnBudget(); window.scrollTo(0, 0); }));
   kort.append(knapper);
   return kort;
 }
@@ -657,20 +671,21 @@ function budgetSammenlign(kilde, snap) {
 
 // ---------- År: budget og faktisk forbrug for alle år i én tabel ----------
 const bNoegle = p => (p.navn || '').toLowerCase() + '|' + (p.gruppe || 'Andet').toLowerCase();
-function bAarData(poster) {
+function bAarData(poster, kilde = bKilde('faelles'), bk = kilde.faelles ? bBankF : null) {
   const nu = String(new Date().getFullYear());
-  const alle = bAlleFaelles();
+  const alle = kilde.alle();
   const aar = new Map();   // 'ÅÅÅÅ' → { b: Map|null, f: Map|null, fMdr, periode }
   const hent = a => { if (!aar.has(a)) aar.set(a, { b: null, f: null }); return aar.get(a); };
   const tilMap = (ps, del) => { const m = new Map(); for (const p of ps || []) { if (p.type === 'ind') continue; const k = bNoegle(p); const x = m.get(k) || { navn: p.navn, gruppe: p.gruppe || 'Andet', md: 0 }; x.md += (Number(p.aar) || 0) / del; m.set(k, x); } return m; };
   for (const s of alle.filter(p => p.snap && !p.art)) if (String(s.snap) !== nu) hent(String(s.snap)).b = tilMap(s.poster, 12);
-  hent(nu).b = tilMap(poster.map(p => ({ navn: p.navn, gruppe: p.gruppe, aar: bAar(p) })), 12);
-  for (const s of alle.filter(p => p.snap && p.art === 'forbrug')) {
+  hent(nu).b = tilMap([...poster.map(p => ({ navn: p.navn, gruppe: p.gruppe, type: p.type, aar: bAar(p) })),
+    ...(kilde.faelles ? [] : [{ navn: 'Andel af fælles budget', gruppe: 'Fælles budget', aar: bAndel() * 12 }])], 12);
+  for (const s of (bk ? bk.alle() : []).filter(p => p.snap && p.art === 'forbrug')) {
     const x = hent(String(s.snap)), mdr = Number(s.maaneder) || 12;
     x.f = tilMap(s.poster, mdr); x.fMdr = mdr; x.periode = s.periode || ''; x.fDato = s.dato;
   }
   // Rettede bankposteringer flytter beløbet fra den ene post til den anden i forbruget
-  for (const r of bRettelser()) {
+  for (const r of bk ? bRettelser(bk) : []) {
     const x = aar.get(String(r.aar));
     if (!x || !x.f) continue;
     const md = (Number(r.beloeb) || 0) / (x.fMdr || 12);
@@ -679,8 +694,10 @@ function bAarData(poster) {
   }
   return [...aar].sort((a, b) => a[0].localeCompare(b[0]));
 }
-function budgetAarVis(poster) {
-  const kol = bAarData(poster);
+function budgetAarVis(poster, kilde = bKilde('faelles')) {
+  const bk = kilde.faelles ? bBankF : kilde.hvem === bMig() ? bBankMig() : null;
+  const kol = bAarData(poster, kilde, bk);
+  if (!kilde.faelles) poster = [...poster.filter(p => !bErInd(p)), { navn: 'Andel af fælles budget', gruppe: 'Fælles budget' }];
   const harF = kol.some(([, x]) => x.f);
   const vis = harF ? budgetAarValg : 'budget';
   // Rækkefølge: grupperne som under Poster, derefter grupper der kun findes i gamle år
@@ -743,8 +760,8 @@ function budgetAarVis(poster) {
     if (aaben) for (const k of ngl) {
       const pr = el('tr', 'b-aar-post');
       const th = el('th');
-      const pk = knap(grupper.get(g).get(k), 'b-aar-pknap', () => bPosteringer(grupper.get(g).get(k), g));
-      pk.title = 'Se posteringerne';
+      const pk = bk ? knap(grupper.get(g).get(k), 'b-aar-pknap', () => bPosteringer(grupper.get(g).get(k), g, null, bk)) : el('span', null, grupper.get(g).get(k));
+      if (bk) pk.title = 'Se posteringerne';
       th.append(pk); pr.append(th);
       for (const [, x] of kol) {
         const bb = x.b ? (x.b.get(k)?.md ?? null) : null, ff = x.f ? (x.f.get(k)?.md ?? null) : null;
@@ -761,15 +778,20 @@ function budgetAarVis(poster) {
   const noter = ['Tryk på en kategori for at se posterne.', '"–" betyder, at posten ikke fandtes det år.'];
   const fk = kol.filter(([, x]) => x.f && x.periode);
   if (fk.length) noter.push('Forbruget er regnet om til kr. om måneden for den periode, banken dækker (' + fk.map(([a, x]) => a + ': ' + x.periode).join(', ') + ').');
-  noter.push('Nogle ting kan kun ses samlet i banken – fx GF, der står som én post under forbrug.');
+  if (kilde.faelles) noter.push('Nogle ting kan kun ses samlet i banken – fx GF, der står som én post under forbrug.');
   dele.push(el('p', 'hint', noter.join(' ')));
-  dele.push(bBankKort());
+  if (bk) dele.push(bBankKort(bk));
   return dele;
 }
 
 // ---------- Bankposteringer (fil i Storage) + rettelser + upload af bankens CSV (bank.js) ----------
 // Bank-kilde: hvor ligger filen, rettelserne, reglerne og kontiene? Fælles = 'budget' (voksne) – kun-mig-udgaven kommer til lønkontoen.
-const bBankF = { liste: 'budget', syn: 'voksne', alle: () => bAlleFaelles(), ekstra: {} };
+const bBankF = { liste: 'budget', syn: 'voksne', alle: () => bAlleFaelles(), ekstra: {}, get kilde() { return bKilde('faelles'); } };
+// Mit budget: posteringerne fra min egen konto ligger ALTID i 'budget_privat' + Storage mig/ – også når budgettet er delt
+function bBankMig() {
+  const mig = bMig();
+  return { liste: B_PRIVAT, syn: 'mig', mig: true, alle: () => bMaerk(Data.listNu(B_PRIVAT), B_PRIVAT).filter(p => p.ejer === mig), ekstra: { ejer: mig }, kilde: bKilde(mig) };
+}
 const bBankRaekke = (bk = bBankF) => bk.alle().find(p => p.art === 'bankfil');
 const bRettelser = (bk = bBankF) => bk.alle().filter(p => p.art === 'bankret');
 const bReglerRaekke = (bk = bBankF) => bk.alle().find(p => p.art === 'regler');
@@ -834,17 +856,20 @@ async function bLaesBankfil(fil, bk = bBankF) {
   }
   const kr = bKontiRaekke(bk);
   const konti = new Map((kr?.konti || []).map(k => [k.kode, k.navn || '']));
-  let r = await Bank.klarRaekker(raa, konti);
+  // I mit budget kendes de fælles konti kun som modkonto (overførsel til Budget = min andel)
+  const mod = bk.mig ? new Map((bKontiRaekke(bBankF)?.konti || []).filter(k => k.navn).map(k => [k.kode, k.navn])) : new Map();
+  let r = await Bank.klarRaekker(raa, konti, mod);
   if (r.ukendte) {
-    const navne = [...new Set([...(gamle?.rows || []).map(x => x.k), ...konti.values(), ...Data.listNu('budgetkonti').map(k => k.navn)].filter(Boolean))];
+    const navne = bk.mig ? [...new Set([...(gamle?.rows || []).map(x => x.k), ...konti.values(), 'Lønkonto'].filter(Boolean))]
+      : [...new Set([...(gamle?.rows || []).map(x => x.k), ...konti.values(), ...Data.listNu('budgetkonti').map(k => k.navn)].filter(Boolean))];
     const kendte = new Set((gamle?.rows || []).map(x => x.id));
     for (const u of r.ukendte) u.gaet = kendte.size ? await Bank.gaetKonto(raa, u.nr, navne, kendte) : null;
-    const svar = await bSpoergKonti(r.ukendte, navne);
+    const svar = await bSpoergKonti(r.ukendte, navne, bk.mig);
     if (!svar) { visStatus('Bankfilen blev ikke lagt ind'); return; }
     for (const s of svar) konti.set(s.kode, s.navn);
     const liste = [...konti].map(([kode, navn]) => ({ kode, navn }));
     if (kr) await Data.update(bk.liste, kr.id, { konti: liste }); else await Data.add(bk.liste, { ...bk.ekstra, snap: '_bank', art: 'konti', konti: liste });
-    r = await Bank.klarRaekker(raa, konti);
+    r = await Bank.klarRaekker(raa, konti, mod);
   }
   if (!r.rows.length) { visStatus('Ingen af kontiene i filen er med i budgettet', true); return; }
   const f = Bank.flet(gamle?.rows || [], r.rows);
@@ -855,7 +880,7 @@ async function bLaesBankfil(fil, bk = bBankF) {
   } catch (e) { console.warn(e); visStatus('Bankfilen kunne ikke gemmes', true); }
 }
 // Ark: hvilken konto er hvilken? (kontonummeret vises kun med de sidste 4 cifre og gemmes som en kode)
-function bSpoergKonti(ukendte, navne) {
+function bSpoergKonti(ukendte, navne, mig = false) {
   return new Promise(svar => {
     const valg = new Map(ukendte.map(u => [u.kode, u.gaet ?? null]));
     let faerdig = false;
@@ -877,7 +902,7 @@ function bSpoergKonti(ukendte, navne) {
         if (v === '+') andet.focus();
         opdater();
       }, v => v === '' ? '🚫 Ikke med' : v === '+' ? '+ Andet navn' : v), andet);
-      if (u.gaet) boks.append(el('p', 'hint', '✓ Gættet ud fra jeres posteringer: ' + u.gaet));
+      if (u.gaet) boks.append(el('p', 'hint', '✓ Gættet ud fra ' + (mig ? 'dine' : 'jeres') + ' posteringer: ' + u.gaet));
       dele.push(boks);
     }
     opdater();
@@ -925,7 +950,7 @@ function bBankKort(bk = bBankF) {
   const kort = el('div', 'kort b-bank-kort');
   kort.append(el('h3', null, '🏦 Bankposteringer'));
   if (r) kort.append(el('p', 'hint', bKr(r.antal) + ' posteringer fra ' + bDato(r.fra) + ' til ' + bDato(r.til) + ' (opdateret ' + bDato(r.lavet) + '). Tryk på en post i tabellen for at se dens posteringer og rette dem.'));
-  else kort.append(el('p', 'hint', 'Læg bankens CSV-fil ind, så kan I trykke på en post og se hver eneste betaling.'));
+  else kort.append(el('p', 'hint', 'Læg bankens CSV-fil ind, så kan ' + (bk.mig ? 'du' : 'I') + ' trykke på en post og se hver eneste betaling.'));
   const csvInp = el('input'); csvInp.type = 'file'; csvInp.accept = '.csv,text/csv'; csvInp.hidden = true;
   csvInp.addEventListener('change', async () => {
     const fil = csvInp.files?.[0]; csvInp.value = '';
@@ -937,6 +962,12 @@ function bBankKort(bk = bBankF) {
     if (!fil) return;
     let d;
     try { d = JSON.parse(await fil.text()); if (!Array.isArray(d.rows)) throw 0; } catch { visStatus('Det er ikke en fil med posteringer', true); return; }
+    const R = bReglerRaekke(bk)?.regler;
+    if (bNyFil(d) && R) {
+      try { visStatus('Lægger posteringerne ind …'); await bGemBank(bk, Bank.inddel(d.rows, R), R, '🏦 ' + bKr(d.rows.length) + ' posteringer er lagt ind · forbruget er regnet ud'); }
+      catch (e) { console.warn(e); visStatus('Filen kunne ikke lægges op', true); }
+      return;
+    }
     try {
       visStatus('Lægger posteringerne op …');
       const op = await Data.uploadFil(bk.syn, fil);
@@ -949,9 +980,10 @@ function bBankKort(bk = bBankF) {
   const knapper = el('div', 'b-bank-knapper');
   knapper.append(csvInp, filInp, knap('📥 Læg bankfil ind (CSV)', 'knap', () => csvInp.click()));
   kort.append(knapper);
-  kort.append(el('p', 'hint', 'I netbanken: eksportér posteringerne som CSV (gerne alle konti og alle felter – mindst Exportkonto, Dato, Tekst, Beløb og Saldo). Posteringer, der allerede er lagt ind, springes over.'));
+  kort.append(el('p', 'hint', bk.mig ? 'I netbanken: eksportér din egen konto som CSV (gerne alle felter – mindst Exportkonto, Dato, Tekst, Beløb og Saldo). 🔒 Kun du kan se posteringerne og forbruget herfra – også hvis du deler dit budget.'
+    : 'I netbanken: eksportér posteringerne som CSV (gerne alle konti og alle felter – mindst Exportkonto, Dato, Tekst, Beløb og Saldo). Posteringer, der allerede er lagt ind, springes over.'));
   const n = bRettelser(bk).length;
-  if (n) kort.append(el('p', 'hint', '✏️ I har rettet ' + n + (n === 1 ? ' postering' : ' posteringer') + '. Rettelserne bliver liggende, når der kommer nye posteringer.'));
+  if (n) kort.append(el('p', 'hint', (bk.mig ? '✏️ Du har rettet ' : '✏️ I har rettet ') + n + (n === 1 ? ' postering' : ' posteringer') + '. Rettelserne bliver liggende, når der kommer nye posteringer.'));
   const egne = (bReglerRaekke(bk)?.regler?.post || []).filter(x => x.egen).length;
   const sm = el('div', 'b-bank-knapper');
   sm.append(knap('🧩 Egne regler' + (egne ? ' (' + egne + ')' : ''), 'lille-knap', () => bEgneRegler(bk)),
@@ -1004,9 +1036,11 @@ function bRegelForslag(t) {
 }
 // Flyt én postering til en anden post (gemmes som rettelse oven på filen) – evt. som regel for alle de samme
 function bFlytPostering(x, gl, tilbage, bk = bBankF) {
-  const kol = bAarData(bPoster());
+  const kilde = bk.kilde, ps = kilde.poster().filter(p => !bErInd(p));
+  const kol = bAarData(kilde.poster(), kilde, bk);
   const grupper = new Map();
-  for (const p of bPoster()) { const g = p.gruppe || 'Andet'; if (!grupper.has(g)) grupper.set(g, new Set()); grupper.get(g).add(p.navn); }
+  if (!kilde.faelles) grupper.set('Fælles budget', new Set(['Andel af fælles budget']));
+  for (const p of ps) { const g = p.gruppe || 'Andet'; if (!grupper.has(g)) grupper.set(g, new Set()); grupper.get(g).add(p.navn); }
   for (const [, y] of kol) for (const m of [y.b, y.f]) if (m) for (const [, p] of m) { if (!grupper.has(p.gruppe)) grupper.set(p.gruppe, new Set()); grupper.get(p.gruppe).add(p.navn); }
   const nu = gl ? gl.til : { navn: x.n, gruppe: x.g };
   let g = nu.gruppe;
@@ -1075,7 +1109,8 @@ function budgetPersonVis(kilde) {
   mk.append(el('h3', null, 'Måned for måned'));
   const grid = el('div', 'b-md-gitter');
   t.over.forEach((x, i) => {
-    const c = el('div', 'b-md-celle' + (x < -0.5 ? ' minus' : '') + (i === new Date().getMonth() ? ' nu' : ''));
+    const c = knap('', 'b-md-celle' + (x < -0.5 ? ' minus' : '') + (i === new Date().getMonth() ? ' nu' : ''), () => { budgetMaaned = i; budgetVis = 'maaneder'; lokal.set('budget-vis', 'maaneder'); tegnBudget(); window.scrollTo(0, 0); });
+    c.setAttribute('aria-label', MDR_LANG[i] + ': ' + (x < -0.5 ? 'underskud ' : 'overskud ') + bKr(Math.abs(x)) + ' kr');
     c.append(el('span', null, MDR[i].replace('.', '')), el('b', null, (x < -0.5 ? '−' : '+') + bKr(Math.abs(x))));
     grid.append(c);
   });
@@ -1140,7 +1175,7 @@ function budgetPersonVis(kilde) {
 // Flyt alle mine rækker mellem privat og delt (samme data, ny liste)
 async function bSkiftDeling(del) {
   const mig = bMig(), fra = del ? B_PRIVAT : B_DELT, til = del ? B_DELT : B_PRIVAT;
-  const rk = bPersonRaekker(mig).filter(r => r._liste === fra);
+  const rk = bPersonRaekker(mig).filter(r => r._liste === fra && !r.art);   // bankposteringer, forbrug, regler og konti forbliver private
   await Data.stille(async () => {
     for (const r of rk) {
       const { id, oprettet, _af, _liste, ...data } = r;

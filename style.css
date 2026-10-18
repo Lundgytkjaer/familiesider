@@ -1852,7 +1852,7 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .budget-hero.minus { background: var(--fare); }
 .b-diff.ned { color: var(--accent); }
 .b-md-gitter { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
-.b-md-celle { display: grid; gap: 2px; padding: 8px 6px; border-radius: 10px; background: var(--accent-blod); text-align: center; font-variant-numeric: tabular-nums; min-width: 0; }
+.b-md-celle { border: 0; font: inherit; color: inherit; cursor: pointer; display: grid; gap: 2px; padding: 8px 6px; border-radius: 10px; background: var(--accent-blod); text-align: center; font-variant-numeric: tabular-nums; min-width: 0; }
 .b-md-celle span { font-size: .75rem; color: var(--daempet); }
 .b-md-celle b { font-size: .95rem; color: var(--accent); }
 .b-md-celle.minus { background: color-mix(in srgb, var(--fare) 14%, transparent); }
