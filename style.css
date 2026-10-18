@@ -1987,3 +1987,21 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .sjov-tekst { font-size: 17px; line-height: 1.4; margin: 4px 0 8px; }
 .sjov-svar { font-size: 16px; font-weight: 700; color: var(--accent); margin: 6px 0 0; }
 .konk-liste.lille .konk-raekke { min-height: 36px; }
+
+/* 📓 Dagbog */
+#dagbog-indhold > .seg { margin-bottom: 8px; }
+.db-periode button { font-size: 13px; }
+.db-taelling { color: var(--daempet); font-size: 14px; margin: 4px 0 10px; }
+.db-knapper { display: flex; gap: 8px; align-items: center; margin: 0 0 12px; flex-wrap: wrap; }
+.db-liste { list-style: none; margin: 0; padding: 0; }
+.db-dag { font-size: 12px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--daempet); margin: 14px 0 6px; }
+.db-punkt + .db-punkt { margin-top: 6px; }
+.db-knap { width: 100%; text-align: left; display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border: 1px solid var(--linje); border-radius: 12px; background: var(--flade); color: inherit; font: inherit; cursor: pointer; }
+.db-top { display: flex; gap: 8px; align-items: center; font-size: 16px; font-weight: 600; }
+.db-ikon { flex: none; }
+.db-tekst { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.db-under { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; color: var(--daempet); padding-left: 28px; }
+.db-note { flex-basis: 100%; }
+.db-tid-raekke { display: flex; gap: 8px; align-items: center; }
+.db-tid-raekke input { flex: 1; min-width: 0; }
+.db-hurtig { margin: 8px 0 4px; }

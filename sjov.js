@@ -765,6 +765,77 @@ function vaelgMakker(barn, nu) {
   aabnArk('Vælg din makker', grid, el('p', 'hint', 'Makkeren bliver gladere, jo mere du klarer i dag. "Ingen makker" fjerner den fra tavlen – den kan slås til igen under Indstillinger (din runde knap øverst).'), knapper);
 }
 
+// ---------- 🤖 Makkeren siger noget om det, der sker i appen (AI) ----------
+// Appen finder selv emnerne (mad, vejr, pligter, dage i træk, konkurrencen, dagens gåde) – AI'en skriver kun replikken
+// i makkerens stemme (Edge Function "ai", opgave 'makker' – børn må bruge den, højst 6 gange om dagen).
+// Kun på barnets egen enhed. Højst 4 kald om dagen herfra, og kun når emnerne har ændret sig; 3 replikker pr. kald.
+// Fejler det (intet net, loft nået, funktionen ikke opdateret), siger makkeren bare sine faste sætninger som før.
+async function makkerEmner(barn, d, ialt, klaret) {
+  const e = [], nu = new Date(), iso = isoDato(nu);
+  const t = nu.getHours();
+  e.push('Det er ' + DAGE_LANG[(nu.getDay() + 6) % 7].toLowerCase() + ' ' + (t < 10 ? 'morgen' : t < 13 ? 'formiddag' : t < 17 ? 'eftermiddag' : 'aften'));
+  if (ialt) e.push(klaret === ialt ? 'Alle dagens pligter er klaret' : klaret + ' af ' + ialt + ' pligter er klaret i dag');
+  const st = streak(d);
+  if (st >= 2) e.push(st + ' dage i træk med alle pligter');
+  try {
+    const plan = await madFor(nu, barn);   // app.js
+    const aften = plan.visning?.ret || plan.ret;
+    if (aften && aften !== INGEN_MAD) e.push('Aftensmad i dag: ' + aften);
+    const im = new Date(nu); im.setDate(im.getDate() + 1);
+    const p2 = await madFor(im, barn);
+    if (p2.visning?.ret || p2.ret) e.push('Aftensmad i morgen: ' + (p2.visning?.ret || p2.ret));
+  } catch {}
+  try {
+    if ((await valgFor(barn)).vejr !== false && typeof hentVejr === 'function') {
+      const data = await hentVejr();
+      const v = data && vejrDag(data, iso);
+      if (v) e.push('Vejret i dag: ' + vejrTekst(v.kode).toLowerCase() + ', ' + grader(v.min) + ' til ' + grader(v.max) + (v.regnFra != null ? ', regn fra kl. ' + v.regnFra : ''));
+    }
+  } catch {}
+  try {
+    const man = isoDato(mandagDenneUge()), son = plusDage(man, 6);
+    const ugens = (await Data.list('motion')).filter(m => m.dato >= man && m.dato <= son);
+    if (ugens.length) {
+      const stil = DELTAGERE.map(p => ({ p, km: sum(ugens.filter(m => m.hvem === p), 'km') })).filter(x => x.km > 0).sort((a, b) => b.km - a.km);
+      e.push('Ugens cykel/gå-konkurrence: ' + stil.map(x => (x.p === barn ? barn + ' (barnet selv)' : x.p) + ' ' + fmtKm(x.km)).join(', '));
+    }
+  } catch {}
+  const sj = (await Data.list('sjov')).find(x => x.dato === iso);
+  if (sj && sj.slags === 'gaade') e.push('Dagens gåde på tavlen: ' + sj.tekst);
+  return e;
+}
+function makkerHuske(barn) {
+  let c = {};
+  try { c = JSON.parse(lokal.get('makker-ai-' + barn) || '{}') || {}; } catch { c = {}; }
+  const dag = isoDato(new Date());
+  return c.dag === dag ? c : { dag, kald: 0, linjer: [], i: 0, emner: '' };
+}
+const makkerGem = (barn, c) => lokal.set('makker-ai-' + barn, JSON.stringify(c));
+const makkerHenter = new Map();   // barn → igangværende hentning (en ny tegning venter på den i stedet for at spørge igen)
+function makkerHent(barn, m, emner) {
+  if (makkerHenter.has(barn)) return makkerHenter.get(barn);
+  const c = makkerHuske(barn);
+  if (c.kald >= 4 || typeof Data.ai !== 'function') return Promise.resolve(null);
+  const p = makkerHentNu(barn, m, emner, c);
+  makkerHenter.set(barn, p);
+  return p;
+}
+async function makkerHentNu(barn, m, emner, c) {
+  c.kald++; makkerGem(barn, c);
+  try {
+    const kontekst = { dato: isoDato(new Date()), ugedag: DAGE_LANG[(new Date().getDay() + 6) % 7].toLowerCase(), personer: [], kategorier: [],
+      barn, makker: { navn: m.navn, eksempler: (m.siger || []).slice(0, 6) }, emner };
+    const res = await Data.ai('Sig noget til ' + barn + '.', kontekst, [], null, 'makker');
+    const linjer = (res?.handlinger || []).filter(h => h?.type === 'makker_replik' && String(h.tekst || '').trim())
+      .map(h => String(h.tekst).replace(/\s+/g, ' ').trim().slice(0, 120)).slice(0, 3);
+    if (!linjer.length) return null;
+    const ny = { ...makkerHuske(barn), linjer, i: 0, emner: emner.join('|') };
+    makkerGem(barn, ny);
+    return linjer[0];
+  } catch (e) { console.warn('Makker:', e.message || e); return null; }
+  finally { makkerHenter.delete(barn); }
+}
+
 // Kort til børnetavlen: makkeren bliver gladere, jo flere af dagens pligter der er klaret
 async function alfieKort(barn) {
   const nu = new Date();
@@ -796,7 +867,19 @@ async function alfieKort(barn) {
   figur.innerHTML = m.svg(hvordan, nv.pynt);
   const boble = el('div', 'alfie-boble', tekst);
   boble.setAttribute('aria-live', 'polite');
-  figur.addEventListener('click', () => {
+  // AI-replikker kun på barnets egen enhed og ikke når makkeren sover/er syg
+  const egenAI = loggetIndBarn() === barn && hvordan !== 'sover' && !syg;
+  if (egenAI) {
+    // Passer replikkerne stadig (samme emner), står den aktuelle i boblen; ellers bedes om nye i baggrunden.
+    // Indtil da (og hvis dagens kald er brugt) står den almindelige status ("2 ting tilbage …")
+    makkerEmner(barn, d, ialt, klaret).then(async emner => {
+      const c = makkerHuske(barn);
+      if (emner.join('|') === c.emner && c.linjer.length) { boble.textContent = c.linjer[c.i] || c.linjer[0]; return; }
+      const l = await makkerHent(barn, m, emner);
+      if (l) boble.textContent = l;
+    });
+  }
+  figur.addEventListener('click', async () => {
     if (hvordan === 'sover') {
       // Sovende makker vågner et øjeblik og fester
       figur.innerHTML = m.svg('super', nv.pynt);
@@ -806,6 +889,17 @@ async function alfieKort(barn) {
       return;
     }
     figur.classList.remove('vip'); void figur.offsetWidth; figur.classList.add('vip');
+    // Barnets egen tavle: næste AI-replik om det, der sker (og en ny omgang, når de er brugt) – ellers en fast sætning
+    if (egenAI) {
+      const c = makkerHuske(barn);
+      if (c.linjer.length && c.i + 1 < c.linjer.length) { c.i++; makkerGem(barn, c); boble.textContent = c.linjer[c.i]; return; }
+      if (c.kald < 4 && !makkerHenter.has(barn)) {
+        boble.textContent = '…';
+        const l = await makkerHent(barn, m, await makkerEmner(barn, d, ialt, klaret));
+        boble.textContent = l || m.siger[Math.floor(Math.random() * m.siger.length)];
+        return;
+      }
+    }
     boble.textContent = m.siger[Math.floor(Math.random() * m.siger.length)];
   });
   // Pynten tegnes ind i makkeren (pyntDele) – alt det, barnet har fået, sidder på den

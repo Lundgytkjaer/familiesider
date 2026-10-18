@@ -8,7 +8,7 @@ const AKT_LISTER = {
   flueben: 'Pligter', opgaver: 'Pligter', beloenninger: 'Belønninger', indloesninger: 'Belønninger',
   justeringer: 'Stjerner og kr', udbetalinger: 'Udbetalinger', ekstra: 'Ekstra stjerner', madoensker: 'Madønsker',
   streakbonus: 'Streak', streakjoker: 'Streak', rutiner: 'Rutiner', pakkelister: 'Pakkelister', motion: 'Konkurrence',
-  skema: 'Skema', skemadag: 'Skema', skemafarver: 'Skema', ringetider: 'Skema', personer: 'Familie', kontakter: 'Kontakter', steder: 'Vores kort', kortlag: 'Vores kort', noter: 'Familiemappen', noter_voksne: 'Familiemappen', pauser: 'Pause', budget: 'Budget', budgetkonti: 'Budget', budget_delt: 'Budget (personligt)',
+  skema: 'Skema', skemadag: 'Skema', skemafarver: 'Skema', ringetider: 'Skema', personer: 'Familie', kontakter: 'Kontakter', steder: 'Vores kort', kortlag: 'Vores kort', noter: 'Familiemappen', noter_voksne: 'Familiemappen', pauser: 'Pause', budget: 'Budget', budgetkonti: 'Budget', budget_delt: 'Budget (personligt)', dagbog: 'Dagbog',
   personvalg: 'Indstillinger', indstillinger: 'Indstillinger', personregler: 'Pligter'
 };
 const AKT_SIDE = 150;   // rækker pr. hentning
