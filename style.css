@@ -1952,6 +1952,15 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .b-bank-beloeb.plus { color: #1e8449; }
 .b-flyt-post { display: block; width: 100%; margin: 4px 0; text-align: left; }
 .b-flyt-post[aria-current="true"] { outline: 2px solid var(--accent); }
+.b-bank-knapper { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.b-konto-valg { margin: 10px 0; }
+.b-konto-valg .hint { margin: 4px 0 8px; overflow-wrap: anywhere; }
+.b-konto-valg input[type="text"] { margin-top: 8px; width: 100%; box-sizing: border-box; }
+.b-regel-valg { margin: 8px 0 12px; }
+.b-regel-valg label { display: flex; gap: 8px; align-items: flex-start; cursor: pointer; }
+.b-regel-valg input[type="checkbox"] { width: 22px; height: 22px; flex: none; margin: 0; }
+.b-regel-valg input[type="text"] { margin-top: 8px; width: 100%; box-sizing: border-box; }
+.b-regel { display: flex; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 2px; border-bottom: 1px solid var(--linje); }
 
 /* ✨ Usikre varer fra en indkøbsseddel */
 .ai-kort:has(.ai-usikker) { flex-wrap: wrap; }
