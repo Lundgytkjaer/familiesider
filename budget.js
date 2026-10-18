@@ -1099,7 +1099,15 @@ async function bEksport(bk = bBankF) {
   visStatus('📊 Excel-arket er hentet');
 }
 // Ark: posteringerne bag én post (vælg år, søg). Tryk på en postering = flyt den til en anden post.
-async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF) {
+// Sortering, søgning, år og hvor langt man var nået huskes, så man kan rette mange posteringer i træk.
+const bPostVis = new Map();
+let bPostSort = lokal.get('bank-sort') || 'nyeste';
+const bArkRul = () => document.querySelector('#ark .ark');
+async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF, tilbageFra = false) {
+  const vk = bk.liste + '|' + bNoegle({ navn, gruppe });
+  const st = bPostVis.get(vk) || {};
+  bPostVis.set(vk, st);
+  if (!tilbageFra) st.scroll = 0;
   if (!bBankRaekke(bk)) { visStatus('Læg først en bankfil ind (nederst under År)', true); return; }
   aabnArk('🧾 ' + navn, el('p', 'hint', 'Henter posteringer …'));
   let d;
@@ -1108,8 +1116,9 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF) {
   const k = bNoegle({ navn, gruppe });
   const alle = [...bMedDele(d.rows, ret), ...bManuelRaekker(bk)].filter(x => (x.n || x.manuel || ret.has(x.id)) && bNoegle(bEffektiv(x, ret)) === k);
   const aarListe = [...new Set(alle.map(x => bEffektiv(x, ret).aar))].sort().reverse();
-  let aarV = valgtAar && aarListe.includes(valgtAar) ? valgtAar : aarListe[0] || '';
-  let soeg = '', sortV = 'nyeste';
+  let aarV = valgtAar && aarListe.includes(valgtAar) ? valgtAar : st.aar && aarListe.includes(st.aar) ? st.aar : aarListe[0] || '';
+  let soeg = tilbageFra ? st.soeg || '' : '', sortV = bPostSort;
+  st.aar = aarV;
   const liste = el('div');
   const tegn = () => {
     const q = soeg.trim().toLowerCase();
@@ -1120,9 +1129,9 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF) {
     for (const x of vis.slice(0, 400)) {
       const e = bEffektiv(x, ret);
       const li = el('li');
-      const igen = () => bPosteringer(navn, gruppe, aarV, bk);
+      const igen = () => bPosteringer(navn, gruppe, aarV, bk, true);
       const hel = x.delTil ? { ...x, b: x.helB, delTil: undefined } : x;
-      const b = knap('', 'b-bank-raekke' + (e.rettet || x.manuel ? ' rettet' : ''), () => x.manuel ? bManuel(x.manuel, { navn, gruppe }, igen, bk) : bFlytPostering(hel, ret.get(x.id), igen, bk));
+      const b = knap('', 'b-bank-raekke' + (e.rettet || x.manuel ? ' rettet' : ''), () => { st.scroll = bArkRul()?.scrollTop || 0; st.soeg = soeg; if (x.manuel) bManuel(x.manuel, { navn, gruppe }, igen, bk); else bFlytPostering(hel, ret.get(x.id), igen, bk); });
       const v = el('span', 'b-bank-v');
       const andetAar = e.aar !== x.d.slice(0, 4);
       v.append(el('span', 'b-bank-tekst', x.t), el('span', 'b-bank-info', bDato(x.d) + ' · ' + x.k + (x.manuel ? ' · ✍️ tilføjet af ' + (bk.mig ? 'dig' : 'jer') : x.delTil ? ' · ✂️ del af ' + bKrOere(Math.abs(x.helB)) + ' kr' : e.rettet && bNoegle(e.rettet.til) !== bNoegle(e.rettet.fra) ? ' · ✏️ flyttet hertil' : '') + (andetAar ? ' · 📅 tæller i ' + e.aar : '')));
@@ -1132,14 +1141,15 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF) {
     liste.replaceChildren(el('p', 'b-bank-sum', vis.length + (vis.length === 1 ? ' postering' : ' posteringer') + ' · i alt ' + bKr(sum) + ' kr'),
       vis.length ? ul : el('p', 'tom', 'Ingen posteringer.'), vis.length > 400 ? el('p', 'hint', 'Viser de 400 nyeste – søg for at finde andre.') : '');
   };
-  const valg = aarListe.length > 1 ? chipValg(aarListe, aarV, v => { aarV = v; tegn(); }) : '';
-  const s = input('search', 'bank-soeg', '', 'Søg i teksten');
-  s.addEventListener('input', () => { soeg = s.value; tegn(); });
-  const sv = chipValg(['nyeste', 'stoerst'], sortV, v => { sortV = v; tegn(); }, v => v === 'nyeste' ? 'Nyeste først' : '⬇️ Største først');
+  const valg = aarListe.length > 1 ? chipValg(aarListe, aarV, v => { aarV = v; st.aar = v; tegn(); }) : '';
+  const s = input('search', 'bank-soeg', soeg, 'Søg i teksten');
+  s.addEventListener('input', () => { soeg = s.value; st.soeg = soeg; tegn(); });
+  const sv = chipValg(['nyeste', 'stoerst'], sortV, v => { sortV = v; bPostSort = v; lokal.set('bank-sort', v); tegn(); }, v => v === 'nyeste' ? 'Nyeste først' : '⬇️ Største først');
   sv.classList.add('b-sort-valg');
   tegn();
-  const ny = knap('+ Udgift, der ikke står i banken', 'lille-knap', () => bManuel(null, { navn, gruppe }, () => bPosteringer(navn, gruppe, aarV, bk), bk, aarV));
+  const ny = knap('+ Udgift, der ikke står i banken', 'lille-knap', () => { st.scroll = bArkRul()?.scrollTop || 0; bManuel(null, { navn, gruppe }, () => bPosteringer(navn, gruppe, aarV, bk, true), bk, aarV); });
   aabnArk('🧾 ' + navn, valg, s, sv, liste, ny, el('p', 'hint', 'Tryk på en postering for at flytte den til en anden post eller et andet år. Kun betalinger og refusioner er med – ikke overførsler mellem jeres egne konti. Er noget betalt kontant, med gavepenge eller før bankfilen starter, så tilføj det med knappen.'));
+  if (tilbageFra && st.scroll) requestAnimationFrame(() => { const r = bArkRul(); if (r) r.scrollTop = st.scroll; });
 }
 // Forslag til regel-tekst: butikkens navn uden "Forretning:", DK-NOTA-numre, datoer og tal
 function bRegelForslag(t) {
@@ -1212,7 +1222,7 @@ function bDelPostering(x, gl, tilbage, bk, grupper, tilAarFn) {
     const sel = el('select');
     for (const [g, ns] of grupper) {
       const og = el('optgroup'); og.label = bIkon(g) + ' ' + g;
-      for (const n of [...ns].sort((a, b) => a.localeCompare(b, 'da'))) { const o = el('option', null, n); o.value = g + ' ' + n; if (valgt && valgt.navn === n && valgt.gruppe === g) o.selected = true; og.append(o); }
+      for (const n of [...ns].sort((a, b) => a.localeCompare(b, 'da'))) { const o = el('option', null, n); o.value = g + '\u0000' + n; if (valgt && valgt.navn === n && valgt.gruppe === g) o.selected = true; og.append(o); }
       sel.append(og);
     }
     return sel;
@@ -1244,7 +1254,7 @@ function bDelPostering(x, gl, tilbage, bk, grupper, tilAarFn) {
   tegn();
   const gem = async () => {
     opdater();
-    const dele = linjer.map(l => { const [gruppe, navn] = l.sel.value.split(' '); return { kr: fortegn * (Math.round((bTal(l.kr.value) || 0) * 100) / 100), til: { navn, gruppe } }; }).filter(d => d.kr);
+    const dele = linjer.map(l => { const [gruppe, navn] = l.sel.value.split('\u0000'); return { kr: fortegn * (Math.round((bTal(l.kr.value) || 0) * 100) / 100), til: { navn, gruppe } }; }).filter(d => d.kr);
     const sum = dele.reduce((s, d) => s + d.kr, 0);
     if (dele.length < 2 || Math.abs(sum - hel) > 0.01) { visStatus('Delene skal tilsammen give ' + bKrOere(total) + ' kr', true); return; }
     const tilAar = tilAarFn(), oprAar = x.d.slice(0, 4);
