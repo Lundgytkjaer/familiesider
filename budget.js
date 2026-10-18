@@ -28,7 +28,7 @@ let budgetGruppe = '';
 let budgetSoeg = '';
 let budgetMaaned = null;
 let budgetAarValg = lokal.get('budget-aarvis') || 'begge';
-let budgetSort = lokal.get('budget-sort') || 'std';   // 'std' = som i budgettet · 'stoerst' = største beløb først
+let budgetSort = lokal.get('budget-sort') || 'std';   // 'std' = fast rækkefølge (B_GRUPPE_ORDEN, største post først) · 'stoerst' = største beløb først
 const budgetAabne = new Set();
 
 const bKr = n => Math.round(n || 0).toLocaleString('da-DK');
@@ -92,10 +92,18 @@ function bMoenster(p) {
   const liste = mdr.length === 1 ? mdr[0] : mdr.length <= 4 ? mdr.slice(0, -1).join(', ') + ' og ' + mdr[mdr.length - 1] : nz.length + ' betalinger';
   return ens && nz.length > 1 && nz.length <= 4 ? bKr(nz[0][0]) + ' kr i ' + liste : liste;
 }
+// Fast rækkefølge på kategorierne: det daglige og nødvendige først, det man kan vælge fra sidst.
+// Ukendte kategorier kommer efter (alfabetisk), Andet altid sidst.
+const B_GRUPPE_ORDEN = ['Indtægter', 'Fælles budget', 'Fælles ting betalt af mig', 'Mad og husholdning', 'Hus', 'Transport', 'Børn',
+  'Personligt', 'Forsikringer', 'Abonnementer og kontingenter', 'Fritid', 'Ferie og oplevelser', 'Sommerhus', 'Kæledyr', 'Opsparing'];
+const bGruppeSort = (a, b) => (a === 'Andet') - (b === 'Andet') ||
+  (B_GRUPPE_ORDEN.indexOf(a) + 1 || 999) - (B_GRUPPE_ORDEN.indexOf(b) + 1 || 999) || a.localeCompare(b, 'da');
+// Inden for en kategori: største beløb først
+const bStoerstSort = (a, b) => bAar(b) - bAar(a) || bSort(a, b);
 function bGrupper(poster) {
   const m = new Map();
-  for (const p of [...poster].sort(bSort)) { const g = p.gruppe || 'Andet'; if (!m.has(g)) m.set(g, []); m.get(g).push(p); }
-  return m;
+  for (const p of [...poster].sort(bStoerstSort)) { const g = p.gruppe || 'Andet'; if (!m.has(g)) m.set(g, []); m.get(g).push(p); }
+  return new Map([...m].sort((a, b) => bGruppeSort(a[0], b[0])));
 }
 function bKonti(poster) {
   const rk = Data.listNu('budgetkonti').sort((a, b) => (a.raekke ?? 99) - (b.raekke ?? 99));
@@ -337,11 +345,11 @@ function budgetPosterVis(poster, kilde = bKilde('faelles')) {
   return dele;
 }
 
-// Rækkefølge: som i budgettet eller største beløb først
+// Rækkefølge: fast rækkefølge på kategorierne eller største beløb først
 function bSortValg() {
   const seg = el('div', 'seg b-sort-valg');
   seg.setAttribute('role', 'radiogroup'); seg.setAttribute('aria-label', 'Rækkefølge');
-  for (const [id, tekst] of [['std', 'Som i budgettet'], ['stoerst', '⬇️ Største først']]) {
+  for (const [id, tekst] of [['std', 'Fast rækkefølge'], ['stoerst', '⬇️ Største først']]) {
     const b = knap(tekst, null, () => { budgetSort = id; lokal.set('budget-sort', id); tegnBudget(); });
     b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', budgetSort === id);
     seg.append(b);
@@ -727,16 +735,15 @@ function budgetAarVis(poster, kilde = bKilde('faelles')) {
   if (!kilde.faelles) poster = [...poster.filter(p => !bErInd(p)), { navn: 'Andel af fælles budget', gruppe: 'Fælles budget' }];
   const harF = kol.some(([, x]) => x.f);
   const vis = harF ? budgetAarValg : 'budget';
-  // Rækkefølge: grupperne som under Poster, derefter grupper der kun findes i gamle år
-  const grpOrden = [...bGrupper(poster).keys()];
+  // Rækkefølge: fast rækkefølge på kategorierne (også dem, der kun findes i gamle år)
   const grupper = new Map();   // gruppe → Map(nøgle → navn)
-  const sorteret = poster.slice().sort(bSort);
+  const sorteret = poster.slice().sort(bStoerstSort);
   for (const p of sorteret) { const g = p.gruppe || 'Andet'; if (!grupper.has(g)) grupper.set(g, new Map()); grupper.get(g).set(bNoegle(p), p.navn); }
   for (const [, x] of kol) for (const m of [x.b, x.f]) if (m) for (const [k, p] of m) {
     if (!grupper.has(p.gruppe)) grupper.set(p.gruppe, new Map());
     if (!grupper.get(p.gruppe).has(k)) grupper.get(p.gruppe).set(k, p.navn);
   }
-  let gOrden = [...grupper.keys()].sort((a, b) => (grpOrden.indexOf(a) + 1 || 999) - (grpOrden.indexOf(b) + 1 || 999));
+  let gOrden = [...grupper.keys()].sort(bGruppeSort);
   const sum = (m, keys) => { if (!m) return null; let s = 0, fandt = false; for (const k of keys) { const x = m.get(k); if (x) { s += x.md; fandt = true; } } return fandt ? s : 0; };
   // Største først: efter det nyeste år (forbrug, hvis det vises – ellers budget)
   const postNgl = g => [...grupper.get(g).keys()];
