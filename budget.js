@@ -28,6 +28,7 @@ let budgetGruppe = '';
 let budgetSoeg = '';
 let budgetMaaned = null;
 let budgetAarValg = lokal.get('budget-aarvis') || 'begge';
+let budgetSort = lokal.get('budget-sort') || 'std';   // 'std' = som i budgettet · 'stoerst' = største beløb først
 const budgetAabne = new Set();
 
 const bKr = n => Math.round(n || 0).toLocaleString('da-DK');
@@ -295,7 +296,13 @@ function budgetPosterVis(poster, kilde = bKilde('faelles')) {
     b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', budgetGruppe === g);
     chips.append(b);
   }
-  dele.push(chips);
+  dele.push(chips, bSortValg());
+  if (budgetSort === 'stoerst') {
+    const sum = ps => ps.reduce((s, p) => s + bAar(p), 0);
+    const ny = [...grupper].map(([g, ps]) => [g, ps.slice().sort((a, b) => bAar(b) - bAar(a))]);
+    ny.sort((a, b) => (a[0] === 'Indtægter') - (b[0] === 'Indtægter') || sum(b[1]) - sum(a[1]));
+    grupper.clear(); for (const [g, ps] of ny) grupper.set(g, ps);
+  }
   const liste = el('div', 'b-poster');
   dele.push(liste);
   function tegnListe() {
@@ -328,6 +335,18 @@ function budgetPosterVis(poster, kilde = bKilde('faelles')) {
   }
   tegnListe();
   return dele;
+}
+
+// Rækkefølge: som i budgettet eller største beløb først
+function bSortValg() {
+  const seg = el('div', 'seg b-sort-valg');
+  seg.setAttribute('role', 'radiogroup'); seg.setAttribute('aria-label', 'Rækkefølge');
+  for (const [id, tekst] of [['std', 'Som i budgettet'], ['stoerst', '⬇️ Største først']]) {
+    const b = knap(tekst, null, () => { budgetSort = id; lokal.set('budget-sort', id); tegnBudget(); });
+    b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', budgetSort === id);
+    seg.append(b);
+  }
+  return seg;
 }
 
 // ---------- Måneder ----------
@@ -709,8 +728,18 @@ function budgetAarVis(poster, kilde = bKilde('faelles')) {
     if (!grupper.has(p.gruppe)) grupper.set(p.gruppe, new Map());
     if (!grupper.get(p.gruppe).has(k)) grupper.get(p.gruppe).set(k, p.navn);
   }
-  const gOrden = [...grupper.keys()].sort((a, b) => (grpOrden.indexOf(a) + 1 || 999) - (grpOrden.indexOf(b) + 1 || 999));
+  let gOrden = [...grupper.keys()].sort((a, b) => (grpOrden.indexOf(a) + 1 || 999) - (grpOrden.indexOf(b) + 1 || 999));
   const sum = (m, keys) => { if (!m) return null; let s = 0, fandt = false; for (const k of keys) { const x = m.get(k); if (x) { s += x.md; fandt = true; } } return fandt ? s : 0; };
+  // Største først: efter det nyeste år (forbrug, hvis det vises – ellers budget)
+  const postNgl = g => [...grupper.get(g).keys()];
+  let ngl = postNgl;
+  if (budgetSort === 'stoerst' && kol.length) {
+    const [, sidst] = kol[kol.length - 1];
+    const brugF = vis !== 'budget' && sidst.f;
+    const vaerdi = keys => { const f = brugF ? sum(sidst.f, keys) : null, b = sum(sidst.b, keys); return (brugF ? f : b) ?? b ?? f ?? 0; };
+    gOrden = gOrden.slice().sort((a, b) => vaerdi(postNgl(b)) - vaerdi(postNgl(a)));
+    ngl = g => postNgl(g).sort((a, b) => vaerdi([b]) - vaerdi([a]));
+  }
   const celle = (b, f) => {
     const td = el('td');
     const vb = vis !== 'forbrug', vf = vis !== 'budget';
@@ -730,7 +759,7 @@ function budgetAarVis(poster, kilde = bKilde('faelles')) {
     if (!harF && id !== 'budget') b.disabled = true;
     valg.append(b);
   }
-  dele.push(valg);
+  dele.push(valg, bSortValg());
   const forkl = el('p', 'hint b-aar-forkl');
   if (vis === 'begge') forkl.append(el('span', 'b-b lille', 'grå'), ' = budget (planlagt) · ', el('span', 'b-f', 'sort'), ' = faktisk forbrug ifølge banken · ', el('span', 'b-f op', 'rød'), ' over / ', el('span', 'b-f ned', 'grøn'), ' under budget. Kr. om måneden.');
   else forkl.textContent = (vis === 'budget' ? 'Budget (det planlagte)' : 'Faktisk forbrug ifølge banken') + ' i kr. om måneden.';
@@ -742,22 +771,22 @@ function budgetAarVis(poster, kilde = bKilde('faelles')) {
   for (const [a, x] of kol) { const th = el('th'); th.append(el('b', null, a)); if (x.periode && vis !== 'budget') th.append(el('span', 'hint', x.periode)); hr.append(th); }
   thead.append(hr);
   const tb = el('tbody');
-  const alleNgl = gOrden.flatMap(g => [...grupper.get(g).keys()]);
+  const alleNgl = gOrden.flatMap(g => postNgl(g));
   const iAlt = el('tr', 'b-aar-ialt');
   iAlt.append(el('th', null, 'I alt'));
   for (const [, x] of kol) iAlt.append(celle(sum(x.b, alleNgl), sum(x.f, alleNgl)));
   tb.append(iAlt);
   for (const g of gOrden) {
-    const ngl = [...grupper.get(g).keys()];
+    const nk = ngl(g);
     const aaben = budgetAabne.has(g);
     const tr = el('tr', 'b-aar-gruppe');
     const th = el('th');
     const b = knap((aaben ? '▾ ' : '▸ ') + bIkon(g) + ' ' + g, 'b-aar-gknap', () => { aaben ? budgetAabne.delete(g) : budgetAabne.add(g); tegnBudget(); });
     b.setAttribute('aria-expanded', aaben);
     th.append(b); tr.append(th);
-    for (const [, x] of kol) tr.append(celle(sum(x.b, ngl), sum(x.f, ngl)));
+    for (const [, x] of kol) tr.append(celle(sum(x.b, nk), sum(x.f, nk)));
     tb.append(tr);
-    if (aaben) for (const k of ngl) {
+    if (aaben) for (const k of nk) {
       const pr = el('tr', 'b-aar-post');
       const th = el('th');
       const pk = bk ? knap(grupper.get(g).get(k), 'b-aar-pknap', () => bPosteringer(grupper.get(g).get(k), g, null, bk)) : el('span', null, grupper.get(g).get(k));
@@ -986,10 +1015,62 @@ function bBankKort(bk = bBankF) {
   if (n) kort.append(el('p', 'hint', (bk.mig ? '✏️ Du har rettet ' : '✏️ I har rettet ') + n + (n === 1 ? ' postering' : ' posteringer') + '. Rettelserne bliver liggende, når der kommer nye posteringer.'));
   const egne = (bReglerRaekke(bk)?.regler?.post || []).filter(x => x.egen).length;
   const sm = el('div', 'b-bank-knapper');
+  if (r) sm.append(knap('📊 Hent som Excel-ark', 'lille-knap', () => bEksport(bk)));
   sm.append(knap('🧩 Egne regler' + (egne ? ' (' + egne + ')' : ''), 'lille-knap', () => bEgneRegler(bk)),
     knap(r ? '📂 Udskift filen (fra Claude)' : '📂 Læg posteringer ind (fra Claude)', 'lille-knap', () => filInp.click()));
   kort.append(sm);
   return kort;
+}
+// Excel-ark med alle posteringer (inkl. dine flytninger) + oversigt pr. post og år. SheetJS hentes først, når der trykkes.
+let bXlsx = null;
+function bHentXlsx() {
+  if (window.XLSX) return Promise.resolve(window.XLSX);
+  return bXlsx ||= new Promise((ok, fejl) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
+    sc.onload = () => ok(window.XLSX); sc.onerror = () => { bXlsx = null; fejl(new Error('Kunne ikke hente Excel-værktøjet')); };
+    document.head.append(sc);
+  });
+}
+async function bEksport(bk = bBankF) {
+  visStatus('Laver Excel-arket …');
+  let X, d;
+  try { [X, d] = await Promise.all([bHentXlsx(), bHentBank(bk)]); } catch (e) { console.warn(e); visStatus('Excel-arket kunne ikke laves – tjek forbindelsen', true); return; }
+  const ret = new Map(bRettelser(bk).map(r => [r.pid, r]));
+  const TY = { udgift: 'Udgift', retur: 'Retur/refusion', intern: 'Overførsel mellem egne konti', indskud: 'Indskud', 'fra løn': 'Fra lønkonto', 'til løn': 'Til lønkonto', 'indtægt': 'Indtægt', flyttet: 'Flyttet' };
+  const rows = d.rows.slice().sort((a, b) => a.d.localeCompare(b.d) || (a.o ?? 0) - (b.o ?? 0));
+  const post = [['Dato', 'År', 'Måned', 'Konto', 'Tekst', 'Beløb', 'Kategori', 'Post', 'Flyttet af jer', 'Oprindelig post', 'Type']];
+  for (const x of rows) {
+    const e = bEffektiv(x, ret), med = !!(x.n || ret.has(x.id));
+    post.push([new Date(x.d + 'T12:00:00'), Number(x.d.slice(0, 4)), Number(x.d.slice(5, 7)), x.k, String(x.t).replace(/\s+/g, ' '), x.b,
+      med ? e.gruppe : '', med ? e.navn : '', e.rettet ? 'ja' : '', e.rettet ? x.n || '' : '', TY[x.ty] || x.ty || '']);
+  }
+  // Oversigt: forbrug pr. post og år (kr. i alt) – samme tal som tabellen under År
+  const aarL = [...new Set(rows.map(x => x.d.slice(0, 4)))].sort();
+  const sumM = new Map();
+  for (const x of rows) {
+    const e = bEffektiv(x, ret);
+    if (!(x.n || ret.has(x.id))) continue;
+    const k = e.gruppe + '\u0000' + e.navn;
+    if (!sumM.has(k)) sumM.set(k, {});
+    const o = sumM.get(k), a = x.d.slice(0, 4); o[a] = (o[a] || 0) - x.b;
+  }
+  const over = [['Kategori', 'Post', ...aarL.map(a => 'Forbrug ' + a)]];
+  for (const [k, o] of [...sumM].sort((a, b) => a[0].localeCompare(b[0], 'da'))) over.push([...k.split('\u0000'), ...aarL.map(a => Math.round((o[a] || 0) * 100) / 100)]);
+  over.push(['I alt (uden saldoændring)', '', ...aarL.map(a => Math.round([...sumM.values()].reduce((s, o) => s + (o[a] || 0), 0)))]);
+  const wb = X.utils.book_new();
+  const ark = (aoa, bredder, navn, talKol) => {
+    const ws = X.utils.aoa_to_sheet(aoa, { cellDates: true });
+    ws['!cols'] = bredder.map(w => ({ wch: w }));
+    ws['!autofilter'] = { ref: X.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: aoa.length - 1, c: aoa[0].length - 1 } }) };
+    for (let r = 1; r < aoa.length; r++) for (const c of talKol) { const a = ws[X.utils.encode_cell({ r, c })]; if (a && a.t === 'n') a.z = '#,##0.00'; }
+    if (navn === 'Posteringer') for (let r = 1; r < aoa.length; r++) { const a = ws[X.utils.encode_cell({ r, c: 0 })]; if (a) a.z = 'dd-mm-yyyy'; }
+    X.utils.book_append_sheet(wb, ws, navn);
+  };
+  ark(over, [26, 40, ...aarL.map(() => 15)], 'Oversigt', aarL.map((_, i) => i + 2));
+  ark(post, [11, 6, 7, 12, 45, 12, 24, 36, 9, 30, 26], 'Posteringer', [5]);
+  X.writeFile(wb, (bk.mig ? 'mine-posteringer-' : 'posteringer-') + bIdag() + '.xlsx');
+  visStatus('📊 Excel-arket er hentet');
 }
 // Ark: posteringerne bag én post (vælg år, søg). Tryk på en postering = flyt den til en anden post.
 async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF) {
@@ -1002,11 +1083,12 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF) {
   const alle = d.rows.filter(x => (x.n || ret.has(x.id)) && bNoegle(bEffektiv(x, ret)) === k);
   const aarListe = [...new Set(alle.map(x => x.d.slice(0, 4)))].sort().reverse();
   let aarV = valgtAar && aarListe.includes(valgtAar) ? valgtAar : aarListe[0] || '';
-  let soeg = '';
+  let soeg = '', sortV = 'nyeste';
   const liste = el('div');
   const tegn = () => {
     const q = soeg.trim().toLowerCase();
     const vis = alle.filter(x => (!aarV || x.d.startsWith(aarV)) && (!q || x.t.toLowerCase().includes(q)));
+    if (sortV === 'stoerst') vis.sort((a, b) => a.b - b.b);
     const sum = vis.reduce((s, x) => s - x.b, 0);
     const ul = el('ul', 'b-bank-liste');
     for (const x of vis.slice(0, 400)) {
@@ -1024,8 +1106,10 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF) {
   const valg = aarListe.length > 1 ? chipValg(aarListe, aarV, v => { aarV = v; tegn(); }) : '';
   const s = input('search', 'bank-soeg', '', 'Søg i teksten');
   s.addEventListener('input', () => { soeg = s.value; tegn(); });
+  const sv = chipValg(['nyeste', 'stoerst'], sortV, v => { sortV = v; tegn(); }, v => v === 'nyeste' ? 'Nyeste først' : '⬇️ Største først');
+  sv.classList.add('b-sort-valg');
   tegn();
-  aabnArk('🧾 ' + navn, valg, s, liste, el('p', 'hint', 'Tryk på en postering for at flytte den til en anden post. Kun betalinger og refusioner er med – ikke overførsler mellem jeres egne konti.'));
+  aabnArk('🧾 ' + navn, valg, s, sv, liste, el('p', 'hint', 'Tryk på en postering for at flytte den til en anden post. Kun betalinger og refusioner er med – ikke overførsler mellem jeres egne konti.'));
 }
 // Forslag til regel-tekst: butikkens navn uden "Forretning:", DK-NOTA-numre, datoer og tal
 function bRegelForslag(t) {

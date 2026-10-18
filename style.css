@@ -2018,3 +2018,4 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 /* 💼 Jobs pr. stk./minut */
 .job-sum { font-weight: 700; color: var(--accent); margin: 6px 0 0; min-height: 1.3em; }
 .job-antal-ret { width: 90px; margin-top: 6px; padding: 6px 8px; font-size: 15px; }
+.b-sort-valg { margin: 4px 0 10px; }
