@@ -3093,7 +3093,15 @@ async function dagsdelKort() {
     for (const x of infoDen(infoAlle, barn, iso)) dele.push(/^husk\b/i.test(x.tekst || '') ? x.tekst : 'husk: ' + x.tekst);
     if (del === 'morgen') {
       const m = await madFor(dato, barn);
-      if (m.frokost) dele.push('madpakke: ' + (m.visning?.frokost || m.frokost));
+      // "Madpakke" kun på skoledage, hvor skolen slutter efter kl. 12 – ellers spiser barnet frokost hjemme
+      // (weekend, ferie, fridage og korte dage som fri kl. 12)
+      let skole = dagNr < 5 && !(typeof skoleFriNu === 'function' && skoleFriNu(barn, iso));
+      if (skole) {
+        const { slut } = skoleTider(await dagensTimer(barn, dagNr));
+        const min = slut ? tidSomMin(slut)[0] : null;   // minutter efter midnat
+        if (min != null && min <= 12 * 60) skole = false;
+      }
+      if (m.frokost && m.frokost !== INGEN_MAD) dele.push((skole ? 'madpakke: ' : 'frokost: ') + (m.visning?.frokost || m.frokost));
     }
     if (del === 'aften' && typeof pligtData === 'function') {
       const mangler = skalKlares(dagensOpgaver(await pligtData(barn))).filter(r => !r.f && !r.sprunget).length;   // mere.js
