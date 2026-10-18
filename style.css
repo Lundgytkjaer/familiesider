@@ -1948,6 +1948,7 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .b-bank-v { display: flex; flex-direction: column; min-width: 0; }
 .b-bank-tekst { overflow-wrap: anywhere; }
 .b-bank-info { font-size: 12px; color: var(--daempet); }
+.b-bank-note { font-size: 13px; font-style: italic; overflow-wrap: anywhere; }
 .b-bank-beloeb { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .b-bank-beloeb.plus { color: #1e8449; }
 .b-flyt-post { display: block; width: 100%; margin: 4px 0; text-align: left; }

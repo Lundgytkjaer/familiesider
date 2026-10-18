@@ -841,6 +841,16 @@ const bRettelser = (bk = bBankF) => bk.alle().filter(p => p.art === 'bankret');
 const bReglerRaekke = (bk = bBankF) => bk.alle().find(p => p.art === 'regler');
 const bKontiRaekke = (bk = bBankF) => bk.alle().find(p => p.art === 'konti');
 const bManuelle = (bk = bBankF) => bk.alle().filter(p => p.art === 'manuel');
+// Kommentarer på posteringer: {snap:'_bank', art:'banknote', pid, dato, tekst, note} – fx "Båd: motor til jollen"
+const bNoter = (bk = bBankF) => new Map(bk.alle().filter(p => p.art === 'banknote').map(p => [p.pid, p]));
+async function bGemNote(bk, x, note) {
+  const gl = bNoter(bk).get(x.id);
+  note = String(note || '').trim().slice(0, 200);
+  if (!note) { if (gl) await Data.remove(bk.liste, gl.id); return; }
+  if (gl?.note === note) return;
+  const felter = { ...bk.ekstra, snap: '_bank', art: 'banknote', pid: x.id, dato: x.d, tekst: x.t, note };
+  if (gl) await Data.update(bk.liste, gl.id, felter); else await Data.add(bk.liste, felter);
+}
 let bBankData = null, bBankSti = null;
 async function bHentBank(bk = bBankF) {
   const r = bBankRaekke(bk);
@@ -1069,14 +1079,14 @@ async function bEksport(bk = bBankF) {
   visStatus('Laver Excel-arket …');
   let X, d;
   try { [X, d] = await Promise.all([bHentXlsx(), bHentBank(bk)]); } catch (e) { console.warn(e); visStatus('Excel-arket kunne ikke laves – tjek forbindelsen', true); return; }
-  const ret = new Map(bRettelser(bk).map(r => [r.pid, r]));
+  const ret = new Map(bRettelser(bk).map(r => [r.pid, r])), noter = bNoter(bk);
   const TY = { udgift: 'Udgift', retur: 'Retur/refusion', intern: 'Overførsel mellem egne konti', indskud: 'Indskud', 'fra løn': 'Fra lønkonto', 'til løn': 'Til lønkonto', 'indtægt': 'Indtægt', flyttet: 'Flyttet' };
   const rows = [...bMedDele(d.rows, ret), ...bManuelRaekker(bk)].sort((a, b) => a.d.localeCompare(b.d) || (a.o ?? 0) - (b.o ?? 0));
-  const post = [['Dato', 'Tæller i år', 'Måned', 'Konto', 'Tekst', 'Beløb', 'Kategori', 'Post', 'Flyttet af jer', 'Oprindelig post', 'Type']];
+  const post = [['Dato', 'Tæller i år', 'Måned', 'Konto', 'Tekst', 'Beløb', 'Kategori', 'Post', 'Flyttet af jer', 'Oprindelig post', 'Type', 'Kommentar']];
   for (const x of rows) {
     const e = bEffektiv(x, ret), med = !!(x.n || x.manuel || ret.has(x.id));
     post.push([new Date(x.d + 'T12:00:00'), Number(e.aar), Number(x.d.slice(5, 7)), x.k, String(x.t).replace(/\s+/g, ' ') + (x.manuel?.note ? ' (' + x.manuel.note + ')' : ''), x.b,
-      med ? e.gruppe : '', med ? e.navn : '', x.delTil ? 'delt op' : e.rettet ? (bNoegle(e.rettet.til) === bNoegle(e.rettet.fra) ? 'andet år' : 'ja') : x.manuel ? 'tilføjet' : '', e.rettet ? x.n || '' : '', x.manuel ? 'Uden for banken' : TY[x.ty] || x.ty || '']);
+      med ? e.gruppe : '', med ? e.navn : '', x.delTil ? 'delt op' : e.rettet ? (bNoegle(e.rettet.til) === bNoegle(e.rettet.fra) ? 'andet år' : 'ja') : x.manuel ? 'tilføjet' : '', e.rettet ? x.n || '' : '', x.manuel ? 'Uden for banken' : TY[x.ty] || x.ty || '', x.manuel ? '' : noter.get(x.id)?.note || '']);
   }
   // Oversigt: forbrug pr. post og år (kr. i alt) – samme tal som tabellen under År
   const aarL = [...new Set(rows.map(x => bEffektiv(x, ret).aar))].sort();
@@ -1101,7 +1111,7 @@ async function bEksport(bk = bBankF) {
     X.utils.book_append_sheet(wb, ws, navn);
   };
   ark(over, [26, 40, ...aarL.map(() => 15)], 'Oversigt', aarL.map((_, i) => i + 2));
-  ark(post, [11, 6, 7, 12, 45, 12, 24, 36, 9, 30, 26], 'Posteringer', [5]);
+  ark(post, [11, 6, 7, 12, 45, 12, 24, 36, 9, 30, 26, 40], 'Posteringer', [5]);
   X.writeFile(wb, (bk.mig ? 'mine-posteringer-' : 'posteringer-') + bIdag() + '.xlsx');
   visStatus('📊 Excel-arket er hentet');
 }
@@ -1119,7 +1129,7 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF, tilbageFra = fa
   aabnArk('🧾 ' + navn, el('p', 'hint', 'Henter posteringer …'));
   let d;
   try { d = await bHentBank(bk); } catch { aabnArk('🧾 ' + navn, el('p', 'hint', 'Posteringerne kunne ikke hentes. Prøv igen om lidt.')); return; }
-  const ret = new Map(bRettelser(bk).map(r => [r.pid, r]));
+  const ret = new Map(bRettelser(bk).map(r => [r.pid, r])), noter = bNoter(bk);
   const k = bNoegle({ navn, gruppe });
   const alle = [...bMedDele(d.rows, ret), ...bManuelRaekker(bk)].filter(x => (x.n || x.manuel || ret.has(x.id)) && bNoegle(bEffektiv(x, ret)) === k);
   const aarListe = [...new Set(alle.map(x => bEffektiv(x, ret).aar))].sort().reverse();
@@ -1129,7 +1139,7 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF, tilbageFra = fa
   const liste = el('div');
   const tegn = () => {
     const q = soeg.trim().toLowerCase();
-    const vis = alle.filter(x => (!aarV || bEffektiv(x, ret).aar === aarV) && (!q || x.t.toLowerCase().includes(q)));
+    const vis = alle.filter(x => (!aarV || bEffektiv(x, ret).aar === aarV) && (!q || (x.t + ' ' + (noter.get(x.id)?.note || '')).toLowerCase().includes(q)));
     if (sortV === 'stoerst') vis.sort((a, b) => a.b - b.b);
     const sum = vis.reduce((s, x) => s - x.b, 0);
     const ul = el('ul', 'b-bank-liste');
@@ -1142,6 +1152,8 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF, tilbageFra = fa
       const v = el('span', 'b-bank-v');
       const andetAar = e.aar !== x.d.slice(0, 4);
       v.append(el('span', 'b-bank-tekst', x.t), el('span', 'b-bank-info', bDato(x.d) + ' · ' + x.k + (x.manuel ? ' · ✍️ tilføjet af ' + (bk.mig ? 'dig' : 'jer') : x.delTil ? ' · ✂️ del af ' + bKrOere(Math.abs(x.helB)) + ' kr' : e.rettet && bNoegle(e.rettet.til) !== bNoegle(e.rettet.fra) ? ' · ✏️ flyttet hertil' : '') + (andetAar ? ' · 📅 tæller i ' + e.aar : '')));
+      const nt = !x.manuel && noter.get(x.id)?.note;
+      if (nt) v.append(el('span', 'b-bank-note', '💬 ' + nt));
       b.append(v, el('b', 'b-bank-beloeb' + (x.b > 0 ? ' plus' : ''), (x.b > 0 ? '+' : '') + bKrOere(x.b)));
       li.append(b); ul.append(li);
     }
@@ -1149,13 +1161,13 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF, tilbageFra = fa
       vis.length ? ul : el('p', 'tom', 'Ingen posteringer.'), vis.length > 400 ? el('p', 'hint', 'Viser de 400 nyeste – søg for at finde andre.') : '');
   };
   const valg = aarListe.length > 1 ? chipValg(aarListe, aarV, v => { aarV = v; st.aar = v; tegn(); }) : '';
-  const s = input('search', 'bank-soeg', soeg, 'Søg i teksten');
+  const s = input('search', 'bank-soeg', soeg, 'Søg i teksten eller kommentaren');
   s.addEventListener('input', () => { soeg = s.value; st.soeg = soeg; tegn(); });
   const sv = chipValg(['nyeste', 'stoerst'], sortV, v => { sortV = v; bPostSort = v; lokal.set('bank-sort', v); tegn(); }, v => v === 'nyeste' ? 'Nyeste først' : '⬇️ Største først');
   sv.classList.add('b-sort-valg');
   tegn();
   const ny = knap('+ Udgift, der ikke står i banken', 'lille-knap', () => { st.scroll = bArkRul()?.scrollTop || 0; bManuel(null, { navn, gruppe }, () => bPosteringer(navn, gruppe, aarV, bk, true), bk, aarV); });
-  aabnArk('🧾 ' + navn, valg, s, sv, liste, ny, el('p', 'hint', 'Tryk på en postering for at flytte den til en anden post eller et andet år. Kun betalinger og refusioner er med – ikke overførsler mellem jeres egne konti. Er noget betalt kontant, med gavepenge eller før bankfilen starter, så tilføj det med knappen.'));
+  aabnArk('🧾 ' + navn, valg, s, sv, liste, ny, el('p', 'hint', 'Tryk på en postering for at flytte den til en anden post eller et andet år – eller skrive en kommentar til den. Kun betalinger og refusioner er med – ikke overførsler mellem jeres egne konti. Er noget betalt kontant, med gavepenge eller før bankfilen starter, så tilføj det med knappen.'));
   if (tilbageFra && st.scroll) requestAnimationFrame(() => { const r = bArkRul(); if (r) r.scrollTop = st.scroll; });
 }
 // Forslag til regel-tekst: butikkens navn uden "Forretning:", DK-NOTA-numre, datoer og tal
@@ -1184,7 +1196,11 @@ function bFlytPostering(x, gl, tilbage, bk = bBankF) {
   const rt = input('text', 'b-regel-tekst', bRegelForslag(x.t), 'Teksten indeholder …');
   rt.hidden = true;
   cb.addEventListener('change', () => { rt.hidden = !cb.checked; if (cb.checked) rt.focus(); });
+  const noteFelt = input('text', 'b-note', bNoter(bk).get(x.id)?.note || '', 'Hvad er det for? Fx "Båd: motor"');
+  noteFelt.maxLength = 200;
+  const gemNote = async () => { try { await bGemNote(bk, x, noteFelt.value); } catch (e) { console.warn(e); visStatus('Kommentaren kunne ikke gemmes', true); } };
   const gemTil = async til => {
+    await gemNote();
     const fra = { navn: x.n, gruppe: x.g };
     if (bNoegle(til) === bNoegle(fra) && tilAar === oprAar) { if (gl) await Data.remove(bk.liste, gl.id); }
     else {
@@ -1209,7 +1225,8 @@ function bFlytPostering(x, gl, tilbage, bk = bBankF) {
   const knapper = el('div', 'ark-knapper');
   if (gl) knapper.append(knap('↩️ Tilbage til ' + x.n, 'knap sekundaer', () => gemTil({ navn: x.n, gruppe: x.g })));
   knapper.append(knap('✂️ Del op', 'knap sekundaer', () => bDelPostering(x, gl, tilbage, bk, grupper, () => tilAar === oprAar ? null : tilAar)));
-  knapper.append(knap('Annullér', 'knap', () => tilbage()));
+  knapper.append(knap('💬 Gem kun kommentar', 'knap', async () => { await gemNote(); visStatus('💬 Kommentaren er gemt'); tilbage(); }));
+  knapper.append(knap('Annullér', 'knap sekundaer', () => tilbage()));
   const regel = el('div', 'b-regel-valg');
   if (kanRegel) {
     const lab = el('label', null, ' Gør det samme med alle posteringer, hvor teksten indeholder:');
@@ -1219,7 +1236,7 @@ function bFlytPostering(x, gl, tilbage, bk = bBankF) {
   const aarValg = aarMul.length > 1 ? [el('label', 'felt-label', 'Tæller med i år'), chipValg(aarMul, tilAar, v => { tilAar = v; }),
     el('p', 'hint', 'Fx en forsikring betalt i december for hele næste år. Vælg året og tryk så på posten.')] : [];
   aabnArk('Flyt postering', el('p', null, x.t), el('p', 'hint', bDato(x.d) + ' · ' + x.k + ' · ' + bKrOere(x.b) + ' kr · nu: ' + nu.navn + (gl?.tilAar ? ' i ' + gl.tilAar : '')),
-    regel, ...aarValg, el('label', 'felt-label', 'Kategori'), gValg, el('label', 'felt-label', 'Post'), postBoks, knapper);
+    el('label', 'felt-label', '💬 Kommentar (kun til jer selv)'), noteFelt, regel, ...aarValg, el('label', 'felt-label', 'Kategori'), gValg, el('label', 'felt-label', 'Post'), postBoks, knapper);
 }
 // Del én postering op på flere poster (fx "briller, vitaminer + div")
 function bDelPostering(x, gl, tilbage, bk, grupper, tilAarFn) {
