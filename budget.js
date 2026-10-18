@@ -704,13 +704,16 @@ function bAarData(poster, kilde = bKilde('faelles'), bk = kilde.faelles ? bBankF
     x.f = tilMap(s.poster, mdr); x.fMdr = mdr; x.periode = s.periode || ''; x.fDato = s.dato;
   }
   // Rettede bankposteringer flytter beløbet fra den ene post til den anden i forbruget
-  for (const r of bk ? bRettelser(bk) : []) {
-    const x = aar.get(String(r.aar));
-    if (!x || !x.f) continue;
-    const md = (Number(r.beloeb) || 0) / (x.fMdr || 12);
-    const flyt = (p, fortegn) => { const k = bNoegle(p); const y = x.f.get(k) || { navn: p.navn, gruppe: p.gruppe || 'Andet', md: 0 }; y.md += fortegn * md; x.f.set(k, y); };
-    flyt(r.fra, -1); flyt(r.til, 1);
-  }
+  // – og kan tælle med i et andet år (fx en forsikring betalt i december for hele næste år)
+  const flyt = (aarStr, p, kr) => {
+    const x = aar.get(String(aarStr));
+    if (!x || !x.f || !p) return;
+    const k = bNoegle(p); const y = x.f.get(k) || { navn: p.navn, gruppe: p.gruppe || 'Andet', md: 0 };
+    y.md += kr / (x.fMdr || 12); x.f.set(k, y);
+  };
+  for (const r of bk ? bRettelser(bk) : []) { const kr = Number(r.beloeb) || 0; flyt(r.aar, r.fra, -kr); flyt(r.tilAar || r.aar, r.til, kr); }
+  // Udgifter, der ikke står i banken (kontant, gavepenge, betalt før bankfilen starter)
+  for (const m of bk ? bManuelle(bk) : []) flyt(m.aar, m.til, Number(m.beloeb) || 0);
   return [...aar].sort((a, b) => a[0].localeCompare(b[0]));
 }
 function budgetAarVis(poster, kilde = bKilde('faelles')) {
@@ -825,6 +828,7 @@ const bBankRaekke = (bk = bBankF) => bk.alle().find(p => p.art === 'bankfil');
 const bRettelser = (bk = bBankF) => bk.alle().filter(p => p.art === 'bankret');
 const bReglerRaekke = (bk = bBankF) => bk.alle().find(p => p.art === 'regler');
 const bKontiRaekke = (bk = bBankF) => bk.alle().find(p => p.art === 'konti');
+const bManuelle = (bk = bBankF) => bk.alle().filter(p => p.art === 'manuel');
 let bBankData = null, bBankSti = null;
 async function bHentBank(bk = bBankF) {
   const r = bBankRaekke(bk);
@@ -836,7 +840,13 @@ async function bHentBank(bk = bBankF) {
   return bBankData;
 }
 // Posteringens post efter jeres rettelser
-function bEffektiv(x, ret) { const r = ret.get(x.id); return r ? { navn: r.til.navn, gruppe: r.til.gruppe, rettet: r } : { navn: x.n, gruppe: x.g }; }
+function bEffektiv(x, ret) {
+  const r = ret.get(x.id);
+  if (x.manuel) return { navn: x.manuel.til.navn, gruppe: x.manuel.til.gruppe, aar: String(x.manuel.aar) };
+  return r ? { navn: r.til.navn, gruppe: r.til.gruppe, rettet: r, aar: String(r.tilAar || x.d.slice(0, 4)) } : { navn: x.n, gruppe: x.g, aar: x.d.slice(0, 4) };
+}
+// Manuelle udgifter som "posteringer" i listen
+const bManuelRaekker = bk => bManuelle(bk).map(m => ({ id: 'm:' + m.id, d: m.dato || String(m.aar) + '-01-01', k: 'Uden for banken', t: m.tekst || 'Udgift', b: -(Number(m.beloeb) || 0), manuel: m }));
 const bKrOere = n => (Math.round(n * 100) / 100).toLocaleString('da-DK', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 // Filen skal have saldo og rækkefølge med (posteringer.json fra oktober 2026 og frem), før appen selv kan regne
 const bNyFil = d => !!(d && d.rows.length && d.rows.every(x => x.ty === 'flyttet' || x.o != null));
@@ -859,7 +869,7 @@ async function bGemBank(bk, rows, R, info) {
       const x = ny.get(r.pid);
       if (!x || !x.n) continue;
       const fra = { navn: x.n, gruppe: x.g };
-      if (bNoegle(fra) === bNoegle(r.til)) await Data.remove(bk.liste, r.id);
+      if (bNoegle(fra) === bNoegle(r.til) && !r.tilAar) await Data.remove(bk.liste, r.id);
       else if (bNoegle(fra) !== bNoegle(r.fra || {})) await Data.update(bk.liste, r.id, { fra });
     }
   });
@@ -1038,22 +1048,22 @@ async function bEksport(bk = bBankF) {
   try { [X, d] = await Promise.all([bHentXlsx(), bHentBank(bk)]); } catch (e) { console.warn(e); visStatus('Excel-arket kunne ikke laves – tjek forbindelsen', true); return; }
   const ret = new Map(bRettelser(bk).map(r => [r.pid, r]));
   const TY = { udgift: 'Udgift', retur: 'Retur/refusion', intern: 'Overførsel mellem egne konti', indskud: 'Indskud', 'fra løn': 'Fra lønkonto', 'til løn': 'Til lønkonto', 'indtægt': 'Indtægt', flyttet: 'Flyttet' };
-  const rows = d.rows.slice().sort((a, b) => a.d.localeCompare(b.d) || (a.o ?? 0) - (b.o ?? 0));
-  const post = [['Dato', 'År', 'Måned', 'Konto', 'Tekst', 'Beløb', 'Kategori', 'Post', 'Flyttet af jer', 'Oprindelig post', 'Type']];
+  const rows = [...d.rows, ...bManuelRaekker(bk)].sort((a, b) => a.d.localeCompare(b.d) || (a.o ?? 0) - (b.o ?? 0));
+  const post = [['Dato', 'Tæller i år', 'Måned', 'Konto', 'Tekst', 'Beløb', 'Kategori', 'Post', 'Flyttet af jer', 'Oprindelig post', 'Type']];
   for (const x of rows) {
-    const e = bEffektiv(x, ret), med = !!(x.n || ret.has(x.id));
-    post.push([new Date(x.d + 'T12:00:00'), Number(x.d.slice(0, 4)), Number(x.d.slice(5, 7)), x.k, String(x.t).replace(/\s+/g, ' '), x.b,
-      med ? e.gruppe : '', med ? e.navn : '', e.rettet ? 'ja' : '', e.rettet ? x.n || '' : '', TY[x.ty] || x.ty || '']);
+    const e = bEffektiv(x, ret), med = !!(x.n || x.manuel || ret.has(x.id));
+    post.push([new Date(x.d + 'T12:00:00'), Number(e.aar), Number(x.d.slice(5, 7)), x.k, String(x.t).replace(/\s+/g, ' ') + (x.manuel?.note ? ' (' + x.manuel.note + ')' : ''), x.b,
+      med ? e.gruppe : '', med ? e.navn : '', e.rettet ? (bNoegle(e.rettet.til) === bNoegle(e.rettet.fra) ? 'andet år' : 'ja') : x.manuel ? 'tilføjet' : '', e.rettet ? x.n || '' : '', x.manuel ? 'Uden for banken' : TY[x.ty] || x.ty || '']);
   }
   // Oversigt: forbrug pr. post og år (kr. i alt) – samme tal som tabellen under År
-  const aarL = [...new Set(rows.map(x => x.d.slice(0, 4)))].sort();
+  const aarL = [...new Set(rows.map(x => bEffektiv(x, ret).aar))].sort();
   const sumM = new Map();
   for (const x of rows) {
     const e = bEffektiv(x, ret);
-    if (!(x.n || ret.has(x.id))) continue;
+    if (!(x.n || x.manuel || ret.has(x.id))) continue;
     const k = e.gruppe + '\u0000' + e.navn;
     if (!sumM.has(k)) sumM.set(k, {});
-    const o = sumM.get(k), a = x.d.slice(0, 4); o[a] = (o[a] || 0) - x.b;
+    const o = sumM.get(k), a = e.aar; o[a] = (o[a] || 0) - x.b;
   }
   const over = [['Kategori', 'Post', ...aarL.map(a => 'Forbrug ' + a)]];
   for (const [k, o] of [...sumM].sort((a, b) => a[0].localeCompare(b[0], 'da'))) over.push([...k.split('\u0000'), ...aarL.map(a => Math.round((o[a] || 0) * 100) / 100)]);
@@ -1080,23 +1090,25 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF) {
   try { d = await bHentBank(bk); } catch { aabnArk('🧾 ' + navn, el('p', 'hint', 'Posteringerne kunne ikke hentes. Prøv igen om lidt.')); return; }
   const ret = new Map(bRettelser(bk).map(r => [r.pid, r]));
   const k = bNoegle({ navn, gruppe });
-  const alle = d.rows.filter(x => (x.n || ret.has(x.id)) && bNoegle(bEffektiv(x, ret)) === k);
-  const aarListe = [...new Set(alle.map(x => x.d.slice(0, 4)))].sort().reverse();
+  const alle = [...d.rows, ...bManuelRaekker(bk)].filter(x => (x.n || x.manuel || ret.has(x.id)) && bNoegle(bEffektiv(x, ret)) === k);
+  const aarListe = [...new Set(alle.map(x => bEffektiv(x, ret).aar))].sort().reverse();
   let aarV = valgtAar && aarListe.includes(valgtAar) ? valgtAar : aarListe[0] || '';
   let soeg = '', sortV = 'nyeste';
   const liste = el('div');
   const tegn = () => {
     const q = soeg.trim().toLowerCase();
-    const vis = alle.filter(x => (!aarV || x.d.startsWith(aarV)) && (!q || x.t.toLowerCase().includes(q)));
+    const vis = alle.filter(x => (!aarV || bEffektiv(x, ret).aar === aarV) && (!q || x.t.toLowerCase().includes(q)));
     if (sortV === 'stoerst') vis.sort((a, b) => a.b - b.b);
     const sum = vis.reduce((s, x) => s - x.b, 0);
     const ul = el('ul', 'b-bank-liste');
     for (const x of vis.slice(0, 400)) {
       const e = bEffektiv(x, ret);
       const li = el('li');
-      const b = knap('', 'b-bank-raekke' + (e.rettet ? ' rettet' : ''), () => bFlytPostering(x, ret.get(x.id), () => bPosteringer(navn, gruppe, aarV, bk), bk));
+      const igen = () => bPosteringer(navn, gruppe, aarV, bk);
+      const b = knap('', 'b-bank-raekke' + (e.rettet || x.manuel ? ' rettet' : ''), () => x.manuel ? bManuel(x.manuel, { navn, gruppe }, igen, bk) : bFlytPostering(x, ret.get(x.id), igen, bk));
       const v = el('span', 'b-bank-v');
-      v.append(el('span', 'b-bank-tekst', x.t), el('span', 'b-bank-info', bDato(x.d) + ' · ' + x.k + (e.rettet ? ' · ✏️ flyttet hertil' : '')));
+      const andetAar = e.aar !== x.d.slice(0, 4);
+      v.append(el('span', 'b-bank-tekst', x.t), el('span', 'b-bank-info', bDato(x.d) + ' · ' + x.k + (x.manuel ? ' · ✍️ tilføjet af ' + (bk.mig ? 'dig' : 'jer') : e.rettet && bNoegle(e.rettet.til) !== bNoegle(e.rettet.fra) ? ' · ✏️ flyttet hertil' : '') + (andetAar ? ' · 📅 tæller i ' + e.aar : '')));
       b.append(v, el('b', 'b-bank-beloeb' + (x.b > 0 ? ' plus' : ''), (x.b > 0 ? '+' : '') + bKrOere(x.b)));
       li.append(b); ul.append(li);
     }
@@ -1109,7 +1121,8 @@ async function bPosteringer(navn, gruppe, valgtAar, bk = bBankF) {
   const sv = chipValg(['nyeste', 'stoerst'], sortV, v => { sortV = v; tegn(); }, v => v === 'nyeste' ? 'Nyeste først' : '⬇️ Største først');
   sv.classList.add('b-sort-valg');
   tegn();
-  aabnArk('🧾 ' + navn, valg, s, sv, liste, el('p', 'hint', 'Tryk på en postering for at flytte den til en anden post. Kun betalinger og refusioner er med – ikke overførsler mellem jeres egne konti.'));
+  const ny = knap('+ Udgift, der ikke står i banken', 'lille-knap', () => bManuel(null, { navn, gruppe }, () => bPosteringer(navn, gruppe, aarV, bk), bk, aarV));
+  aabnArk('🧾 ' + navn, valg, s, sv, liste, ny, el('p', 'hint', 'Tryk på en postering for at flytte den til en anden post eller et andet år. Kun betalinger og refusioner er med – ikke overførsler mellem jeres egne konti. Er noget betalt kontant, med gavepenge eller før bankfilen starter, så tilføj det med knappen.'));
 }
 // Forslag til regel-tekst: butikkens navn uden "Forretning:", DK-NOTA-numre, datoer og tal
 function bRegelForslag(t) {
@@ -1129,6 +1142,9 @@ function bFlytPostering(x, gl, tilbage, bk = bBankF) {
   const nu = gl ? gl.til : { navn: x.n, gruppe: x.g };
   let g = nu.gruppe;
   const postBoks = el('div');
+  const oprAar = x.d.slice(0, 4);
+  const aarMul = [...new Set([oprAar, ...kol.filter(([, y]) => y.f).map(([a]) => a)])].sort();
+  let tilAar = String(gl?.tilAar || oprAar);
   const kanRegel = !!bReglerRaekke(bk)?.regler && (x.ty === 'udgift' || x.ty === 'retur');
   const cb = el('input'); cb.type = 'checkbox'; cb.id = 'b-regel-cb';
   const rt = input('text', 'b-regel-tekst', bRegelForslag(x.t), 'Teksten indeholder …');
@@ -1136,9 +1152,9 @@ function bFlytPostering(x, gl, tilbage, bk = bBankF) {
   cb.addEventListener('change', () => { rt.hidden = !cb.checked; if (cb.checked) rt.focus(); });
   const gemTil = async til => {
     const fra = { navn: x.n, gruppe: x.g };
-    if (bNoegle(til) === bNoegle(fra)) { if (gl) await Data.remove(bk.liste, gl.id); }
+    if (bNoegle(til) === bNoegle(fra) && tilAar === oprAar) { if (gl) await Data.remove(bk.liste, gl.id); }
     else {
-      const felter = { ...bk.ekstra, snap: '_bank', art: 'bankret', pid: x.id, aar: x.d.slice(0, 4), dato: x.d, tekst: x.t, beloeb: -x.b, fra, til };
+      const felter = { ...bk.ekstra, snap: '_bank', art: 'bankret', pid: x.id, aar: oprAar, tilAar: tilAar === oprAar ? null : tilAar, dato: x.d, tekst: x.t, beloeb: -x.b, fra, til };
       if (gl) await Data.update(bk.liste, gl.id, felter); else await Data.add(bk.liste, felter);
     }
     const tekst = rt.value.trim();
@@ -1146,7 +1162,7 @@ function bFlytPostering(x, gl, tilbage, bk = bBankF) {
       visStatus('🧩 Laver reglen og inddeler igen …');
       try { await bNyRegel(bk, { t: bRxTekst(tekst.toUpperCase()), vis: tekst, post: til.navn, gruppe: til.gruppe, egen: true, lavet: bIdag() }); }
       catch (e) { console.warn(e); visStatus('Reglen kunne ikke gemmes', true); }
-    } else { visStatus('✏️ Flyttet til ' + til.navn); tegnBudget(); }
+    } else { visStatus('✏️ Flyttet til ' + til.navn + (tilAar !== oprAar ? ' (tæller i ' + tilAar + ')' : '')); tegnBudget(); }
     tilbage();
   };
   const tegnPoster = () => postBoks.replaceChildren(...[...(grupper.get(g) || [])].sort((a, b) => a.localeCompare(b, 'da')).map(n => {
@@ -1165,8 +1181,34 @@ function bFlytPostering(x, gl, tilbage, bk = bBankF) {
     lab.htmlFor = cb.id; lab.prepend(cb);
     regel.append(lab, rt);
   }
-  aabnArk('Flyt postering', el('p', null, x.t), el('p', 'hint', bDato(x.d) + ' · ' + x.k + ' · ' + bKrOere(x.b) + ' kr · nu: ' + nu.navn),
-    regel, el('label', 'felt-label', 'Kategori'), gValg, el('label', 'felt-label', 'Post'), postBoks, knapper);
+  const aarValg = aarMul.length > 1 ? [el('label', 'felt-label', 'Tæller med i år'), chipValg(aarMul, tilAar, v => { tilAar = v; }),
+    el('p', 'hint', 'Fx en forsikring betalt i december for hele næste år. Vælg året og tryk så på posten.')] : [];
+  aabnArk('Flyt postering', el('p', null, x.t), el('p', 'hint', bDato(x.d) + ' · ' + x.k + ' · ' + bKrOere(x.b) + ' kr · nu: ' + nu.navn + (gl?.tilAar ? ' i ' + gl.tilAar : '')),
+    regel, ...aarValg, el('label', 'felt-label', 'Kategori'), gValg, el('label', 'felt-label', 'Post'), postBoks, knapper);
+}
+// Udgift, der ikke står i banken: kontant, betalt med gavepenge, eller betalt før bankfilen starter
+function bManuel(m, post, tilbage, bk = bBankF, forslagAar) {
+  const kol = bAarData(bk.kilde.poster(), bk.kilde, bk);
+  const aarMul = [...new Set([...kol.filter(([, y]) => y.f).map(([a]) => a), String(new Date().getFullYear())])].sort();
+  let aar = String(m?.aar || (forslagAar && aarMul.includes(forslagAar) ? forslagAar : aarMul[aarMul.length - 1]));
+  const til = m?.til || post;
+  const tekst = input('text', 'b-man-tekst', m?.tekst || '', 'Hvad var det? (fx Plæneklipning, kontant)');
+  const beloeb = input('text', 'b-man-beloeb', m ? String(m.beloeb).replace('.', ',') : '', 'Beløb i kr');
+  beloeb.inputMode = 'decimal';
+  const dato = input('date', 'b-man-dato', m?.dato || '', '');
+  const note = input('text', 'b-man-note', m?.note || '', 'Note (fx betalt med gavepenge)');
+  const gem = async () => {
+    const kr = bTal(beloeb.value);
+    if (!tekst.value.trim() || !isFinite(kr) || !kr) { visStatus('Skriv hvad det var og et beløb', true); return; }
+    const felter = { ...bk.ekstra, snap: '_bank', art: 'manuel', aar, dato: dato.value || '', tekst: tekst.value.trim(), beloeb: Math.round(kr * 100) / 100, til, note: note.value.trim() };
+    if (m) await Data.update(bk.liste, m.id, felter); else await Data.add(bk.liste, felter);
+    visStatus('✍️ ' + bKr(kr) + ' kr lagt på ' + til.navn + ' i ' + aar); tegnBudget(); tilbage();
+  };
+  const knapper = el('div', 'ark-knapper');
+  if (m) knapper.append(knap('🗑 Slet', 'knap sekundaer', async () => { await Data.remove(bk.liste, m.id); visStatus('🗑 Slettet'); tegnBudget(); tilbage(); }));
+  knapper.append(knap('Annullér', 'knap sekundaer', () => tilbage()), knap('Gem', 'knap', gem));
+  aabnArk(m ? 'Ret udgift uden for banken' : 'Udgift uden for banken', el('p', 'hint', 'Lægges på ' + bIkon(til.gruppe) + ' ' + til.navn + ' i forbruget for det valgte år. Brug den til ting betalt kontant, med gavepenge eller før bankfilen starter.'),
+    felt('Hvad', tekst), felt('Beløb (kr)', beloeb), felt('Dato (valgfri)', dato), el('label', 'felt-label', 'Tæller med i år'), chipValg(aarMul, aar, v => { aar = v; }), felt('Note', note), knapper);
 }
 
 // ---------- Personligt budget ----------
