@@ -1184,6 +1184,13 @@ async function tegnMadplan() {
     felt.enterKeyHint = 'done';
     felt.setAttribute('list', 'retter-forslag');
     const raekke = retter.find(r => r.dag === i);
+    if (madSkjultForBarn(isoDato(dato))) {   // børn ser ikke maden for dage længere fremme
+      felt.value = ''; felt.placeholder = MAD_SKJULT; felt.readOnly = true;
+      li.classList.add('mad-skjult');
+      li.append(label, felt);
+      ol.append(li);
+      return;
+    }
     const egen = raekke?.ret || '';
     const ude = !!(raekke?.ude && egen);   // 🎉 "Vi er ude" – kun tekst på dagen, aldrig en ret på listerne
     const fast = faste[i] || '';
@@ -1382,6 +1389,9 @@ async function tegnFastPlan() {
   const selv = BOERN.includes(Data.bruger()?.navn) ? Data.bruger().navn : null;   // et barn ser sin egen
   if (selv) fastBarn = selv;
   document.getElementById('ryd-uge').after(boks);   // under aftensmaden – for både børn og voksne
+  // Børn ser ikke de faste måltider for ugen – kun dagens mad på tavlen (planen kan nå at ændre sig, se madSkjultForBarn)
+  if (erBarn()) { boks.replaceChildren(); boks.hidden = true; return; }
+  boks.hidden = false;
   const plan = (await Data.list('fastplan')).filter(r => r.barn === fastBarn);
   const fastFavs = await Data.list('favoritter');
   await hentTilbehoer();   // retter.js
@@ -2220,6 +2230,9 @@ function tavleAutoDato() {
   d.setHours(0, 0, 0, 0);
   return d;
 }
+// Børnene ser kun maden for i dag (og i morgen, når tavlen er skiftet til i morgen sidst på dagen) – planen kan nå at ændre sig
+const MAD_SKJULT = 'Kommer på dagen 🍽️';
+const madSkjultForBarn = iso => erBarn() && iso > isoDato(tavleAutoDato());
 function mandagFor(dato) {
   const m = new Date(dato);
   m.setHours(0, 0, 0, 0);
@@ -2380,6 +2393,10 @@ async function tegnBoernetavle(barn) {
   // ⏸ Pause på maden (pause.js): de voksne har ikke bestemt endnu – barnet ser "Ikke bestemt endnu" og kan ikke ønske
   for (const felt of ['morgen', 'frokost', 'ret']) if (typeof pauseMad === 'function' && pauseMad(barn, iso, felt)) {
     plan[felt] = ''; plan.visning[felt] = 'Ikke bestemt endnu 🍽️'; if (plan.oenske) plan.oenske[felt] = null; if (plan.venter) plan.venter[felt] = null; plan.eget[felt] = false; (plan.pause ||= {})[felt] = true;
+  }
+  // Børn: maden for dage længere fremme er skjult (madSkjultForBarn)
+  if (madSkjultForBarn(iso)) for (const felt of ['morgen', 'frokost', 'ret']) {
+    plan[felt] = ''; plan.visning[felt] = MAD_SKJULT; if (plan.oenske) plan.oenske[felt] = null; if (plan.venter) plan.venter[felt] = null; plan.eget[felt] = false; (plan.pause ||= {})[felt] = true;
   }
   const madKort = kort('Mad');
   for (const [felt, navn] of [['morgen', 'Morgen'], ['frokost', 'Frokost'], ['ret', 'Aften']]) {

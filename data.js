@@ -213,6 +213,8 @@ const Data = (() => {
       }, () => fjernet.forEach(gemLokalt));
     },
     nytUdefra() { return udefra; },
+    // Rå kopier af rækkerne i en liste (til "Fortryd" af større ændringer, fx bland hele ugen)
+    raaKopi(liste, filter = () => true) { return JSON.parse(JSON.stringify(raekker.filter(r => r.liste === liste && filter(tilPunkt(r))))); },
     // Er alt gemt? (venter til køen er tom)
     async gemt() { await koe; },
 

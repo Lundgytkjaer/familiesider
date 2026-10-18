@@ -782,8 +782,11 @@ async function makkerEmner(barn, d, ialt, klaret) {
     const aften = plan.visning?.ret || plan.ret;
     if (aften && aften !== INGEN_MAD) e.push('Aftensmad i dag: ' + aften);
     const im = new Date(nu); im.setDate(im.getDate() + 1);
-    const p2 = await madFor(im, barn);
-    if (p2.visning?.ret || p2.ret) e.push('Aftensmad i morgen: ' + (p2.visning?.ret || p2.ret));
+    // Morgendagens mad kun, når barnet selv kan se den (efter tavlen er skiftet til i morgen) – den kan nå at ændre sig
+    if (isoDato(im) <= isoDato(tavleAutoDato())) {
+      const p2 = await madFor(im, barn);
+      if (p2.visning?.ret || p2.ret) e.push('Aftensmad i morgen: ' + (p2.visning?.ret || p2.ret));
+    }
   } catch {}
   try {
     if ((await valgFor(barn)).vejr !== false && typeof hentVejr === 'function') {
@@ -807,6 +810,9 @@ async function makkerEmner(barn, d, ialt, klaret) {
 // Dagens replikker gemmes i databasen ('makker_snak', én række pr. barn – opdatering-makker.sql),
 // så de voksne ser det samme som barnet. Hvilken af de 3 replikker der står i boblen, huskes kun på enheden.
 const makkerI = new Map();
+// Nøglen afgør, hvornår replikkerne er forældede: ændres maden (eller er alle pligter klaret), skal der nye til.
+// Tid på dagen og antal klarede pligter tæller ikke med – ellers ville dagens 4 kald være brugt før frokost.
+const makkerNoegle = emner => emner.filter(e => /^Aftensmad /.test(e) || e === 'Alle dagens pligter er klaret').join('|');
 function makkerHuske(barn) {
   const dag = isoDato(new Date());
   const r = Data.listNu('makker_snak').filter(x => x.barn === barn).sort((a, b) => (b.dag || '').localeCompare(a.dag || '') || (b.kald || 0) - (a.kald || 0))[0];
@@ -838,7 +844,7 @@ async function makkerHentNu(barn, m, emner, c) {
     const linjer = (res?.handlinger || []).filter(h => h?.type === 'makker_replik' && String(h.tekst || '').trim())
       .map(h => String(h.tekst).replace(/\s+/g, ' ').trim().slice(0, 120)).slice(0, 3);
     if (!linjer.length) return null;
-    const ny = { ...makkerHuske(barn), linjer, i: 0, emner: emner.join('|') };
+    const ny = { ...makkerHuske(barn), linjer, i: 0, emner: makkerNoegle(emner) };
     await makkerGem(barn, ny);
     return linjer[0];
   } catch (e) { console.warn('Makker:', e.message || e); return null; }
@@ -883,11 +889,11 @@ async function alfieKort(barn) {
   if (egenAI) {
     // Passer replikkerne stadig (samme emner), står den aktuelle i boblen; ellers bedes om nye i baggrunden.
     // Indtil da (og hvis dagens kald er brugt) står den almindelige status ("2 ting tilbage …")
-    const c0 = makkerHuske(barn);
-    if (!egen && c0.linjer.length) boble.textContent = c0.linjer[c0.i] || c0.linjer[0];
-    else makkerEmner(barn, d, ialt, klaret).then(async emner => {
+    // Replikkerne vises kun, hvis de stadig passer (fx samme aftensmad). Er maden ændret, hentes nye;
+    // kan der ikke hentes flere i dag, står den almindelige status i stedet for en forældet replik.
+    makkerEmner(barn, d, ialt, klaret).then(async emner => {
       const c = makkerHuske(barn);
-      if (emner.join('|') === c.emner && c.linjer.length) { boble.textContent = c.linjer[c.i] || c.linjer[0]; return; }
+      if (makkerNoegle(emner) === c.emner && c.linjer.length) { boble.textContent = c.linjer[c.i] || c.linjer[0]; return; }
       const l = await makkerHent(barn, m, emner);
       if (l) boble.textContent = l;
     });
