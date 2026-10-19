@@ -2115,3 +2115,11 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 .ai-vaerktoej-knap:hover { background: var(--accent-blod); }
 .ai-skriv .ai-send { flex: none; margin-left: auto; width: 36px; height: 36px; min-height: 0; border-radius: 50%; border: 0; padding: 0; background: var(--accent); color: var(--paa-accent, #fff); font-size: 16px; display: grid; place-items: center; cursor: pointer; }
 @media (max-width: 360px) { .ai-vaerktoej-knap { padding: 0 8px; font-size: 13px; } }
+/* "?" står altid lige efter overskriften; resten af linjen skubbes til højre */
+.sek-hoved:has(.tips-knap) { justify-content: flex-start; align-items: center; }
+.sek-hoved .tips-knap { margin-left: -2px; }
+.sek-hoved:has(.tips-knap) > .tips-knap + * { margin-left: auto; }
+.sek-hoved:has(.tips-knap) > .tips-knap + .taeller:not(:last-child) { margin-left: 4px; }
+/* ♻️ Rester på madplanen: kun tekst på dagen (som 🎉 Vi er ude) */
+.dag.rester .fuld-vis { color: var(--accent); font-style: italic; }
+.dag.rester input[type="text"] { cursor: pointer; }
