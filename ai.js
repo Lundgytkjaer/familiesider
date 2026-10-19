@@ -440,50 +440,71 @@ function aabnAI(opts = {}) {
   const felt = el('textarea', 'ai-felt');
   const log = el('div', 'ai-log');
   const knapper = el('div', 'ark-knapper');
-  const send = knap('➤', 'knap ai-send', () => spoerg());
+  const send = knap('➤', 'ai-send', () => spoerg());
   send.setAttribute('aria-label', 'Send');
-  const inputRaekke = el('div', 'ai-input');
   const hint = el('p', 'hint');
-  // Billede: 📷 Tag billede (kameraet åbner direkte) eller 🖼️ Vælg billede.
-  // Billedet vises her og sendes først ved ➤ – så man kan skrive en kommentar/ekstra instruks til det.
+  // Skrivefeltet: én boks i fuld bredde – evt. vedhæftet øverst, tekstfeltet, og nederst 📷 Kamera · 🖼️ Billede · 📎 Fil + ➤.
+  // Det vedhæftede (billede eller PDF, som data-URL) sendes først ved ➤ – så man kan skrive en kommentar/ekstra instruks til det.
   let vedhaeftet = opts.billede || null;
-  const fotoBoks = el('div', 'ai-foto-boks');
-  const hentBillede = kamera => {
-    const fil = el('input'); fil.type = 'file'; fil.accept = 'image/*';
-    if (kamera) fil.setAttribute('capture', 'environment');   // telefonens kamera (bagside) – computere viser bare filvælgeren
+  const bilagNavn = new Map();   // data-URL → filnavn (PDF)
+  const skrivBoks = el('div', 'ai-skriv');
+  const bilagVis = el('div', 'ai-bilag');
+  const vaerktoej = el('div', 'ai-vaerktoej');
+  const vedhaeft = el('div', 'ai-vedhaeft');
+  const hentFil = slags => {   // 'kamera' | 'billede' | 'fil'
+    const fil = el('input'); fil.type = 'file';
+    fil.accept = slags === 'fil' ? 'image/*,application/pdf,.pdf,.txt,.eml,text/plain' : 'image/*';
+    if (slags === 'kamera') fil.setAttribute('capture', 'environment');   // telefonens kamera (bagside) – computere viser bare filvælgeren
     fil.addEventListener('change', async () => {
-      if (!fil.files[0]) return;
-      try { vedhaeftet = await laesBillede(fil.files[0], 1568, 0.8); tegnFoto(); felt.focus(); }   // app.js – stort nok til håndskrift
-      catch (e) { visStatus('Kunne ikke læse billedet', true); }
+      const f = fil.files[0];
+      if (!f) return;
+      try {
+        if (f.type.startsWith('image/')) vedhaeftet = await laesBillede(f, 1568, 0.8);   // app.js – stort nok til håndskrift
+        else if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name)) {
+          if (f.size > 4_000_000) { visStatus('PDF\'en er for stor (højst 4 MB)', true); return; }
+          vedhaeftet = await new Promise((ok, fejl) => { const r = new FileReader(); r.onload = () => ok(String(r.result).replace(/^data:[^;]*;/, 'data:application/pdf;')); r.onerror = fejl; r.readAsDataURL(f); });
+          bilagNavn.set(vedhaeftet, f.name);
+        } else if (f.type.startsWith('text/') || /\.(txt|eml)$/i.test(f.name)) {   // tekst → ind i feltet
+          const t = (await f.text()).slice(0, 6000);
+          felt.value = (felt.value ? felt.value + '\n' : '') + t;
+        } else { visStatus('Den filtype kan ikke læses – brug PDF, billede eller tekst', true); return; }
+        tegnFoto(); felt.focus();
+      } catch (e) { visStatus('Kunne ikke læse filen', true); }
     });
     fil.click();
+  };
+  const erPdf = d => typeof d === 'string' && d.startsWith('data:application/pdf');
+  // Det vedhæftede som det sendes til Edge Function'en
+  const bilag = d => d ? { media_type: d.slice(5, d.indexOf(';')), data: d.split(',')[1] } : null;
+  const bilagEl = d => {
+    if (erPdf(d)) return el('span', 'ai-pdf', '📄 ' + (bilagNavn.get(d) || 'PDF'));
+    const img = el('img', 'ai-foto-vis'); img.src = d; img.alt = 'Billedet der sendes'; return img;
   };
   function pladsholder() {
     const eks = !opgave && emne ? AI_EMNER.find(x => x.id === emne)?.eks : '';
     felt.placeholder = vedhaeftet ? 'Evt. kommentar, fx ' + (opgave === 'seddel' || emne === 'indkob' ? '"kun Rema-varerne"' : '"det gælder kun Oliver"')
-      : !opgave ? (samtale.length ? 'Svar her …' : eks || 'Hej ' + (Data.bruger()?.navn || '') + ' – hvad kan jeg hjælpe med? Skriv, indsæt en besked eller tag et billede')
+      : !opgave ? (samtale.length ? 'Svar her …' : eks || 'Hej ' + (Data.bruger()?.navn || '') + ' – hvad kan jeg hjælpe med? Skriv, indsæt en besked, tag et billede eller vælg en fil')
       : erSkole() ? (samtale.length ? 'Ret til, fx "det gælder kun Oliver" eller "ingen pizza"'
       : 'Indsæt beskeden fra skolen (Aula, sms, mail) – eller skriv selv, fx "Villads til tandlæge torsdag 10-11"')
-      : def.foto === 'kun' ? (samtale.length ? 'Ret til, fx "Diverse er Netto"' : 'Tag eller vælg et billede – skriv evt. en kommentar')
+      : def.foto === 'kun' ? (samtale.length ? 'Ret til, fx "Diverse er Netto"' : 'Tag et billede eller vælg en fil – skriv evt. en kommentar')
       : samtale.length ? (opgave === 'fri' ? 'Skriv videre …' : 'Ret til, fx "ikke fisk" eller "kun hverdage"')
       : opgave === 'fri' ? 'Hej ' + (Data.bruger()?.navn || '') + ' – hvad kan jeg hjælpe med?' : 'Evt. ønsker, fx "noget nemt" – eller tryk ➤';
     const lang = !opgave || erSkole();
     felt.rows = lang ? 4 : 2; felt.maxLength = lang ? 6000 : 1500;
   }
   function tegnFoto() {
-    fotoBoks.hidden = !def.foto;
-    if (!def.foto) return;
-    if (vedhaeftet) {
-      const img = el('img', 'ai-foto-vis'); img.src = vedhaeftet; img.alt = 'Billedet der sendes';
-      const fjern = knap('✕ Fjern', 'lille-knap', () => { vedhaeftet = null; tegnFoto(); });
-      const nyt = knap('📷 Nyt billede', 'lille-knap', () => hentBillede(true));
-      const side = el('div', 'ai-foto-knapper'); side.append(nyt, fjern);
-      fotoBoks.replaceChildren(img, side);
-    } else {
-      fotoBoks.replaceChildren(knap('📷 Tag billede', 'knap sekundaer', () => hentBillede(true)), knap('🖼️ Vælg billede', 'knap sekundaer', () => hentBillede(false)));
-    }
-    fotoBoks.classList.toggle('har-foto', !!vedhaeftet);
+    vedhaeft.hidden = !def.foto;
+    bilagVis.hidden = !vedhaeftet;
+    if (vedhaeftet) bilagVis.replaceChildren(bilagEl(vedhaeftet), knap('✕', 'ai-bilag-fjern', () => { vedhaeftet = null; tegnFoto(); felt.focus(); }));
+    bilagVis.lastElementChild?.setAttribute('aria-label', 'Fjern det vedhæftede');
     pladsholder();
+  }
+  {
+    const lille = (ikon, navn, slags) => { const k = knap(ikon + ' ' + navn, 'ai-vaerktoej-knap', () => hentFil(slags)); k.title = navn; return k; };
+    vedhaeft.append(lille('📷', 'Kamera', 'kamera'), lille('🖼️', 'Billede', 'billede'), lille('📎', 'Fil', 'fil'));
+    vaerktoej.append(vedhaeft, send);
+    skrivBoks.append(bilagVis, felt, vaerktoej);
+    skrivBoks.addEventListener('click', e => { if (e.target === skrivBoks || e.target === vaerktoej) felt.focus(); });
   }
   // Emne-chips: viser hvad ✨ kan, og hjælper omstillingen (kun før første besked)
   function tegnEmner() {
@@ -509,7 +530,6 @@ function aabnAI(opts = {}) {
     const t = document.getElementById('ark-titel'); if (t) t.textContent = def.titel;
     gaelder.hidden = true; tegnEmner(); tegnFoto(); tegn(); felt.focus();
   }
-  inputRaekke.append(felt, send);
   felt.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); spoerg(); } });
   let aktuelle = null;   // forslagene i det seneste svar
 
@@ -518,7 +538,7 @@ function aabnAI(opts = {}) {
     samtale.forEach((b, nr) => {
       if (b.rolle === 'user') {
         const boble = el('div', 'ai-boble mig');
-        if (b.foto) { const img = el('img', 'ai-foto-vis'); img.src = b.foto; img.alt = ''; boble.append(img); }
+        if (b.foto) boble.append(bilagEl(b.foto));
         if (b.vis) boble.append(el('span', null, b.vis.length > 400 ? b.vis.slice(0, 400) + ' …' : b.vis));
         log.append(boble); return;
       }
@@ -617,7 +637,7 @@ function aabnAI(opts = {}) {
     if (valg) { if (valg === 'madplan') uge = madUge(false); return valg; }
     const kontekst = { dato: isoDato(new Date()), ugedag: DAGE_LANG[(new Date().getDay() + 6) % 7].toLowerCase(), personer: PERSONER,
       side: FANE_NAVN[hvor.side] || hvor.side, ...(hvor.barn ? { valgtBarn: hvor.barn } : {}), ...(emne ? { emne: AI_EMNER.find(x => x.id === emne)?.navn } : {}), ...(billede ? { billede: true } : {}) };
-    const bil = billede ? { media_type: 'image/jpeg', data: billede.split(',')[1] } : null;
+    const bil = bilag(billede);
     const res = await Data.ai(skrevet || 'Se billedet.', kontekst, historik(), bil, 'omstil');
     const o = res?.omstil;
     if (!o) throw new Error('✨ skal opdateres i Supabase (Edge Function "ai")');
@@ -659,14 +679,14 @@ function aabnAI(opts = {}) {
       samtale = [];   // omstillingen er klaret – opgaven starter rent med det, der er skrevet
       saetOpgave(valg);
       skrevet = alleTekster; billede = foto;
-      if (def.foto === 'kun' && !billede) { tegn(); visStatus('Tag eller vælg et billede'); return; }
+      if (def.foto === 'kun' && !billede) { tegn(); visStatus('Tag et billede eller vælg en fil'); return; }
     }
     await koer(skrevet, billede);
   }
 
   async function koer(skrevet, billede) {
     const foerste = !samtale.length;
-    if (def.foto === 'kun' && foerste && !billede) { visStatus('Tag eller vælg et billede først'); return; }
+    if (def.foto === 'kun' && foerste && !billede) { visStatus('Tag et billede eller vælg en fil først'); return; }
     if (!skrevet && !billede && !(foerste && def.tekst)) { felt.focus(); return; }
     if (erSkole() && !boernValgt.size) { visStatus('Vælg hvilke børn beskeden gælder'); return; }
     if (erSkole()) aiSkoleBoern = BOERN.filter(b => boernValgt.has(b));
@@ -682,7 +702,7 @@ function aabnAI(opts = {}) {
     knapper.replaceChildren(knap('Luk', 'knap sekundaer', lukArk));
     let res;
     try {
-      const bil = billede ? { media_type: 'image/jpeg', data: billede.split(',')[1] } : null;
+      const bil = bilag(billede);
       res = await Data.ai(tekst || (erSkole() ? 'Se billedet.' : ''), await aiKontekst(opgave, uge, { boern: aiSkoleBoern }), hist, bil, opgave);
     } catch (e) {
       samtale.pop(); felt.value = skrevet; vedhaeftet = sendtBillede || billede; tegnFoto();
@@ -700,9 +720,9 @@ function aabnAI(opts = {}) {
   gaelder.hidden = !erSkole();
   if (erSkole()) tegnBoern();
   tegnEmner(); tegnFoto(); tegn();
-  aabnArk(def.titel, gaelder, emneBoks, log, fotoBoks, inputRaekke, hint, knapper);
+  aabnArk(def.titel, gaelder, emneBoks, log, skrivBoks, hint, knapper);
   if (opts.auto) spoerg();
-  else if (opts.kamera) hentBillede(true);
+  else if (opts.kamera) hentFil('kamera');
   else setTimeout(() => felt.focus(), 50);
 }
 

@@ -2100,3 +2100,18 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 .ai-emner { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
 .ai-emne { min-height: 40px; padding: 0 14px; border: 1.5px solid var(--linje); border-radius: 999px; background: var(--bg); color: inherit; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
 .ai-emne[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-blod); }
+/* ✨ skrivefelt: én boks i fuld bredde – vedhæftet øverst, tekst, og knaplinje (📷 🖼️ 📎 + ➤) nederst */
+.ai-skriv { border: 1.5px solid var(--linje); border-radius: 18px; background: var(--flade); padding: 8px 8px 6px; display: grid; gap: 6px; cursor: text; }
+.ai-skriv:focus-within { border-color: var(--accent); }
+.ai-skriv .ai-felt { border: 0; background: transparent; padding: 4px 6px; border-radius: 0; resize: none; outline: none; min-height: 48px; }
+.ai-bilag { display: flex; align-items: flex-start; gap: 8px; padding: 2px 4px 0; }
+.ai-bilag .ai-foto-vis { max-width: 96px; max-height: 96px; margin: 0; }
+.ai-bilag-fjern { width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--linje); background: var(--bg); color: inherit; font: inherit; font-size: 13px; cursor: pointer; flex: none; }
+.ai-pdf { display: inline-block; padding: 8px 12px; border-radius: 10px; background: var(--bg); border: 1px solid var(--linje); font-weight: 600; font-size: 14px; overflow-wrap: anywhere; }
+.ai-boble.mig .ai-pdf { background: rgba(255,255,255,.18); border-color: transparent; color: inherit; margin-bottom: 4px; }
+.ai-vaerktoej { display: flex; align-items: center; gap: 6px; }
+.ai-vedhaeft { display: flex; gap: 4px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.ai-vaerktoej-knap { min-height: 36px; padding: 0 10px; border-radius: 999px; border: 0; background: var(--bg); color: inherit; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.ai-vaerktoej-knap:hover { background: var(--accent-blod); }
+.ai-skriv .ai-send { flex: none; margin-left: auto; width: 36px; height: 36px; min-height: 0; border-radius: 50%; border: 0; padding: 0; background: var(--accent); color: var(--paa-accent, #fff); font-size: 16px; display: grid; place-items: center; cursor: pointer; }
+@media (max-width: 360px) { .ai-vaerktoej-knap { padding: 0 8px; font-size: 13px; } }
