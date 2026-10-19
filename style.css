@@ -2089,3 +2089,10 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 .ai-kort.gemt { opacity: .75; }
 .ai-kort.gemt .ai-tekst { text-decoration: none !important; opacity: 1 !important; }
 .sd-knapper { display: flex; flex-wrap: wrap; gap: 8px; }
+/* AI: billede vedhæftes før det sendes (ai.js) */
+.ai-foto-boks { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.ai-foto-boks.har-foto { grid-template-columns: auto 1fr; align-items: start; }
+.ai-foto-boks.har-foto .ai-foto-vis { max-width: 120px; max-height: 120px; margin: 0; }
+.ai-foto-knapper { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+/* AI-knapper til skolen: tydeligt "✨" (samme accent som ✨-knappen) */
+.sd-ai { border: 1.5px solid color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 10%, var(--flade)); font-weight: 700; }

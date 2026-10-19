@@ -3547,12 +3547,12 @@ function redigerFravaer(barn, iso, x) {
   knapper.append(gem);
   // Særlig skoledag (program, ændrede tider, noter til fag) har sit eget ark – skoledag.js
   const saerlig = skoledagDen(Data.listNu ? Data.listNu('kalender') : [], iso, barn);
-  const saerKnap = x ? '' : knap(saerlig ? '🏫 Ret ' + skoledagTitel(saerlig) : '🏫 Særlig skoledag – program, ændrede tider eller note til et fag', 'lille-knap sd-vej',
+  const saerKnap = x ? '' : knap(saerlig ? '🏫 Ret ' + skoledagTitel(saerlig) : '✏️ Særlig skoledag – skriv selv (program, tider, note til et fag)', 'lille-knap sd-vej',
     () => { lukArk(); redigerSkoledag(barn, iso, saerlig?._rediger || saerlig); });
-  const beskedKnap = x ? '' : knap('🏫 Fra en besked fra skolen (Aula, sms, seddel)', 'lille-knap sd-vej', () => { lukArk(); aabnAI({ opgave: 'skole', boern: [barn] }); });
+  const beskedKnap = x ? '' : knap('✨ Læs en besked fra skolen med AI (Aula, sms, foto)', 'lille-knap sd-vej sd-ai', () => { lukArk(); aabnAI({ opgave: 'skole', boern: [barn] }); });
   aabnArk(barn + ' · ' + DAGE_LANG[(d.getDay() + 6) % 7].toLowerCase() + ' ' + d.getDate() + '/' + (d.getMonth() + 1),
     felt('Hvad', valg), tidFelt, tilFelt, felt('Note (valgfri)', note),
-    el('p', 'hint', 'Står i kalenderen, og skemaet på tavlen viser det. En sygedag bryder ikke streak.'), saerKnap, beskedKnap, knapper);
+    el('p', 'hint', 'Står i kalenderen, og skemaet på tavlen viser det. En sygedag bryder ikke streak.'), beskedKnap, saerKnap, knapper);
 }
 
 // "Tilpas": hvad hver person vil se (helligdage, mærkedage, sol, vejr). Børn retter kun deres egne.

@@ -240,10 +240,12 @@ function redigerSkoledag(barn, iso, x = null, opts = {}) {
   });
   const knapper = el('div', 'ark-knapper');
   if (opts.efter) knapper.append(knap('‹ Tilbage', 'knap sekundaer', () => opts.efter(null)));
-  if (x?.id) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove(kalListe(x), x.id); lukArk(); tegnAlt(); }));
+  if (x?.id && !opts.efter) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove(kalListe(x), x.id); lukArk(); tegnAlt(); }));
   knapper.append(gem);
 
-  aabnArk(x?.id ? 'Ret ændring i skolen' : '🏫 Særlig skoledag',
+  // Ny (ikke fra AI): genvej til at lade AI'en udfylde det ud fra en besked
+  const aiGenvej = !x && !opts.efter ? knap('✨ Har du en besked fra skolen? Lad AI\'en udfylde det', 'lille-knap sd-ai sd-vej', () => { lukArk(); aabnAI({ opgave: 'skole', boern: [...valgte] }); }) : '';
+  aabnArk(x?.id ? 'Ret ændring i skolen' : '🏫 Særlig skoledag', aiGenvej,
     felt('Dato', dato), felt('Hvad hedder dagen? (valgfri)', titel), felt('Hvem', hvemSeg),
     el('h3', 'lille-titel', 'Program'),
     el('p', 'hint', 'Kun det, der er anderledes. Resten af dagen viser hvert barns normale skema – og hvert barn beholder sine egne tider.'),
@@ -282,8 +284,9 @@ async function tegnSkemaAendringer() {
     // Standard: næste gang den viste ugedag kommer (i dag, hvis det er i dag)
     const d = new Date(); d.setDate(d.getDate() + ((skemaDag - idagNr() + 7) % 7));
     const knapper = el('div', 'sd-knapper');
-    knapper.append(knap('🏫 Fra en besked (Aula, sms, seddel)', 'lille-knap kun-voksen', () => aabnAI({ opgave: 'skole', boern: [skemaBarn] })),   // ai.js
-      knap('+ Ændring en bestemt dag', 'lille-knap kun-voksen', () => redigerSkoledag(skemaBarn, isoDato(d))));
+    knapper.append(knap('✨ Læs en besked med AI', 'lille-knap kun-voksen sd-ai', () => aabnAI({ opgave: 'skole', boern: [skemaBarn] })),   // ai.js
+      knap('✏️ Skriv selv', 'lille-knap kun-voksen', () => redigerSkoledag(skemaBarn, isoDato(d))));
+    dele.push(el('p', 'hint kun-voksen', 'AI\'en læser en besked fra Aula, en sms eller et foto af en seddel og foreslår det hele – også to do, huskesedler, mad og fri. Med "Skriv selv" udfylder du programmet.'));
     dele.push(knapper);
   }
   boks.replaceChildren(...dele);
