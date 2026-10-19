@@ -2057,3 +2057,29 @@ li.pauset > .ret-raekke .ret-navn, li.pauset > .rutine-raekke .rutine-navn { opa
 .b-prik.budget { background: color-mix(in srgb, var(--accent) 45%, var(--flade)); }
 .b-prik.forbrug { background: color-mix(in srgb, var(--fg) 70%, var(--flade)); }
 .b-mdr-budget-h { margin-top: 14px; font-size: 1rem; }
+
+/* ---------- 🏫 Særlig skoledag (skoledag.js) ---------- */
+.lektion.saerlig { border-left: 6px dashed var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--flade)); }
+.bt-lektioner .lektion.saerlig { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); }
+.lektion .lektion-note, .lektion-note { grid-column: 1 / -1; font-size: 14px; color: var(--daempet); margin: 0; overflow-wrap: anywhere; }
+.lektion .lektion-note { margin-top: -4px; padding-bottom: 4px; }
+.sd-noter { margin: -4px 0 8px; display: grid; gap: 4px; }
+.sd-maerke { display: inline-block; margin: 0 0 8px; padding: 6px 12px; border-radius: 999px; font-weight: 700;
+  background: color-mix(in srgb, var(--accent) 16%, var(--flade)); color: var(--fg); border: 0; font-size: 15px; text-align: left; }
+button.sd-maerke { cursor: pointer; min-height: 36px; }
+.sd-vej { width: 100%; margin: 10px 0 4px; white-space: normal; text-align: left; }
+.sd-raekker { display: grid; gap: 8px; margin-bottom: 8px; }
+.sd-raekke { display: grid; grid-template-columns: 110px 1fr 36px; gap: 6px; align-items: center; }
+.sd-raekke input { min-height: 44px; padding: 0 10px; border-radius: 10px; font-size: 16px; min-width: 0; }
+.sd-raekke input.tid-felt { font-variant-numeric: tabular-nums; padding: 0 8px; }
+.sd-raekke .slet { width: 36px; height: 36px; }
+.sd-tider { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+.sd-eksempel { margin-top: 12px; }
+.sd-eks-barn { margin-bottom: 12px; }
+.sd-eks-navn { margin: 0 0 6px; font-weight: 700; }
+.sd-eks-barn .sd-eks-navn { color: var(--p, inherit); }
+.skema-aendringer { margin-top: 14px; display: grid; gap: 8px; justify-items: start; }
+.skema-aendringer .sd-liste { width: 100%; margin: 0; }
+.sd-punkt { display: flex; gap: 12px; width: 100%; min-height: var(--raekke); padding: 8px 14px; background: none; border: 0; color: inherit; font: inherit; text-align: left; align-items: center; cursor: pointer; }
+.sd-punkt .sd-dato { color: var(--daempet); font-variant-numeric: tabular-nums; min-width: 64px; }
+.sd-punkt .sd-titel { font-weight: 600; overflow-wrap: anywhere; }

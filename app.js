@@ -1707,6 +1707,8 @@ async function tegnSkema() {
   document.getElementById('fri-kl').textContent = fod.join(' · ');
 
   tegnFarveStyring(farver);
+  if (!redigerer) tegnSkemaAendringer();   // skoledag.js
+  else document.getElementById('skema-aendringer').replaceChildren();
 }
 
 // Vælg farve til en time
@@ -1798,7 +1800,7 @@ const FRAVAER = {
   tidlig: { ikon: '⏰', titel: 'Tidligere fri', knap: '⏰ Tidligere fri' }
 };
 const friIkon = a => (FRAVAER[a.type]?.ikon || '😎');
-const laas = a => (a.fri || a.type === 'tidlig' ? ' ' + friIkon(a) : '') + (a._privat ? ' 👤' : a._voksne ? ' 🔒' : '');   // markering på ferie/fri/fravær og kun-voksne-aftaler
+const laas = a => (a.fri || a.type === 'tidlig' ? ' ' + friIkon(a) : a.type === 'skoledag' ? ' 🏫' : '') + (a._privat ? ' 👤' : a._voksne ? ' 🔒' : '');   // markering på ferie/fri/fravær og kun-voksne-aftaler
 const fravaerDen = (aftaler, iso, barn) => aftalerDen(aftaler, iso, [barn]).find(a => FRAVAER[a.type]) || null;
 const sygDen = (aftaler, iso, barn) => aftalerDen(aftaler, iso, [barn]).some(a => a.type === 'syg');
 // Ferie/fri ({fri: true}): skemaet viser "Fri", og i "i dag"-lister vises den kun den dag, den starter
@@ -2091,6 +2093,7 @@ async function tegnKalender() {
 // forekomst = den dag man trykkede på (vigtigt for gentagne aftaler)
 function redigerAftale(a, forekomst) {
   if (erBarn()) { if (a.id) visAftale(a, forekomst); return; }
+  if (a.id && a.type === 'skoledag') return redigerSkoledag(personerI(a)[0], a.dato, a);   // skoledag.js
   const ny = !a.id;
   const serie = !ny && !!a.gentag;
   forekomst = forekomst || a.dato;
@@ -2362,13 +2365,13 @@ async function tegnBoernetavle(barn) {
   } else {
     const tidlig = aftalerDen(await Data.list('kalender'), iso, [barn]).find(a => a.type === 'tidlig' && a.tid);
     const tidligMin = tidlig ? tidSomMin(tidlig.tid)[0] : null;
-    const alleRaekker = await dagensTimer(barn, dagNr);
-    const timer = alleRaekker.filter(t => t.fag);
+    const sd = await skoleDag(barn, iso);   // skoledag.js: normalt skema flettet med en evt. særlig skoledag
+    const timer = sd.timer;
     if (!timer.length) {
       skemaKort = kort('Skole', el('p', 'under', 'Intet skema lagt ind for ' + DAGE_LANG[dagNr].toLowerCase() + '.'));
       skemaKort.tavle = { stor: 'Skole', lille: 'Intet skema lagt ind' };
     } else {
-      const { start, slut, harTimer } = skoleTider(alleRaekker);
+      const { start, slut, harTimer } = sd;
       const tider = el('p', 'bt-tider');
       if (start) tider.append(el('span', null, 'Møder ' + visTid(start)));
       if (tidlig) tider.append(el('span', 'tidlig-fri', '⏰ Fri ' + visTid(tidlig.tid) + ' i dag'));
@@ -2378,11 +2381,20 @@ async function tegnBoernetavle(barn) {
       const nu = new Date(); const nuMin = nu.getHours() * 60 + nu.getMinutes();
       for (const t of timer) {
         const [fra, til] = tidSomMin(t.tid);
-        const li = lektionLi(t, iso === idagIso && fra != null && til != null && nuMin >= fra && nuMin < til, farver);
+        const li = skoleLi(t, iso === idagIso && fra != null && til != null && nuMin >= fra && nuMin < til, farver);
         if (tidligMin != null && fra != null && fra >= tidligMin) li.classList.add('aflyst');
         ol.append(li);
       }
-      skemaKort = kort('Skole', tider, ol, forklaring(farver, new Set(timer.map(t => t.farve))));
+      // 🏫 Særlig skoledag: mærke øverst (voksne kan trykke og rette) + noter, der ikke hører til et af dagens fag
+      const saerDele = [];
+      if (sd.saerlig && skoledagMaerke(sd.saerlig)) {
+        const titelTekst = '🏫 ' + skoledagTitel(sd.saerlig);
+        saerDele.push(erBarn() ? el('p', 'sd-maerke', titelTekst) : knap(titelTekst + ' ›', 'sd-maerke', () => redigerSkoledag(barn, iso, sd.saerlig)));
+      }
+      const noteListe = [...sd.noter.map(n => (n.fag ? n.fag + ': ' : '') + n.tekst), ...(sd.saerlig?.note ? [sd.saerlig.note] : [])];
+      const noteEl = noteListe.length ? el('div', 'sd-noter') : '';
+      for (const n of noteListe) noteEl.append(el('p', 'lektion-note', '📝 ' + n));
+      skemaKort = kort('Skole', ...saerDele, tider, ol, noteEl, forklaring(farver, new Set(timer.map(t => t.farve))));
       // Opsummering til tavle-visningen: hvad sker der nu / næste
       let friTid = tidlig ? tidlig.tid : slut;
       const nuTime = iso === idagIso ? timer.find(t => { const [fra, til] = tidSomMin(t.tid); return fra != null && til != null && nuMin >= fra && nuMin < til; }) : null;
@@ -2396,7 +2408,7 @@ async function tegnBoernetavle(barn) {
         // I skole: uden tider på timerne vises bare "I skole"
         const naesteT = harTimer ? timer.find(t => (tidSomMin(t.tid)[0] ?? -1) > nuMin) : null;
         skemaKort.tavle = { stor: !harTimer ? 'I skole' : naesteT ? naesteT.fag : 'Pause', lille: [naesteT ? 'Næste' : '', friDel].filter(Boolean).join(' · ') };
-      } else skemaKort.tavle = { stor: start ? 'Møder ' + visTid(start) : 'Skole', lille: [timer[0].fag, friDel].filter(Boolean).join(' · ') };
+      } else skemaKort.tavle = { stor: start ? 'Møder ' + visTid(start) : 'Skole', lille: [sd.saerlig && skoledagMaerke(sd.saerlig) ? '🏫 ' + skoledagTitel(sd.saerlig) : timer[0].fag, friDel].filter(Boolean).join(' · ') };
     }
   }
 
@@ -2404,7 +2416,7 @@ async function tegnBoernetavle(barn) {
   if (dagNr < 5 && !erBarn()) {
     const fravaer = fravaerDen(await kalenderAftaler(), iso, barn);
     skemaKort.querySelector('.kort-top').append(
-      knap(fravaer ? friIkon(fravaer) + ' Ret fravær' : 'Syg / fri', 'lille-knap fravaer-knap', () => redigerFravaer(barn, iso, fravaer)));
+      knap(fravaer ? friIkon(fravaer) + ' Ret fravær' : 'Ændring', 'lille-knap fravaer-knap', () => redigerFravaer(barn, iso, fravaer)));
   }
 
   // Mad
@@ -3123,7 +3135,8 @@ async function dagsdelKort() {
       else if (hellig) dele.push('fri – ' + hellig.navn);
       else if (typeof fastFri === 'function' && await fastFri(barn, dagNr)) dele.push('fri 🎉');
       else {
-        const { start, slut } = skoleTider(await dagensTimer(barn, dagNr));
+        const { start, slut, saerlig } = await skoleDag(barn, iso, kal);   // skoledag.js
+        if (saerlig && skoledagMaerke(saerlig)) dele.push('🏫 ' + skoledagTitel(saerlig));
         if (del === 'eftermiddag' && slut) dele.push((tidSomMin(slut)[0] > nuMin ? 'fri ' : 'har fri fra ') + visTid(slut));
         else if (del !== 'eftermiddag' && start) dele.push('møder ' + visTid(start));
       }
@@ -3135,7 +3148,7 @@ async function dagsdelKort() {
       // (weekend, ferie, fridage og korte dage som fri kl. 12)
       let skole = dagNr < 5 && !(typeof skoleFriNu === 'function' && skoleFriNu(barn, iso));
       if (skole) {
-        const { slut } = skoleTider(await dagensTimer(barn, dagNr));
+        const { slut } = await skoleDag(barn, iso, kal);
         const min = slut ? tidSomMin(slut)[0] : null;   // minutter efter midnat
         if (min != null && min <= 12 * 60) skole = false;
       }
@@ -3311,7 +3324,8 @@ async function tegnOverblik() {
   const skole = document.getElementById('ov-skole');
   skole.replaceChildren();
   for (const barn of BOERN) {
-    const timer = (await dagensTimer(barn, dag)).filter(t => t.fag);
+    const sd = await skoleDag(barn, skoleIso, aftaler);   // skoledag.js
+    const timer = sd.timer;
     const linje = el('div', 'barn-linje');
     linje.append(el('span', 'barn-navn', barn));
     const helligSkole = helligdagDen(skoleIso);
@@ -3326,9 +3340,10 @@ async function tegnOverblik() {
     } else if (!timer.length) {
       linje.append(el('span', 'barn-fri', 'Intet skema'));
     } else {
-      const { start, slut } = skoleTider(await dagensTimer(barn, dag));
+      const { start, slut, saerlig } = sd;
+      const titel = saerlig && skoledagMaerke(saerlig) ? '🏫 ' + skoledagTitel(saerlig) + ' · ' : '';
       linje.append(el('span', 'barn-fri', slut ? 'Fri ' + visTid(slut) : ''));
-      linje.append(el('span', 'barn-fag', (start ? 'Møder ' + visTid(start) + ' · ' : '') + [...new Set(timer.map(t => t.fag))].join(', ')));
+      linje.append(el('span', 'barn-fag', titel + (start ? 'Møder ' + visTid(start) + ' · ' : '') + [...new Set(timer.map(t => t.fag))].join(', ')));
     }
     skole.append(linje);
   }
@@ -3482,9 +3497,13 @@ function redigerFravaer(barn, iso, x) {
   const knapper = el('div', 'ark-knapper');
   if (x) knapper.append(knap('Fjern', 'knap fare', async () => { await Data.remove(kalListe(x), x.id); lukArk(); tegnAlt(); }));
   knapper.append(gem);
+  // Særlig skoledag (program, ændrede tider, noter til fag) har sit eget ark – skoledag.js
+  const saerlig = skoledagDen(Data.listNu ? Data.listNu('kalender') : [], iso, barn);
+  const saerKnap = x ? '' : knap(saerlig ? '🏫 Ret ' + skoledagTitel(saerlig) : '🏫 Særlig skoledag – program, ændrede tider eller note til et fag', 'lille-knap sd-vej',
+    () => { lukArk(); redigerSkoledag(barn, iso, saerlig); });
   aabnArk(barn + ' · ' + DAGE_LANG[(d.getDay() + 6) % 7].toLowerCase() + ' ' + d.getDate() + '/' + (d.getMonth() + 1),
     felt('Hvad', valg), tidFelt, tilFelt, felt('Note (valgfri)', note),
-    el('p', 'hint', 'Står i kalenderen, og skemaet på tavlen viser det. En sygedag bryder ikke streak.'), knapper);
+    el('p', 'hint', 'Står i kalenderen, og skemaet på tavlen viser det. En sygedag bryder ikke streak.'), saerKnap, knapper);
 }
 
 // "Tilpas": hvad hver person vil se (helligdage, mærkedage, sol, vejr). Børn retter kun deres egne.
