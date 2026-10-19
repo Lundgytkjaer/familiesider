@@ -113,8 +113,8 @@ function ugeSpan(man) {
 const kortDag = iso => { const d = new Date(iso + 'T00:00'); return d.getDate() + '. ' + MDR[d.getMonth()]; };
 
 // ---------- Faner ----------
-const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe', 'budget', 'dagbog'];
-const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe', 'budget', 'dagbog'];   // sider man når via "Mere"
+const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe', 'budget', 'dagbog', 'opskrifter'];
+const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe', 'budget', 'dagbog', 'opskrifter'];   // sider man når via "Mere"
 // Voksne: "Pligter" (pligter, belønninger, ønsker) er en fane i bundmenuen – og To do er tilbage i bundmenuen (2026-10-19s). Børn: som før.
 const underMere = navn => (Data.bruger()?.rolle === 'voksen'
   ? (UNDER_MERE.includes(navn) && navn !== 'pligter') : UNDER_MERE.includes(navn));
@@ -173,6 +173,7 @@ function visFane(navn, fraTilbage = false) {
   if (navn === 'mappe' && typeof tegnMappe === 'function') tegnMappe();   // mappe.js
   if (navn === 'budget' && typeof tegnBudget === 'function') tegnBudget();   // budget.js
   if (navn === 'dagbog' && typeof tegnDagbog === 'function') tegnDagbog();   // dagbog.js
+  if (navn === 'opskrifter' && typeof tegnOpskrifter === 'function') tegnOpskrifter();   // opskrifter.js
   if (navn === 'aktivitet' && fra !== 'aktivitet' && typeof aktHent === 'function') aktHent(true);   // fra aktivitet.js – hentes frisk hver gang   // fra familie.js (træet skal måles, når siden er synlig)
 }
 function opdaterTilbage() {
@@ -4018,6 +4019,7 @@ function tegnAlt() {
   tegnVejr();   // fra vejr.js (tegner kun, når siden er åben)
   if (typeof tegnBudget === 'function') tegnBudget();   // budget.js (tegner kun, når siden er åben)
   if (typeof tegnDagbog === 'function') tegnDagbog();   // dagbog.js (tegner kun, når siden er åben)
+  if (typeof tegnOpskrifter === 'function') tegnOpskrifter();   // opskrifter.js (tegner kun, når siden er åben)
   anvendFaner();
   opdaterVenter();
   if (typeof pauseUdfyld === 'function') pauseUdfyld();   // ⏸ pause.js: pligter "tæller som klaret"

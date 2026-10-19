@@ -483,6 +483,7 @@ function redigerRet(f) {
   nd.append(el('summary', null, 'Eget navn for en kombination (fx Spaghetti bolognese)'), navneBoks,
     el('label', 'felt-label lille-label', 'Nyt navn'), nyNavnForm, nyValg, nyVis);
   dele.push(nd);
+  if (f.id && typeof opsLinjeForRet === 'function') dele.push(opsLinjeForRet(f));   // 📖 opskrifter.js
   dele.push(el('p', 'hint', 'Fyld, tilbehør, sovs og ekstra vælges under dagen med "✎ Tilpas". Terningen vælger selv ét fyld og et tilbehør. Hold fingeren på et punkt for at omdøbe eller slette det.'), flag1, knapper);
   aabnArk(f.tekst, ...dele);
 }

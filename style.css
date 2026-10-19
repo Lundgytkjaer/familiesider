@@ -2134,3 +2134,30 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 .frist-label { font-size: 13px; font-weight: 700; color: var(--daempet); margin-right: 4px; }
 .skjult-dato { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 #ny-frist button { min-height: 38px; padding: 4px 12px; font-size: 15px; }
+
+/* 📖 Opskrifter (opskrifter.js) */
+.ops-liste { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
+.ops-raekke { width: 100%; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--linje); border-radius: 16px; background: var(--flade); text-align: left; color: inherit; font: inherit; }
+.ops-mini { width: 56px; height: 56px; flex: none; border-radius: 12px; object-fit: cover; background: var(--accent-blod); }
+.ops-ikon { display: grid; place-items: center; font-size: 26px; }
+.ops-tekst { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ops-tekst strong { font-size: 17px; }
+.ops-under { font-size: 13px; color: var(--daempet); }
+.ops-flyt { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; margin-bottom: 10px; }
+.ops-flyt p { margin: 0; }
+#opskrifter .seg { margin-top: 10px; }
+.ops-stort { width: 100%; max-height: 260px; object-fit: cover; border-radius: 16px; }
+.ops-ret { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; justify-content: space-between; padding: 10px 12px; border-radius: 14px; background: var(--accent-blod); margin: 8px 0; }
+.ops-h { margin: 16px 0 6px; font-size: 16px; }
+.ops-ingr { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
+.ops-ingr li:not(:has(button)) { padding: 6px 0; border-bottom: 1px solid var(--linje); }
+.ops-ingr-valg { width: 100%; text-align: left; padding: 8px 10px 8px 38px; border: 1px solid var(--linje); border-radius: 12px; background: var(--flade); color: inherit; font: inherit; position: relative; }
+.ops-ingr-valg::before { content: ''; position: absolute; left: 10px; top: 50%; width: 18px; height: 18px; margin-top: -9px; border: 2px solid var(--daempet); border-radius: 6px; }
+.ops-ingr-valg[aria-checked="true"]::before { background: var(--accent); border-color: var(--accent); }
+.ops-ingr-valg[aria-checked="true"]::after { content: '✓'; position: absolute; left: 14px; top: 50%; transform: translateY(-52%); color: var(--paa-accent); font-size: 13px; font-weight: 800; }
+.ops-ingr-valg[aria-checked="false"] { color: var(--daempet); text-decoration: line-through; }
+.ops-trin { margin: 0; padding-left: 22px; display: grid; gap: 8px; line-height: 1.45; }
+.ops-billede-valg { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ops-ret-linje { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; }
+#ops-ret { width: 100%; }
+#ops-ret { min-height: 48px; padding: 8px 12px; border: 1px solid var(--linje); border-radius: 14px; background: var(--flade); color: inherit; font: inherit; }

@@ -24,7 +24,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-19s">
+  <link rel="stylesheet" href="style.css?v=2026-10-19t">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -244,6 +244,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="7" width="16" height="13" rx="2"/><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2M4 12h16"/></svg>
           <span class="mere-navn">Pakkelister</span><span class="under">Til sommerhus, ferie og weekender</span>
         </button>
+        <button type="button" class="kort mere-kort" data-gaa="opskrifter">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 5A1.5 1.5 0 0 1 6 3.5h12.5V18H6a1.5 1.5 0 0 0-1.5 1.5zM4.5 19.5A1.5 1.5 0 0 0 6 21h12.5v-3"/><path d="M9 8h6M9 11.5h4"/></svg>
+          <span class="mere-navn">Opskrifter</span><span class="under">Familiens opskrifter – koblet til retterne på madplanen</span>
+        </button>
         <button type="button" class="kort mere-kort" data-gaa="mappe">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2.5h7a2 2 0 0 1 2 2v7.5a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/></svg>
           <span class="mere-navn">Familiemappen</span><span class="under">Noter, links, nummerplade, kode-hints …</span>
@@ -315,6 +319,13 @@
       <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
       <div class="sek-hoved"><h2>Familiemappen</h2><button type="button" class="lille-knap ny-knap kun-voksen" id="ny-note">+ Ny note</button></div>
       <div id="mappe-indhold"></div>
+    </section>
+
+    <!-- OPSKRIFTER (opskrifter.js) -->
+    <section id="opskrifter" class="fane" hidden>
+      <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
+      <div class="sek-hoved"><h2>Opskrifter</h2><button type="button" class="lille-knap ny-knap kun-voksen" id="ny-opskrift">+ Ny opskrift</button></div>
+      <div id="opskrifter-indhold"></div>
     </section>
 
     <!-- DAGBOG (dagbog.js) – kun voksne -->
@@ -507,25 +518,26 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
-<script src="data.js?v=2026-10-19s"></script>
-<script src="dage.js?v=2026-10-19s"></script>
-<script src="vejr.js?v=2026-10-19s"></script>
-<script src="app.js?v=2026-10-19s"></script>
-<script src="mere.js?v=2026-10-19s"></script>
-<script src="sjov.js?v=2026-10-19s"></script>
-<script src="seddel.js?v=2026-10-19s"></script>
-<script src="familie.js?v=2026-10-19s"></script>
-<script src="handel.js?v=2026-10-19s"></script>
-<script src="retter.js?v=2026-10-19s"></script>
-<script src="aktivitet.js?v=2026-10-19s"></script>
-<script src="kort.js?v=2026-10-19s"></script>
-<script src="pause.js?v=2026-10-19s"></script>
-<script src="skoledag.js?v=2026-10-19s"></script>
-<script src="mappe.js?v=2026-10-19s"></script>
-<script src="bank.js?v=2026-10-19s"></script>
-<script src="budget.js?v=2026-10-19s"></script>
-<script src="dagbog.js?v=2026-10-19s"></script>
-<script src="push.js?v=2026-10-19s"></script>
-<script src="ai.js?v=2026-10-19s"></script>
+<script src="data.js?v=2026-10-19t"></script>
+<script src="dage.js?v=2026-10-19t"></script>
+<script src="vejr.js?v=2026-10-19t"></script>
+<script src="app.js?v=2026-10-19t"></script>
+<script src="mere.js?v=2026-10-19t"></script>
+<script src="sjov.js?v=2026-10-19t"></script>
+<script src="seddel.js?v=2026-10-19t"></script>
+<script src="familie.js?v=2026-10-19t"></script>
+<script src="handel.js?v=2026-10-19t"></script>
+<script src="retter.js?v=2026-10-19t"></script>
+<script src="aktivitet.js?v=2026-10-19t"></script>
+<script src="kort.js?v=2026-10-19t"></script>
+<script src="pause.js?v=2026-10-19t"></script>
+<script src="skoledag.js?v=2026-10-19t"></script>
+<script src="mappe.js?v=2026-10-19t"></script>
+<script src="bank.js?v=2026-10-19t"></script>
+<script src="budget.js?v=2026-10-19t"></script>
+<script src="dagbog.js?v=2026-10-19t"></script>
+<script src="opskrifter.js?v=2026-10-19t"></script>
+<script src="push.js?v=2026-10-19t"></script>
+<script src="ai.js?v=2026-10-19t"></script>
 </body>
 </html>
