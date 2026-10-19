@@ -1423,10 +1423,9 @@ function udeArk(i, dato, nu) {
 // ♻️ Rester: samme ret som en af de seneste dage – står kun på dagen ("♻️ Rester: Lasagne"), kommer aldrig på listen over retter,
 // i terningen eller i "Ekstra til ugen". Skriver man "rester"/"rester fra i går" i dagens felt, åbner arket (i går er forvalgt).
 const ER_RESTER = /^(♻️\s*)?rest(er|erne)?\b/i;
-async function resterArk(i, dato, nu, iGaar = false) {
-  const nuRet = (nu || '').replace(/^♻️\s*Rester:?\s*/i, '');
+// De seneste 6 dages aftensmad før en dato (madplanens ret eller den faste; ikke 🎉/rester) – til "Rester af hvad?"
+async function resterForslag(dato) {
   const faste = await fastAftensmad();
-  // De seneste 6 dage før dagen: madplanens ret (ikke 🎉/rester) eller den faste ret
   const dage = [];
   for (let n = 1; n <= 6; n++) {
     const d = new Date(dato); d.setDate(d.getDate() - n);
@@ -1435,6 +1434,12 @@ async function resterArk(i, dato, nu, iGaar = false) {
     const ret = r?.ude ? '' : r?.ret || faste[dag] || '';
     if (ret && !dage.some(x => lavt(x.ret) === lavt(ret))) dage.push({ ret, navn: n === 1 ? 'i går' : DAGE_LANG[dag].toLowerCase() });
   }
+  return dage;
+}
+// Arket "♻️ Rester af hvad?" – gem(tekst) får "♻️ Rester: Lasagne" (eller "♻️ Rester"). ikkeRester = knappen "Ikke rester" (valgfri)
+async function vaelgRester(titel, dato, { nu = '', iGaar = false, gem, ikkeRester = null }) {
+  const nuRet = (nu || '').replace(/^♻️\s*Rester:?\s*/i, '');
+  const dage = await resterForslag(dato);
   let valgt = nuRet || (iGaar && dage[0]?.navn === 'i går' ? dage[0].ret : '');
   const egen = input('text', 'rester-ret', '', 'Eller skriv selv, fx Lasagne');
   egen.maxLength = 60;
@@ -1449,15 +1454,21 @@ async function resterArk(i, dato, nu, iGaar = false) {
   if (valgt && !dage.some(x => x.ret === valgt)) egen.value = valgt;
   egen.addEventListener('input', () => { valgt = ''; tegnSeg(); });
   const knapper = el('div', 'ark-knapper');
-  if (nu) knapper.append(knap('Ikke rester', 'knap sekundaer', async () => { await gemDag(i, ''); lukArk(); tegnMadplan(); }));
+  if (ikkeRester) knapper.append(knap('Ikke rester', 'knap sekundaer', ikkeRester));
   knapper.append(knap('Gem', 'knap', async () => {
     const ret = (egen.value.trim() || valgt).replace(/ · /g, ', ');
-    await gemDag(i, '♻️ Rester' + (ret ? ': ' + ret : ''), true, undefined, true);
-    lukArk(); tegnMadplan();
+    await gem('♻️ Rester' + (ret ? ': ' + ret : ''));
   }));
-  aabnArk('♻️ Rester · ' + DAGE_LANG[i].toLowerCase() + ' ' + dato.getDate() + '/' + (dato.getMonth() + 1),
-    ...(dage.length ? [el('p', 'seg-label', 'Rester af hvad?'), seg] : []), felt(dage.length ? 'Noget andet' : 'Rester af hvad?', egen),
+  aabnArk(titel, ...(dage.length ? [el('p', 'seg-label', 'Rester af hvad?'), seg] : []), felt(dage.length ? 'Noget andet' : 'Rester af hvad?', egen),
     el('p', 'hint', 'Står kun på dagen – kommer ikke på listen over retter, i terningen eller på indkøbslisten.'), knapper);
+}
+// ♻️ Rester på familiens madplan (aftensmad)
+function resterArk(i, dato, nu, iGaar = false) {
+  return vaelgRester('♻️ Rester · ' + DAGE_LANG[i].toLowerCase() + ' ' + dato.getDate() + '/' + (dato.getMonth() + 1), dato, {
+    nu, iGaar,
+    gem: async t => { await gemDag(i, t, true, undefined, true); lukArk(); tegnMadplan(); },
+    ikkeRester: nu ? async () => { await gemDag(i, ''); lukArk(); tegnMadplan(); } : null
+  });
 }
 
 // Drengenes faste morgenmad og frokost (redigeres af voksne under madplanen)
@@ -2903,6 +2914,14 @@ async function redigerMaaltid(barn, dato, felt) {
   ogsaaLabel.append(ogsaaTjek, 'Samme til ' + andre.join(' og '));
   const hvem = () => [barn, ...(ogsaaTjek.checked ? andre : [])];
   const vaelg = async v => {
+    // "rester" / "rester fra i går" → vælg hvilken ret (bliver ikke en ret på listerne)
+    if (ER_RESTER.test(v) && !/^♻️\s*Rester/.test(v)) {
+      const fastNu = kanGoereFast && fastTjek.checked, ogsaa = ogsaaTjek.checked;
+      return vaelgRester('♻️ Rester · ' + NAVN[felt].toLowerCase() + ' til ' + hvem().join(' og '), dato, {
+        iGaar: /i\s*går/i.test(v) || felt !== 'ret',
+        gem: async t => { ogsaaTjek.checked = ogsaa; fastTjek.checked = fastNu; await vaelg(t); }
+      });
+    }
     for (const b of hvem()) {
       await erstatOensker(b, isoDato(dato), felt);   // en voksens valg gælder frem for barnets ønske
       if (kanGoereFast && fastTjek.checked) {
@@ -2924,7 +2943,7 @@ async function redigerMaaltid(barn, dato, felt) {
     e.preventDefault();
     const v = inp.value.trim();
     if (!v) return;
-    await gemFavorit(felt, v);
+    if (!ER_RESTER.test(v)) await gemFavorit(felt, v);   // rester bliver aldrig en ret på listerne
     vaelg(v);
   });
 
