@@ -27,6 +27,7 @@ function tegnOpskrifter() {
   if (!boks || sek.hidden) return;
   if (sek.contains(document.activeElement) && document.activeElement.matches('input, textarea')) return;
   const alle = opsAlle(), dele = [];
+  if (!erBarn() && typeof aabnAI === 'function') dele.push(knap('✨ Fra et billede eller et link', 'lille-knap ai-side-knap', () => aabnAI({ opgave: 'opskrift' })));
   // Opskrifter, der stadig ligger i Familiemappen (voksne): flyt dem hertil med ét tryk
   const gamle = erBarn() ? [] : opsGamleNoter();
   if (gamle.length) {

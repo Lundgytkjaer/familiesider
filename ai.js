@@ -10,11 +10,13 @@
 //     og svare på spørgsmål om kalenderen. Dataene går ikke i prompten – AI'en ser kun svarene på sine opslag.
 //     Trin 2 (2026-10-19r): også skoledage (aiOpslagSkole), madplan (aiOpslagMad), to do og indkøb (aiOpslagLister) –
 //     så ✨ kan svare på "hvornår har Villads fri torsdag?" og "hvad skal vi spise i morgen?".
+//     Trin 3 (2026-10-19u): opgaverne 'invitation' (→ aftale + to do "køb gave"/"svar" + Det sker) og 'opskrift'
+//     (foto/link/tekst → opskrift_ny koblet til en ret, evt. ret_ny og indkøb; Edge Function'en henter selv linket).
 // Edge Function'en "ai" svarer med FORSLAG ({svar, handlinger}). Appen tjekker hvert forslag (aiTjek), viser kort med flueben, og først
 // "Udfør" gemmer – med appens egne funktioner (aiUdfoer), så børnelås/regler gælder. Sletning/aflysning kun som fravalgt forslag,
 // der skal vælges aktivt. Der sendes aldrig kontakter, "Kun mig"-aftaler, sedler, fødselsdage, budget, dagbog eller adresse.
 
-const AI_IKON = { kalender_ny: '📅', kalender_ret: '✏️', indkob_ny: '🛒', todo_ny: '☑️', ret_ny: '🍽️', ret_ret: '✏️', ret_saml: '🔗', madplan: '🗓️',
+const AI_IKON = { kalender_ny: '📅', kalender_ret: '✏️', opskrift_ny: '📖', indkob_ny: '🛒', todo_ny: '☑️', ret_ny: '🍽️', ret_ret: '✏️', ret_saml: '🔗', madplan: '🗓️',
   skoledag_ny: '🏫', fri_ny: '😎', info_ny: '📌', madplan_barn: '🍕' };
 const AI_OPGAVER = {
   fri: { titel: '✨ Hjælper' },
@@ -22,6 +24,8 @@ const AI_OPGAVER = {
   seddel: { titel: '📷 Indkøbsseddel', tekst: 'Læg varerne fra sedlen på indkøbslisten.', foto: 'kun' },
   ugeseddel: { titel: '📷 Ugeseddel', tekst: 'Lav aftaler ud fra billedet.', foto: 'kun' },
   ryd_retter: { titel: '✨ Ryd op i retterne', tekst: 'Ryd op i retterne.' },
+  invitation: { titel: '🎉 Invitation', foto: 'ogsaa' },
+  opskrift: { titel: '📖 Ny opskrift', foto: 'ogsaa' },
   skole: { titel: '✨ Ændring i skolen', foto: 'ogsaa' }   // ingen fast tekst: beskeden skal indsættes (eller et foto)
 };
 let aiSkoleBoern = [...BOERN];   // de børn, der er valgt i "Ændring i skolen" (bruges, hvis AI'en ikke nævner nogen)
@@ -144,6 +148,12 @@ async function aiKontekst(opgave = 'fri', uge = null, ekstra = {}) {
   if (opgave === 'fri') {
     Object.assign(k, { butikker: butikker(), varer: aiKendteVarer().slice(0, 150), retter: aiRetter().map(f => ({ tekst: f.tekst, maaltid: f.type })),
       opslag: await aiOpslagAlle() });   // kun til opslag – kommer ikke i prompten
+  } else if (opgave === 'invitation') {
+    const hvor = aiHvorErJeg();
+    Object.assign(k, { ...(hvor.barn ? { valgtBarn: hvor.barn } : {}), opslag: { aftaler: aiOpslagAftaler() } });
+  } else if (opgave === 'opskrift') {
+    Object.assign(k, { varer: aiKendteVarer().slice(0, 150), butikker: butikker(),
+      retter: aiRetter().map(f => ({ tekst: f.tekst, maaltid: f.type, gruppe: f.gruppe || '' })), opskrifter: Data.listNu('opskrifter').map(o => o.titel) });
   } else if (opgave === 'seddel') {
     Object.assign(k, { butikker: butikker(), varer: aiKendteVarer().slice(0, 300) });
   } else if (opgave === 'madplan') {
@@ -267,6 +277,19 @@ function aiTjek(r) {
       if (f.hvem) dele.push('gælder ' + f.hvem.join(', '));
       if (f.note) dele.push('note: ' + f.note);
       return { h: { ...h, felter: f }, ikon: '✏️', tekst: navn + ': ' + dele.join(' · ') + hvorTit };
+    }
+    case 'opskrift_ny': {
+      const titel = aiT(r.titel || r.tekst, 60);
+      if (!titel) return fejl('Opskrift uden navn');
+      if (Data.listNu('opskrifter').some(o => lavt(o.titel) === lavt(titel))) return fejl(titel + ' findes allerede under Opskrifter');
+      const linjer = (v, n, m) => (Array.isArray(v) ? v : []).map(x => String(x ?? '').replace(/\s+/g, ' ').trim().slice(0, m)).filter(Boolean).slice(0, n);
+      const ingredienser = linjer(r.ingredienser, 80, 120), fremgang = linjer(r.fremgang, 60, 600);
+      if (!ingredienser.length && !fremgang.length) return fejl(titel + ': fandt hverken ingredienser eller fremgangsmåde');
+      const retNavn = aiT(r.ret, 60), ret = retNavn ? aiRetter().find(f => lavt(f.tekst) === lavt(retNavn)) : null;
+      const kilde = /^https?:\/\/\S+$/i.test(aiT(r.kilde, 300)) ? aiT(r.kilde, 300) : '';
+      const portioner = Math.min(50, Math.round(Number(r.portioner) || 0)) || null, tid = Math.min(1440, Math.round(Number(r.minutter) || 0)) || null;
+      const h = { type: r.type, titel: titel[0].toUpperCase() + titel.slice(1), retId: ret?.id || null, retNavn: ret ? ret.tekst : retNavn, portioner, tid, ingredienser, fremgang, kilde, note: aiT(r.note, 300) };
+      return { h, tekst: h.titel + (h.retNavn ? ' · 🍽️ ' + h.retNavn : '') + (ingredienser.length ? ' · ' + ingredienser.length + ' ingredienser' : '') + (fremgang.length ? ' · ' + fremgang.length + ' trin' : '') + (tid ? ' · ' + tid + ' min' : '') + (portioner ? ' · ' + portioner + ' pers.' : '') };
     }
     case 'indkob_ny': {
       const set = new Map();   // samme vare to gange → den første (med evt. mængde) gælder
@@ -455,6 +478,13 @@ async function aiUdfoer(h) {
       }
       return;
     }
+    case 'opskrift_ny': {
+      // Retten kan være lavet i samme omgang (ret_ny udføres før) – så findes den nu på navnet
+      const ret = h.retId || (h.retNavn ? aiRetter().find(f => lavt(f.tekst) === lavt(h.retNavn))?.id : null) || null;
+      await Data.add('opskrifter', { titel: h.titel, ret, portioner: h.portioner, tid: h.tid, ingredienser: h.ingredienser, fremgang: h.fremgang,
+        note: h.note, kilde: h.kilde, billede: null, rettet: new Date().toISOString() });
+      return;
+    }
     case 'indkob_ny':
       for (const v of h.varer) {
         const note = [v.pris ? 'Tilbud ' + v.pris : '', v.note].filter(Boolean).join(' · ');
@@ -542,7 +572,9 @@ const AI_EMNER = [
   { id: 'indkob', ikon: '🛒', navn: 'Indkøb', eks: 'Fx "mælk, 2 rugbrød og æg" – eller tag et billede af sedlen' },
   { id: 'madplan', ikon: '🍽️', navn: 'Madplan', eks: 'Fx "pizza på fredag" – eller tryk ➤ for forslag til ugens aftensmad' },
   { id: 'kalender', ikon: '📅', navn: 'Kalender', eks: 'Fx "Oliver tandlæge torsdag kl. 14", "flyt tandlægen til fredag" eller "hvornår har Villads fri torsdag?"' },
-  { id: 'todo', ikon: '☑️', navn: 'To do', eks: 'Fx "Ring til VVS i morgen"' }
+  { id: 'todo', ikon: '☑️', navn: 'To do', eks: 'Fx "Ring til VVS i morgen"' },
+  { id: 'invitation', ikon: '🎉', navn: 'Invitation', eks: 'Tag et billede af invitationen – eller indsæt teksten' },
+  { id: 'opskrift', ikon: '📖', navn: 'Opskrift', eks: 'Indsæt et link til en opskrift – eller tag et billede af den' }
 ];
 // Hvor står brugeren? Siden og det barn, der vises (børnetavlen eller skemaet)
 function aiHvorErJeg() {
@@ -556,6 +588,7 @@ function aiEmneOpgave(emne, skrevet, billede) {
   if (emne === 'indkob') return billede ? 'seddel' : 'fri';
   if (emne === 'kalender') return billede ? 'ugeseddel' : 'fri';
   if (emne === 'todo') return 'fri';
+  if (emne === 'invitation' || emne === 'opskrift') return emne;
   if (emne === 'madplan' && !skrevet && !billede) return 'madplan';
   return null;
 }
@@ -638,10 +671,12 @@ function aabnAI(opts = {}) {
       : !opgave ? (samtale.length ? 'Svar her …' : eks || 'Hej ' + (Data.bruger()?.navn || '') + ' – hvad kan jeg hjælpe med? Skriv, indsæt en besked, tag et billede eller vælg en fil')
       : erSkole() ? (samtale.length ? 'Ret til, fx "det gælder kun Oliver" eller "ingen pizza"'
       : 'Indsæt beskeden fra skolen (Aula, sms, mail) – eller skriv selv, fx "Villads til tandlæge torsdag 10-11"')
+      : opgave === 'invitation' ? (samtale.length ? 'Ret til, fx "det er kun Villads" eller "vi kan ikke komme"' : 'Tag et billede af invitationen – eller indsæt teksten')
+      : opgave === 'opskrift' ? (samtale.length ? 'Ret til, fx "kald den Mormors lasagne"' : 'Indsæt et link til opskriften – eller tag et billede af den')
       : def.foto === 'kun' ? (samtale.length ? 'Ret til, fx "Diverse er Netto"' : 'Tag et billede eller vælg en fil – skriv evt. en kommentar')
       : samtale.length ? (opgave === 'fri' ? 'Skriv videre …' : 'Ret til, fx "ikke fisk" eller "kun hverdage"')
       : opgave === 'fri' ? 'Hej ' + (Data.bruger()?.navn || '') + ' – hvad kan jeg hjælpe med?' : 'Evt. ønsker, fx "noget nemt" – eller tryk ➤';
-    const lang = !opgave || erSkole();
+    const lang = !opgave || erSkole() || opgave === 'invitation' || opgave === 'opskrift';
     felt.rows = lang ? 4 : 2; felt.maxLength = lang ? 6000 : 1500;
   }
   function tegnFoto() {
@@ -763,7 +798,7 @@ function aabnAI(opts = {}) {
     let n0 = 0;   // gemt via "Ret"
     const udfoer = knap('', 'knap', async () => {
       let n = n0;
-      for (const f of gode) {
+      for (const f of [...gode].sort((a, b) => (a.h.type === 'opskrift_ny') - (b.h.type === 'opskrift_ny'))) {   // ny ret før opskriften, der kobles til den
         if (!valgt.has(f) || f.udfoert) continue;
         try { await aiUdfoer(f.h); f.udfoert = true; n++; } catch (e) { console.error(e); visStatus('Kunne ikke gemme: ' + f.tekst, true); }
       }
@@ -796,6 +831,7 @@ function aabnAI(opts = {}) {
     let ny = AI_OPGAVER[o.opgave] ? o.opgave : '';
     if ((ny === 'seddel' || ny === 'ugeseddel') && !billede) ny = 'fri';   // de to læser kun billeder
     if (!ny) return { spoergsmaal: o.spoergsmaal || 'Hvad vil du gerne have hjælp til?' };
+    if (ny === 'invitation' && !billede && !skrevet) ny = 'fri';
     if (ny === 'skole') saetBoern(o.boern?.length ? o.boern : hvor.barn ? [hvor.barn] : null);
     if (ny === 'madplan') uge = madUge(o.uge === 'naeste');
     return ny;
@@ -855,7 +891,7 @@ function aabnAI(opts = {}) {
     let res;
     try {
       const bil = bilag(billede);
-      res = await Data.ai(tekst || (erSkole() ? 'Se billedet.' : ''), await aiKontekst(opgave, uge, { boern: aiSkoleBoern }), hist, bil, opgave);
+      res = await Data.ai(tekst || (billede ? 'Se billedet.' : ''), await aiKontekst(opgave, uge, { boern: aiSkoleBoern }), hist, bil, opgave);
     } catch (e) {
       samtale.pop(); felt.value = skrevet; vedhaeftet = sendtBillede || billede; tegnFoto();
       tegn();
