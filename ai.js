@@ -381,35 +381,70 @@ async function aiUdfoer(h) {
 }
 
 // ---------- Arket ----------
-// opts: {opgave, uge (madplan), billede (data-URL), auto (send med det samme)}. Samtalen gælder kun, mens arket er åbent,
-// og højst de seneste 6 beskeder sendes med – så en ny opgave altid starter rent.
+// ✨ øverst er en OMSTILLING: man skriver, indsætter eller fotograferer hvad som helst. Et lille kald (opgave 'omstil') afgør,
+// hvilken opgave det hører til (med hint om siden man står på, det viste barn og evt. valgt emne); er den i tvivl, spørger den.
+// Derefter kaldes den rigtige opgave med sin egen instruks og kun sine data – samme forslagskort og "Udfør" som altid.
+// Knapperne på siderne ("✨ Foreslå aftensmad", "✨ Ryd op med AI", skolens "✨ Læs en besked") åbner arket direkte på opgaven.
+const AI_EMNER = [
+  { id: 'skole', ikon: '🏫', navn: 'Skole', eks: 'Indsæt en besked fra Aula, sms eller mail – eller tag et billede af sedlen' },
+  { id: 'indkob', ikon: '🛒', navn: 'Indkøb', eks: 'Fx "mælk, 2 rugbrød og æg" – eller tag et billede af sedlen' },
+  { id: 'madplan', ikon: '🍽️', navn: 'Madplan', eks: 'Fx "pizza på fredag" – eller tryk ➤ for forslag til ugens aftensmad' },
+  { id: 'kalender', ikon: '📅', navn: 'Kalender', eks: 'Fx "Oliver tandlæge torsdag kl. 14" – eller et billede af en invitation' },
+  { id: 'todo', ikon: '☑️', navn: 'To do', eks: 'Fx "Ring til VVS i morgen"' }
+];
+// Hvor står brugeren? Siden og det barn, der vises (børnetavlen eller skemaet)
+function aiHvorErJeg() {
+  const side = typeof aktivFane !== 'undefined' && aktivFane ? aktivFane : 'idag';
+  const barn = side === 'idag' && BOERN.includes(tavleVisning) ? tavleVisning : side === 'skema' && BOERN.includes(skemaBarn) ? skemaBarn : '';
+  return { side, barn };
+}
+// Emne → opgave, når det kan afgøres uden AI (ellers null = spørg omstillingen)
+function aiEmneOpgave(emne, skrevet, billede) {
+  if (emne === 'skole') return 'skole';
+  if (emne === 'indkob') return billede ? 'seddel' : 'fri';
+  if (emne === 'kalender') return billede ? 'ugeseddel' : 'fri';
+  if (emne === 'todo') return 'fri';
+  if (emne === 'madplan' && !skrevet && !billede) return 'madplan';
+  return null;
+}
+
+// opts: {opgave, uge (madplan), boern (skole), auto (send med det samme)}. Uden opgave = omstilling.
+// Samtalen gælder kun, mens arket er åbent, og højst de seneste 6 beskeder sendes med – så en ny opgave altid starter rent.
 function aabnAI(opts = {}) {
-  const opgave = AI_OPGAVER[opts.opgave] ? opts.opgave : 'fri';
-  const def = AI_OPGAVER[opgave];
-  const skole = opgave === 'skole';
+  const fast = !!AI_OPGAVER[opts.opgave];   // åbnet fra en knap på en side
+  let opgave = fast ? opts.opgave : null;   // null = ikke afgjort endnu (omstilling)
+  let def = opgave ? AI_OPGAVER[opgave] : { titel: '✨ Hjælper', foto: 'ogsaa' };
+  let uge = opts.uge || null;
+  let emne = null;   // valgt emne-chip (kun i omstillingen)
+  const hvor = aiHvorErJeg();
+  const erSkole = () => opgave === 'skole';
   // 🏫 Ændring i skolen: hvilke børn gælder beskeden?
-  const boernValgt = new Set((opts.boern || []).filter(b => BOERN.includes(b)).length ? opts.boern.filter(b => BOERN.includes(b)) : BOERN);
+  const boernValgt = new Set();
+  const saetBoern = liste => { boernValgt.clear(); const ok = (liste || []).filter(b => BOERN.includes(b)); (ok.length ? ok : BOERN).forEach(b => boernValgt.add(b)); };
+  saetBoern(opts.boern || (hvor.barn ? [hvor.barn] : null));
   const boernSeg = el('div', 'seg wrap ai-boern');
   const tegnBoern = () => boernSeg.replaceChildren(...BOERN.map(b => {
     const k = knap(b, null, () => { boernValgt.has(b) ? boernValgt.delete(b) : boernValgt.add(b); tegnBoern(); });
     k.setAttribute('role', 'checkbox'); k.setAttribute('aria-checked', boernValgt.has(b));
     return k;
   }));
-  if (skole) tegnBoern();
-  const samtale = [];   // [{rolle, tekst, foto?, forslag?}]
+  const gaelder = el('div', 'ai-gaelder');
+  gaelder.append(el('span', 'felt-label', 'Gælder'), boernSeg);
+  const emneBoks = el('div', 'ai-emner');
+  let samtale = [];   // [{rolle, tekst, foto?, forslag?}]
   const historik = () => samtale.slice(-6).map(b => ({
     rolle: b.rolle,
     tekst: b.rolle === 'user' ? (b.foto ? '[billede] ' : '') + b.tekst
       : [b.tekst, ...(b.forslag || []).map(f => '- ' + f.tekst + (f.udfoert ? ' (udført)' : f.fejl ? ' (afvist af appen)' : ' (ikke udført)'))].join('\n')
   }));
   const felt = el('textarea', 'ai-felt');
-  felt.rows = skole ? 5 : 2; felt.maxLength = skole ? 6000 : 1500;
   const log = el('div', 'ai-log');
   const knapper = el('div', 'ark-knapper');
   const send = knap('➤', 'knap ai-send', () => spoerg());
   send.setAttribute('aria-label', 'Send');
   const inputRaekke = el('div', 'ai-input');
-  // Billede (seddel, ugeseddel, skole): 📷 Tag billede (kameraet åbner direkte) eller 🖼️ Vælg billede.
+  const hint = el('p', 'hint');
+  // Billede: 📷 Tag billede (kameraet åbner direkte) eller 🖼️ Vælg billede.
   // Billedet vises her og sendes først ved ➤ – så man kan skrive en kommentar/ekstra instruks til det.
   let vedhaeftet = opts.billede || null;
   const fotoBoks = el('div', 'ai-foto-boks');
@@ -424,14 +459,19 @@ function aabnAI(opts = {}) {
     fil.click();
   };
   function pladsholder() {
-    felt.placeholder = vedhaeftet ? 'Evt. kommentar, fx ' + (opgave === 'seddel' ? '"kun Rema-varerne"' : skole ? '"kun Oliver"' : '"kun Villads"')
-      : skole ? (samtale.length ? 'Ret til, fx "det gælder kun Oliver" eller "ingen pizza"'
+    const eks = !opgave && emne ? AI_EMNER.find(x => x.id === emne)?.eks : '';
+    felt.placeholder = vedhaeftet ? 'Evt. kommentar, fx ' + (opgave === 'seddel' || emne === 'indkob' ? '"kun Rema-varerne"' : '"det gælder kun Oliver"')
+      : !opgave ? (samtale.length ? 'Svar her …' : eks || 'Hej ' + (Data.bruger()?.navn || '') + ' – hvad kan jeg hjælpe med? Skriv, indsæt en besked eller tag et billede')
+      : erSkole() ? (samtale.length ? 'Ret til, fx "det gælder kun Oliver" eller "ingen pizza"'
       : 'Indsæt beskeden fra skolen (Aula, sms, mail) – eller skriv selv, fx "Villads til tandlæge torsdag 10-11"')
       : def.foto === 'kun' ? (samtale.length ? 'Ret til, fx "Diverse er Netto"' : 'Tag eller vælg et billede – skriv evt. en kommentar')
       : samtale.length ? (opgave === 'fri' ? 'Skriv videre …' : 'Ret til, fx "ikke fisk" eller "kun hverdage"')
       : opgave === 'fri' ? 'Hej ' + (Data.bruger()?.navn || '') + ' – hvad kan jeg hjælpe med?' : 'Evt. ønsker, fx "noget nemt" – eller tryk ➤';
+    const lang = !opgave || erSkole();
+    felt.rows = lang ? 4 : 2; felt.maxLength = lang ? 6000 : 1500;
   }
   function tegnFoto() {
+    fotoBoks.hidden = !def.foto;
     if (!def.foto) return;
     if (vedhaeftet) {
       const img = el('img', 'ai-foto-vis'); img.src = vedhaeftet; img.alt = 'Billedet der sendes';
@@ -445,7 +485,30 @@ function aabnAI(opts = {}) {
     fotoBoks.classList.toggle('har-foto', !!vedhaeftet);
     pladsholder();
   }
-  tegnFoto();
+  // Emne-chips: viser hvad ✨ kan, og hjælper omstillingen (kun før første besked)
+  function tegnEmner() {
+    emneBoks.hidden = !!opgave || samtale.length > 0;
+    if (emneBoks.hidden) return;
+    emneBoks.replaceChildren(...AI_EMNER.map(x => {
+      const k = knap(x.ikon + ' ' + x.navn, 'ai-emne', () => { emne = emne === x.id ? null : x.id; tegnEmner(); pladsholder(); felt.focus(); });
+      k.setAttribute('aria-pressed', String(emne === x.id));
+      return k;
+    }));
+  }
+  // Opgaven er afgjort: arket skifter titel, billede-knapper og evt. "Gælder"
+  function saetOpgave(ny) {
+    opgave = ny; def = AI_OPGAVER[ny];
+    const t = document.getElementById('ark-titel'); if (t) t.textContent = def.titel;
+    gaelder.hidden = !erSkole();
+    if (erSkole()) tegnBoern();
+    tegnEmner(); tegnFoto();
+  }
+  // ↺ Forfra: tilbage til omstillingen (kun når arket blev åbnet med ✨)
+  function forfra() {
+    opgave = null; def = { titel: '✨ Hjælper', foto: 'ogsaa' }; emne = null; samtale = []; aktuelle = null; uge = opts.uge || null;
+    const t = document.getElementById('ark-titel'); if (t) t.textContent = def.titel;
+    gaelder.hidden = true; tegnEmner(); tegnFoto(); tegn(); felt.focus();
+  }
   inputRaekke.append(felt, send);
   felt.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); spoerg(); } });
   let aktuelle = null;   // forslagene i det seneste svar
@@ -470,7 +533,9 @@ function aabnAI(opts = {}) {
       log.append(boks);
     });
     pladsholder();
-    knapper.replaceChildren(knap('Luk', 'knap sekundaer', lukArk), ...(aktuelle?.udfoer ? [aktuelle.udfoer] : []));
+    hint.textContent = erSkole() ? 'AI\'en får kun de valgte børns skema (fag og tider). Intet gemmes, før du trykker "Udfør".'
+      : 'Intet gemmes, før du trykker "Udfør". Den sletter aldrig noget.';
+    knapper.replaceChildren(knap('Luk', 'knap sekundaer', lukArk), ...(!fast && opgave ? [knap('↺ Forfra', 'knap sekundaer', forfra)] : []), ...(aktuelle?.udfoer ? [aktuelle.udfoer] : []));
     setTimeout(() => log.lastElementChild?.scrollIntoView({ block: 'nearest' }), 30);
   }
 
@@ -539,14 +604,72 @@ function aabnAI(opts = {}) {
     return ul;
   }
 
-  async function spoerg(billede = null) {
-    const skrevet = felt.value.trim();
+  // Mandag i den uge, madplan-forslagene gælder: den viste uge på Madplan – ellers denne (eller næste) uge
+  function madUge(naeste) {
+    if (hvor.side === 'madplan' && typeof madUgeIso === 'function') return madUgeIso();
+    const m = mandagFor(new Date()); if (naeste) m.setDate(m.getDate() + 7);
+    return isoDato(m);
+  }
+
+  // Omstillingen: hvilken opgave? Svarer opgaven (og sætter den) – eller null, når den har spurgt
+  async function omstil(skrevet, billede) {
+    const valg = aiEmneOpgave(emne, skrevet, billede);
+    if (valg) { if (valg === 'madplan') uge = madUge(false); return valg; }
+    const kontekst = { dato: isoDato(new Date()), ugedag: DAGE_LANG[(new Date().getDay() + 6) % 7].toLowerCase(), personer: PERSONER,
+      side: FANE_NAVN[hvor.side] || hvor.side, ...(hvor.barn ? { valgtBarn: hvor.barn } : {}), ...(emne ? { emne: AI_EMNER.find(x => x.id === emne)?.navn } : {}), ...(billede ? { billede: true } : {}) };
+    const bil = billede ? { media_type: 'image/jpeg', data: billede.split(',')[1] } : null;
+    const res = await Data.ai(skrevet || 'Se billedet.', kontekst, historik(), bil, 'omstil');
+    const o = res?.omstil;
+    if (!o) throw new Error('✨ skal opdateres i Supabase (Edge Function "ai")');
+    let ny = AI_OPGAVER[o.opgave] ? o.opgave : '';
+    if ((ny === 'seddel' || ny === 'ugeseddel') && !billede) ny = 'fri';   // de to læser kun billeder
+    if (!ny) return { spoergsmaal: o.spoergsmaal || 'Hvad vil du gerne have hjælp til?' };
+    if (ny === 'skole') saetBoern(o.boern?.length ? o.boern : hvor.barn ? [hvor.barn] : null);
+    if (ny === 'madplan') uge = madUge(o.uge === 'naeste');
+    return ny;
+  }
+
+  async function spoerg() {
+    let skrevet = felt.value.trim();
+    let billede = vedhaeftet;
+    // ---- Omstilling (✨ øverst): find opgaven først ----
+    if (!opgave) {
+      if (!skrevet && !billede && aiEmneOpgave(emne, '', null) !== 'madplan') { felt.focus(); return; }
+      samtale.push({ rolle: 'user', tekst: (billede ? '[billede] ' : '') + skrevet, vis: skrevet, ...(billede ? { foto: billede } : {}), omstil: true });
+      felt.value = ''; vedhaeftet = null; tegnEmner(); tegnFoto(); tegn();
+      log.append(el('p', 'ai-taenker', '✨ Finder ud af, hvad du skal bruge …'));
+      knapper.replaceChildren(knap('Luk', 'knap sekundaer', lukArk));
+      // Alt skrevet i omstillingen (også svar på et spørgsmål) samles, og et billede følger med videre
+      const alleTekster = samtale.filter(b => b.rolle === 'user').map(b => b.vis).filter(Boolean).join('\n');
+      const foto = samtale.find(b => b.foto)?.foto || null;
+      let valg;
+      try { valg = await omstil(alleTekster, foto); }
+      catch (e) {
+        const sidst = samtale.pop(); felt.value = sidst.vis || ''; vedhaeftet = sidst.foto || null; tegnEmner(); tegnFoto(); tegn();
+        log.append(el('p', 'ai-fejl', 'Det gik ikke: ' + e.message));
+        return;
+      }
+      if (typeof valg !== 'string') {   // i tvivl → spørg
+        samtale.push({ rolle: 'assistant', tekst: valg.spoergsmaal, forslag: [] });
+        tegn(); return;
+      }
+      if (valg === 'madplan' && typeof aabneDage === 'function' && hvor.side === 'madplan' && !aabneDage().length) {
+        samtale.push({ rolle: 'assistant', tekst: 'Den uge på Madplan er gået – vælg denne eller næste uge og prøv igen.', forslag: [] }); tegn(); return;
+      }
+      samtale = [];   // omstillingen er klaret – opgaven starter rent med det, der er skrevet
+      saetOpgave(valg);
+      skrevet = alleTekster; billede = foto;
+      if (def.foto === 'kun' && !billede) { tegn(); visStatus('Tag eller vælg et billede'); return; }
+    }
+    await koer(skrevet, billede);
+  }
+
+  async function koer(skrevet, billede) {
     const foerste = !samtale.length;
-    billede = billede || vedhaeftet;
     if (def.foto === 'kun' && foerste && !billede) { visStatus('Tag eller vælg et billede først'); return; }
     if (!skrevet && !billede && !(foerste && def.tekst)) { felt.focus(); return; }
-    if (skole && !boernValgt.size) { visStatus('Vælg hvilke børn beskeden gælder'); return; }
-    if (skole) aiSkoleBoern = BOERN.filter(b => boernValgt.has(b));
+    if (erSkole() && !boernValgt.size) { visStatus('Vælg hvilke børn beskeden gælder'); return; }
+    if (erSkole()) aiSkoleBoern = BOERN.filter(b => boernValgt.has(b));
     // Første besked i en fast opgave: opgavens tekst (+ evt. ønsker); ellers det der er skrevet
     const tekst = foerste && def.tekst ? def.tekst + (skrevet ? (billede ? ' Min kommentar til billedet: ' : ' Ønsker: ') + skrevet : '') : skrevet;
     const hist = historik();
@@ -560,9 +683,9 @@ function aabnAI(opts = {}) {
     let res;
     try {
       const bil = billede ? { media_type: 'image/jpeg', data: billede.split(',')[1] } : null;
-      res = await Data.ai(tekst || (skole ? 'Se billedet.' : ''), await aiKontekst(opgave, opts.uge, { boern: aiSkoleBoern }), hist, bil, opgave);
+      res = await Data.ai(tekst || (erSkole() ? 'Se billedet.' : ''), await aiKontekst(opgave, uge, { boern: aiSkoleBoern }), hist, bil, opgave);
     } catch (e) {
-      samtale.pop(); felt.value = skrevet; vedhaeftet = sendtBillede; tegnFoto();
+      samtale.pop(); felt.value = skrevet; vedhaeftet = sendtBillede || billede; tegnFoto();
       tegn();
       log.append(el('p', 'ai-fejl', 'Det gik ikke: ' + e.message));
       return;
@@ -574,29 +697,23 @@ function aabnAI(opts = {}) {
     if (typeof res.tilbage === 'number' && res.tilbage < 10) log.append(el('p', 'hint', res.tilbage + ' beskeder tilbage i dag.'));
   }
 
-  tegn();
-  const gaelder = el('div', 'ai-gaelder'); gaelder.append(el('span', 'felt-label', 'Gælder'), boernSeg);   // ("felt" er tekstfeltet her)
-  aabnArk(def.titel, ...(skole ? [gaelder] : []), log, ...(def.foto ? [fotoBoks] : []), inputRaekke,
-    el('p', 'hint', skole ? 'AI\'en får kun de valgte børns skema (fag og tider). Intet gemmes, før du trykker "Udfør".'
-      : 'Intet gemmes, før du trykker "Udfør". Den sletter aldrig noget.'), knapper);
+  gaelder.hidden = !erSkole();
+  if (erSkole()) tegnBoern();
+  tegnEmner(); tegnFoto(); tegn();
+  aabnArk(def.titel, gaelder, emneBoks, log, fotoBoks, inputRaekke, hint, knapper);
   if (opts.auto) spoerg();
-  else if (opts.kamera) hentBillede(true);   // "📷 Seddel": kameraet åbner med det samme
+  else if (opts.kamera) hentBillede(true);
   else setTimeout(() => felt.focus(), 50);
 }
 
-// Foto → opgave (seddel / ugeseddel): arket åbner med 📷 Tag billede / 🖼️ Vælg billede og plads til en kommentar
-function aiFoto(opgave) { aabnAI({ opgave }); }
-
-// Knapperne på siderne (kun voksne – Edge Function'en tjekker det også)
+// Knapperne på siderne (kun voksne – Edge Function'en tjekker det også). Input (sedler, beskeder, fotos) går via ✨ øverst;
+// her er kun knapper, der arbejder på det, siden viser.
 function aiSideKnapper() {
   const lav = (tekst, label, fn) => { const k = el('button', 'lille-knap ai-side-knap kun-voksen', tekst); k.type = 'button'; k.setAttribute('aria-label', label); k.addEventListener('click', fn); return k; };
   document.querySelector('#madplan .madplan-knapper')?.prepend(lav('✨ Foreslå aftensmad', 'Foreslå aftensmad med AI', () => {
     if (typeof aabneDage === 'function' && !aabneDage().length) { visStatus('Den uge er gået – vælg denne eller næste uge.'); return; }
     aabnAI({ opgave: 'madplan', uge: madUgeIso(), auto: true });
   }));
-  document.getElementById('handle-knap')?.before(lav('📷 Seddel', 'Foto af indkøbsseddel', () => aiFoto('seddel')));
-  document.getElementById('kal-ny')?.before(lav('📷', 'Foto af ugeseddel', () => aiFoto('ugeseddel')));
-  document.getElementById('kal-ny')?.before(lav('✨ Skole', 'Ændring i skolen – AI læser en besked fra Aula, sms eller seddel', () => aabnAI({ opgave: 'skole' })));
 }
 aiSideKnapper();
 

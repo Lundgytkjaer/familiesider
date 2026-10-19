@@ -2096,3 +2096,7 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 .ai-foto-knapper { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 /* AI-knapper til skolen: tydeligt "✨" (samme accent som ✨-knappen) */
 .sd-ai { border: 1.5px solid color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 10%, var(--flade)); font-weight: 700; }
+/* ✨ omstilling: emne-chips i et tomt ark (viser hvad ✨ kan) */
+.ai-emner { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.ai-emne { min-height: 40px; padding: 0 14px; border: 1.5px solid var(--linje); border-radius: 999px; background: var(--bg); color: inherit; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer; }
+.ai-emne[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-blod); }
