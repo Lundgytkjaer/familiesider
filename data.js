@@ -263,6 +263,17 @@ const Data = (() => {
       return data;
     },
 
+    // ✨ Det AI'en ikke kunne (tabellen ai_oensker – opdatering-ai-oensker.sql; kun voksne kan læse og slette, kun Edge Function'en skriver)
+    async aiOensker() {
+      const { data, error } = await db.from('ai_oensker').select('*').order('tid', { ascending: false }).limit(100);
+      if (error) throw error;
+      return data || [];
+    },
+    async rydAiOensker(ids) {
+      const { error } = await db.from('ai_oensker').delete().in('id', ids);
+      if (error) throw error;
+    },
+
     // Aktivitet (kun voksne kan læse den – databasens regler): nyeste først, evt. kun ældre end "foer"
     async aktivitet(foer, antal = 150) {
       let q = db.from('aktivitet').select('*').order('tid', { ascending: false }).limit(antal);

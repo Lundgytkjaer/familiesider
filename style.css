@@ -2161,3 +2161,9 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 .ops-ret-linje { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; }
 #ops-ret { width: 100%; }
 #ops-ret { min-height: 48px; padding: 8px 12px; border: 1px solid var(--linje); border-radius: 14px; background: var(--flade); color: inherit; font: inherit; }
+
+/* ✨ Det AI'en ikke kunne (2026-10-19v) */
+.ai-oensker-link { margin-top: 6px; }
+.ai-oensker-link button { border: 0; background: none; padding: 4px 0; color: var(--accent); font: inherit; font-size: 14px; font-weight: 700; }
+.ai-oensker { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; }
+.ai-oensker li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--linje); border-radius: 14px; background: var(--flade); }
