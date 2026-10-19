@@ -173,6 +173,7 @@ input:focus-visible { outline: none; border-color: var(--accent); }
 .billede-boks img { max-width: 100%; max-height: 200px; border-radius: 12px; display: block; }
 .fil-knap { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
 .fil-knap input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+input.ugyldig { border-color: var(--fare) !important; }
 .fejl { color: var(--fare); font-weight: 600; font-size: 14px; margin: 10px 0 0; }
 .stort-billede { width: 100%; border-radius: 12px; display: block; margin-top: 8px; }
 

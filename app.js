@@ -231,9 +231,44 @@ function felt(labelTekst, node) {
   return boks;
 }
 function input(type, id, vaerdi, placeholder) {
+  if (type === 'time') return tidFelt(id, vaerdi, placeholder);
   const i = el('input');
   i.type = type; i.id = id; i.value = vaerdi || ''; i.autocomplete = 'off';
   if (placeholder) i.placeholder = placeholder;
+  return i;
+}
+// Klokkeslæt skrevet med tastaturet: "15", "1530", "15.30", "15:30", "15,30", "kl 9" → 'TT:MM' (ugyldigt → null)
+function laesTid(t) {
+  const s = (t || '').toLowerCase().replace(/^kl\.?\s*/, '').replace(/[:,]/g, '.').replace(/\s/g, '');
+  if (!s) return '';
+  let m = /^(\d{1,2})(?:\.(\d{1,2}))?$/.exec(s), h, mi;
+  if (m) { h = +m[1]; mi = m[2] ? +(m[2].length === 1 ? m[2] + '0' : m[2]) : 0; }
+  else if ((m = /^(\d{1,2})(\d{2})$/.exec(s))) { h = +m[1]; mi = +m[2]; }
+  else return null;
+  if (h > 23 || mi > 59) return null;
+  return String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0');
+}
+// Tekstfelt til klokkeslæt i stedet for telefonens ur (Timmos ønske). .value giver altid 'TT:MM' eller '' –
+// så resten af koden er uændret. .ugyldig() = der står noget, som ikke kan forstås.
+const INPUT_VAERDI = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value');
+function tidFelt(id, vaerdi, placeholder) {
+  const i = el('input', 'tid-felt');
+  i.type = 'text'; i.id = id; i.autocomplete = 'off'; i.inputMode = 'decimal'; i.maxLength = 8;
+  i.placeholder = placeholder || 'fx 15.30';
+  const raa = () => INPUT_VAERDI.get.call(i);
+  Object.defineProperty(i, 'value', {
+    configurable: true,
+    get: () => laesTid(raa()) || '',
+    set: v => INPUT_VAERDI.set.call(i, (v || '').replace(':', '.'))
+  });
+  i.ugyldig = () => laesTid(raa()) === null;
+  i.value = vaerdi || '';
+  i.addEventListener('blur', () => {
+    const t = laesTid(raa());
+    if (t) INPUT_VAERDI.set.call(i, t.replace(':', '.'));
+    i.classList.toggle('ugyldig', t === null);
+  });
+  i.addEventListener('input', () => i.classList.remove('ugyldig'));
   return i;
 }
 // Knap. Gemmer handlingen noget (returnerer et løfte), er knappen låst til det er færdigt – så et dobbelttryk ikke gemmer to gange.
@@ -2008,7 +2043,7 @@ function tegnKalListe(aftaler, alleFoed, mineValg, idagIso) {
       const b = knap('', 'kl-knap', () => redigerAftale(a, forekomstStart(a, iso)));
       const prikker = el('span', 'kl-prikker');
       prikker.append(...personerI(a).map(p => el('span', 'prik ' + (PK[p] || 'c-faelles'))));
-      b.append(el('span', 'kl-tid', a.tid ? klTekst(a) : 'Hele dagen'),
+      b.append(el('span', 'kl-tid', a.tid ? klTekst(a) : a.fri || (a.tilDato && a.tilDato > a.dato) ? 'Hele dagen' : ''),
         el('span', 'kl-titel', a.titel + (a.gentag ? ' ↻' : '') + laas(a)), prikker, el('span', 'kl-hvem', personerI(a).join(', ')));
       li.append(b); ul.append(li);
     }
@@ -2171,6 +2206,7 @@ function redigerAftale(a, forekomst) {
     const t = titel.value.trim();
     if (!t) { titel.focus(); return null; }
     if (!dato.value) { dato.focus(); return null; }
+    for (const f of [tid, slut]) if (f.ugyldig()) { f.focus(); fejl.textContent = 'Klokkeslættet kan ikke forstås – skriv fx 15 eller 15.30.'; fejl.hidden = false; return null; }
     if (tilDato.value && tilDato.value < dato.value) { fejl.textContent = 'Til-datoen er før datoen.'; fejl.hidden = false; return null; }
     const hvem = PERSONER.filter(p => valgte.has(p));
     return {
