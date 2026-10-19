@@ -4,12 +4,15 @@
 //     "✨ Ryd op med AI" (Vores lister). Hver sender én klar opgave + præcis de data, den skal bruge (aiKontekst(opgave)).
 //     "🏫 Ændring i skolen" (Skoleskema, Kalender, "Ændring" på skolekortet): besked fra Aula/sms/mail/seddel → særlig skoledag,
 //     fri, huskeseddel på tavlen, to do med frist, barnets mad den dag. Sender kun de valgte børns normale skema (fag og tider).
-//  2) ✨-knappen øverst: korte kommandoer ("Oliver tandlæge torsdag kl. 14").
+//  2) ✨-knappen øverst: korte kommandoer ("Oliver tandlæge torsdag kl. 14") – en omstilling finder den rigtige opgave.
+//     Værktøjskasse + opslag (2026-10-19q): opgaven 'fri' får kalenderens aftaler med (aiOpslagAftaler – kalender + kalender_voksne,
+//     aldrig "Kun mig"), som Edge Function'en SLÅR OP i (find_aftaler), så den kan rette/flytte/aflyse en aftale (kalender_ret)
+//     og svare på spørgsmål om kalenderen. Dataene går ikke i prompten – AI'en ser kun svarene på sine opslag.
 // Edge Function'en "ai" svarer med FORSLAG ({svar, handlinger}). Appen tjekker hvert forslag (aiTjek), viser kort med flueben, og først
-// "Udfør" gemmer – med appens egne funktioner (aiUdfoer), så børnelås/regler gælder. AI'en sletter aldrig noget.
-// Der sendes aldrig kontakter, kalender, sedler, fødselsdage eller adresse.
+// "Udfør" gemmer – med appens egne funktioner (aiUdfoer), så børnelås/regler gælder. Sletning/aflysning kun som fravalgt forslag,
+// der skal vælges aktivt. Der sendes aldrig kontakter, "Kun mig"-aftaler, sedler, fødselsdage, budget, dagbog eller adresse.
 
-const AI_IKON = { kalender_ny: '📅', indkob_ny: '🛒', todo_ny: '☑️', ret_ny: '🍽️', ret_ret: '✏️', ret_saml: '🔗', madplan: '🗓️',
+const AI_IKON = { kalender_ny: '📅', kalender_ret: '✏️', indkob_ny: '🛒', todo_ny: '☑️', ret_ny: '🍽️', ret_ret: '✏️', ret_saml: '🔗', madplan: '🗓️',
   skoledag_ny: '🏫', fri_ny: '😎', info_ny: '📌', madplan_barn: '🍕' };
 const AI_OPGAVER = {
   fri: { titel: '✨ Hjælper' },
@@ -33,6 +36,26 @@ const aiT = (v, n = 80) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, 
 const aiListe = (v, n = 20) => (Array.isArray(v) ? [...new Set(v.map(x => lavt(aiT(x, 40))).filter(Boolean))].slice(0, n) : []);
 const aiDag = iso => { const d = new Date(iso + 'T00:00'); return DAGE_LANG[(d.getDay() + 6) % 7].toLowerCase() + ' ' + d.getDate() + '. ' + MDR_LANG[d.getMonth()].slice(0, 3) + '.'; };
 const aiRetter = () => Data.listNu('favoritter').filter(f => MAAL_TYPER.includes(f.type));
+
+// ---------- Opslag: kalenderen ----------
+// Aftaler AI'en må se (alle + kun voksne – ALDRIG 'kalender_privat'), med listen de ligger i
+const aiKalRaekker = () => [...Data.listNu('kalender'), ...Data.listNu('kalender_voksne').map(a => ({ ...a, _voksne: true }))];
+// Hver gang en aftale sker (gentagne udregnet) fra 30 dage tilbage til et år frem – til opslag i Edge Function'en
+function aiOpslagAftaler(fra = plusDage(isoDato(new Date()), -30), til = plusDage(isoDato(new Date()), 365)) {
+  const ud = [];
+  const raekker = aiKalRaekker().filter(a => a.dato && a.dato <= til && (!a.gentag ? (a.tilDato || a.dato) >= fra : !a.gentagTil || a.gentagTil >= fra));
+  for (let iso = fra; iso <= til && ud.length < 2500; iso = plusDage(iso, 1)) {
+    for (const a of raekker) {
+      if (forekomstStart(a, iso) !== iso) continue;   // kun den dag, den starter
+      ud.push({ id: a.id, dato: iso, ...(a.tilDato && a.tilDato > a.dato ? { til: plusDage(iso, dageMellem(a.dato, a.tilDato)) } : {}),
+        tid: a.tid || '', slut: a.slut || '', titel: a.titel || skoledagTitel(a), hvem: personerI(a), note: a.note || '',
+        ...(a.gentag ? { gentag: a.gentag } : {}), ...(a.fri ? { fri: true } : {}), ...(a.type ? { type: a.type } : {}), ...(a._voksne ? { voksne: true } : {}) });
+    }
+  }
+  return ud;
+}
+const aiFindAftale = id => aiKalRaekker().find(a => String(a.id) === String(id)) || null;
+const aiAftaleTekst = (a, iso) => aiDag(iso) + (a.tid ? ' kl. ' + klTekst(a) : '');
 
 // Familiens egne varenavne fra indkøbslisten (hurtigvalg), mest brugte først
 const aiKendteVarer = () => {
@@ -67,7 +90,8 @@ async function aiKontekst(opgave = 'fri', uge = null, ekstra = {}) {
   };
   const butikker = () => [...new Set(Data.listNu('favoritter').filter(f => f.type === 'butik').map(f => f.tekst))];
   if (opgave === 'fri') {
-    Object.assign(k, { butikker: butikker(), varer: aiKendteVarer().slice(0, 150), retter: aiRetter().map(f => ({ tekst: f.tekst, maaltid: f.type })) });
+    Object.assign(k, { butikker: butikker(), varer: aiKendteVarer().slice(0, 150), retter: aiRetter().map(f => ({ tekst: f.tekst, maaltid: f.type })),
+      opslag: { aftaler: aiOpslagAftaler() } });   // kun til opslag – kommer ikke i prompten
   } else if (opgave === 'seddel') {
     Object.assign(k, { butikker: butikker(), varer: aiKendteVarer().slice(0, 300) });
   } else if (opgave === 'madplan') {
@@ -147,6 +171,50 @@ function aiTjek(r) {
       const h = { type: r.type, titel, dato: r.dato, tid, slut, hvem, gentag, gentagTil: gentag && aiIso(r.gentagTil) && r.gentagTil >= r.dato ? r.gentagTil : null, note: aiT(r.note, 300) };
       return { h, tekst: titel + ' · ' + aiDag(h.dato) + (tid ? ' kl. ' + visTid(tid) + (slut ? '–' + visTid(slut) : '') : ' · hele dagen') + ' · ' + hvem.join(', ')
         + (gentag ? ' · ' + GENTAG_NAVN[gentag].toLowerCase() + (h.gentagTil ? ' til ' + aiDag(h.gentagTil) : '') : '') + (h.note ? ' · ' + h.note : '') };
+    }
+    case 'kalender_ret': {
+      // Ret/flyt/aflys en aftale, der findes. Felter AI'en ikke sender (eller sender tomme), beholdes.
+      const a = aiFindAftale(r.id);
+      if (!a) return fejl('Fandt ikke aftalen');
+      if (a.type === 'skoledag') return fejl(skoledagTitel(a) + ': særlige skoledage rettes under 🏫 Skole');
+      const forekomst = aiIso(r.forekomst) && forekomstStart(a, r.forekomst) === r.forekomst ? r.forekomst : !a.gentag ? a.dato : null;
+      if (!forekomst) return fejl(a.titel + ': fandt ikke den dag');
+      const serie = a.gentag ? (r.serie === 'fremover' ? 'fremover' : 'denne') : '';
+      const hvorTit = serie === 'denne' ? ' · kun denne gang' : serie === 'fremover' ? ' · fra denne gang og fremover' : '';
+      const navn = a.titel + ' (' + personerI(a).join(', ') + ')';
+      const h = { type: r.type, id: a.id, liste: a._voksne ? 'kalender_voksne' : 'kalender', forekomst, serie };
+      if (r.aflys) {
+        if (forekomst < isoDato(new Date())) return fejl(a.titel + ': dagen er gået');
+        return { h: { ...h, aflys: true }, fravalgt: true, ikon: '🗑️', tekst: 'Aflys ' + navn + ' · ' + aiAftaleTekst(a, forekomst) + hvorTit };
+      }
+      const f = {};
+      const titel = aiT(r.titel, 80); if (titel && titel !== a.titel) f.titel = titel;
+      if (aiIso(r.dato) && r.dato !== forekomst) f.dato = r.dato;
+      const tid = aiKl(r.tid), slut = aiKl(r.slut);
+      if (tid && tid !== a.tid) {
+        f.tid = tid;
+        // Ny starttid uden sluttid: aftalen varer lige så længe som før
+        if (!slut && a.tid && a.slut) { const [t, m] = a.tid.split(':').map(Number), [st, sm] = a.slut.split(':').map(Number), [nt, nm] = tid.split(':').map(Number);
+          const s = nt * 60 + nm + (st * 60 + sm - t * 60 - m); f.slut = s > 0 && s < 1440 ? String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0') : ''; }
+      }
+      if (slut && slut !== a.slut && slut > (f.tid || a.tid || '')) f.slut = slut;
+      if (Array.isArray(r.hvem) && r.hvem.length) {
+        let hvem = r.hvem.map(x => PERSONER.find(p => lavt(p) === lavt(aiT(x, 20)))).filter(Boolean);
+        if (!hvem.length || hvem.includes('Fælles')) hvem = ['Fælles'];
+        if ([...hvem].sort().join() !== [...personerI(a)].sort().join()) f.hvem = hvem;
+      }
+      const note = aiT(r.note, 300); if (note && note !== (a.note || '')) f.note = note;
+      if (!Object.keys(f).length) return fejl(a.titel + ': intet at ændre');
+      const nyDato = f.dato || forekomst;
+      if (nyDato < isoDato(new Date())) return fejl(a.titel + ': den nye dag er gået');
+      if (forekomst < isoDato(new Date()) && !f.dato) return fejl(a.titel + ': dagen er gået');
+      const ny = { ...a, ...f };
+      const dele = [];
+      if (f.titel) dele.push('hedder nu ' + f.titel);
+      if (f.dato || f.tid || 'slut' in f) dele.push(aiAftaleTekst(a, forekomst) + ' → ' + aiAftaleTekst(ny, nyDato));
+      if (f.hvem) dele.push('gælder ' + f.hvem.join(', '));
+      if (f.note) dele.push('note: ' + f.note);
+      return { h: { ...h, felter: f }, ikon: '✏️', tekst: navn + ': ' + dele.join(' · ') + hvorTit };
     }
     case 'indkob_ny': {
       const set = new Map();   // samme vare to gange → den første (med evt. mængde) gælder
@@ -303,6 +371,38 @@ async function aiUdfoer(h) {
       await Data.add('kalender', { titel: h.titel, hvem: h.hvem.length === 1 ? h.hvem[0] : h.hvem, dato: h.dato, tilDato: null,
         tid: h.tid, slut: h.slut, note: h.note, gentag: h.gentag, gentagTil: h.gentagTil, fri: false });
       return;
+    case 'kalender_ret': {
+      // Som "Ret aftale" i kalenderen: gentagen aftale → kun denne gang = undtagelse + ny enkelt aftale; fremover = slut den gamle + ny serie
+      const a = aiFindAftale(h.id);
+      if (!a) throw new Error('Aftalen findes ikke længere');
+      const liste = a._voksne ? 'kalender_voksne' : 'kalender';
+      const { id, oprettet, _voksne, _privat, _af, undtagelser, ...gammel } = a;
+      const undtag = [...(undtagelser || [])];
+      const varighed = a.tilDato && a.tilDato > a.dato ? dageMellem(a.dato, a.tilDato) : 0;
+      const f = { ...h.felter };
+      if (f.hvem) f.hvem = f.hvem.length === 1 ? f.hvem[0] : f.hvem;
+      const nyDato = f.dato || h.forekomst;
+      if (h.aflys) {
+        Data.huskFoer(a.id);
+        if (!a.gentag || (h.serie === 'fremover' && h.forekomst === a.dato)) await Data.remove(liste, a.id);
+        else if (h.serie === 'fremover') await Data.update(liste, a.id, { gentagTil: plusDage(h.forekomst, -1) });
+        else await Data.update(liste, a.id, { undtagelser: [...undtag, h.forekomst] });
+        return;
+      }
+      const datoer = { dato: nyDato, tilDato: varighed ? plusDage(nyDato, varighed) : null };
+      if (!a.gentag) { await Data.update(liste, a.id, { ...f, ...(f.dato ? datoer : {}) }); return; }
+      Data.huskFoer(a.id);
+      if (h.serie === 'denne') {
+        await Data.update(liste, a.id, { undtagelser: [...undtag, h.forekomst] });
+        await Data.add(liste, { ...gammel, ...f, ...datoer, gentag: '', gentagTil: null });
+      } else if (h.forekomst === a.dato) {
+        await Data.update(liste, a.id, { ...f, ...datoer });
+      } else {
+        await Data.update(liste, a.id, { gentagTil: plusDage(h.forekomst, -1) });
+        await Data.add(liste, { ...gammel, ...f, ...datoer, undtagelser: undtag.filter(d => d >= h.forekomst) });
+      }
+      return;
+    }
     case 'indkob_ny':
       for (const v of h.varer) {
         const note = [v.pris ? 'Tilbud ' + v.pris : '', v.note].filter(Boolean).join(' · ');
@@ -389,7 +489,7 @@ const AI_EMNER = [
   { id: 'skole', ikon: '🏫', navn: 'Skole', eks: 'Indsæt en besked fra Aula, sms eller mail – eller tag et billede af sedlen' },
   { id: 'indkob', ikon: '🛒', navn: 'Indkøb', eks: 'Fx "mælk, 2 rugbrød og æg" – eller tag et billede af sedlen' },
   { id: 'madplan', ikon: '🍽️', navn: 'Madplan', eks: 'Fx "pizza på fredag" – eller tryk ➤ for forslag til ugens aftensmad' },
-  { id: 'kalender', ikon: '📅', navn: 'Kalender', eks: 'Fx "Oliver tandlæge torsdag kl. 14" – eller et billede af en invitation' },
+  { id: 'kalender', ikon: '📅', navn: 'Kalender', eks: 'Fx "Oliver tandlæge torsdag kl. 14", "flyt tandlægen til fredag" eller "hvornår er der svømning?"' },
   { id: 'todo', ikon: '☑️', navn: 'To do', eks: 'Fx "Ring til VVS i morgen"' }
 ];
 // Hvor står brugeren? Siden og det barn, der vises (børnetavlen eller skemaet)
@@ -554,7 +654,7 @@ function aabnAI(opts = {}) {
     });
     pladsholder();
     hint.textContent = erSkole() ? 'AI\'en får kun de valgte børns skema (fag og tider). Intet gemmes, før du trykker "Udfør".'
-      : 'Intet gemmes, før du trykker "Udfør". Den sletter aldrig noget.';
+      : 'Intet gemmes, før du trykker "Udfør". Aflysninger skal du selv sætte flueben ved.';
     knapper.replaceChildren(knap('Luk', 'knap sekundaer', lukArk), ...(!fast && opgave ? [knap('↺ Forfra', 'knap sekundaer', forfra)] : []), ...(aktuelle?.udfoer ? [aktuelle.udfoer] : []));
     setTimeout(() => log.lastElementChild?.scrollIntoView({ block: 'nearest' }), 30);
   }
