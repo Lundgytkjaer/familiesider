@@ -81,10 +81,20 @@ async function aktNu(a) {
   return data;
 }
 
+// Rækker over 60 dage har fået billederne fjernet i databasen (står som '[billede]', opdatering-historik.sql).
+// Ved gendannelse tages pladsholderne ud, så der ikke kommer et brudt billede.
+const AKT_BILLEDE = '[billede]';
+function aktUdenPladsholder(d) {
+  if (Array.isArray(d)) return d.filter(x => x !== AKT_BILLEDE && !(x && typeof x === 'object' && Object.values(x).includes(AKT_BILLEDE)))
+    .map(aktUdenPladsholder);
+  if (d && typeof d === 'object') return Object.fromEntries(Object.entries(d).filter(([, v]) => v !== AKT_BILLEDE).map(([k, v]) => [k, aktUdenPladsholder(v)]));
+  return d;
+}
+
 async function aktGendan(raekker, knapEl) {
   knapEl.disabled = true;
   try {
-    await Data.gendan({ raekker: raekker.map(a => ({ id: a.punkt_id, liste: a.liste, data: a.foer, oprettet: a.oprettet, oprettet_af: a.oprettet_af })) });
+    await Data.gendan({ raekker: raekker.map(a => ({ id: a.punkt_id, liste: a.liste, data: aktUdenPladsholder(a.foer), oprettet: a.oprettet, oprettet_af: a.oprettet_af })) });
     tegnAlt();
     besked(raekker.length > 1 ? raekker.length + ' ting er sat tilbage' : 'Det er sat tilbage');   // fra sjov.js
     aktHent(true);
