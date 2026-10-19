@@ -2123,3 +2123,14 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 /* ♻️ Rester på madplanen: kun tekst på dagen (som 🎉 Vi er ude) */
 .dag.rester .fuld-vis { color: var(--accent); font-style: italic; }
 .dag.rester input[type="text"] { cursor: pointer; }
+
+/* To do i bundmenuen igen (2026-10-19s): 7 faner = lidt mindre tekst; rødt tal når noget SKAL være gjort i dag, blinker når det er over tid */
+.bundmenu-indre.mange { gap: 0; }
+.bundmenu-indre.mange .fane-knap { font-size: 10px; letter-spacing: -.01em; }
+.bundmenu-indre.mange .fane-knap svg { width: 21px; height: 21px; }
+.badge.over-tid { animation: puls 1.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .badge.over-tid { animation: none; } }
+#ny-frist { align-items: center; margin-top: 8px; position: relative; }
+.frist-label { font-size: 13px; font-weight: 700; color: var(--daempet); margin-right: 4px; }
+.skjult-dato { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+#ny-frist button { min-height: 38px; padding: 4px 12px; font-size: 15px; }

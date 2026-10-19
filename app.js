@@ -115,9 +115,9 @@ const kortDag = iso => { const d = new Date(iso + 'T00:00'); return d.getDate() 
 // ---------- Faner ----------
 const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe', 'budget', 'dagbog'];
 const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe', 'budget', 'dagbog'];   // sider man når via "Mere"
-// Voksne: "Pligter" (pligter, belønninger, ønsker) er en fane i bundmenuen, og To do ligger under Mere. Børn: som før.
+// Voksne: "Pligter" (pligter, belønninger, ønsker) er en fane i bundmenuen – og To do er tilbage i bundmenuen (2026-10-19s). Børn: som før.
 const underMere = navn => (Data.bruger()?.rolle === 'voksen'
-  ? (navn === 'todo' || (UNDER_MERE.includes(navn) && navn !== 'pligter')) : UNDER_MERE.includes(navn));
+  ? (UNDER_MERE.includes(navn) && navn !== 'pligter') : UNDER_MERE.includes(navn));
 const FANE_NAVN = { idag: 'I dag', kalender: 'Kalender', madplan: 'Madplan', indkob: 'Indkøb', todo: 'To do', mere: 'Mere', pligter: 'Pligter' };
 // Børn ser kun de faner, de voksne har slået til for dem (personvalg.faner). Tavlen ("I dag") er der altid.
 const BOERNE_FANER = ['kalender', 'madplan', 'mere'];   // standard for børn
@@ -133,10 +133,12 @@ async function anvendFaner() {
   const knapper = [...document.querySelectorAll('.bundmenu [data-fane]')];
   const voksen = p?.rolle === 'voksen';
   knapper.forEach(b => {
-    b.hidden = b.dataset.fane === 'pligter' ? !voksen : b.dataset.fane === 'todo' && voksen ? true
-      : !!tilladteFaner && !tilladteFaner.includes(b.dataset.fane);
+    b.hidden = b.dataset.fane === 'pligter' ? !voksen : !!tilladteFaner && !tilladteFaner.includes(b.dataset.fane);
   });
-  document.querySelector('.bundmenu-indre').style.gridTemplateColumns = 'repeat(' + knapper.filter(b => !b.hidden).length + ', 1fr)';
+  const synlige = knapper.filter(b => !b.hidden).length;
+  const indre = document.querySelector('.bundmenu-indre');
+  indre.style.gridTemplateColumns = 'repeat(' + synlige + ', 1fr)';
+  indre.classList.toggle('mange', synlige >= 7);   // 7 faner: lidt mindre tekst, så "Kalender" kan være der
   const aaben = document.querySelector('.fane:not([hidden])')?.id;
   if (aaben && tilladteFaner && !tilladteFaner.includes(underMere(aaben) ? 'mere' : aaben)) visFane('idag');
 }
@@ -665,7 +667,11 @@ async function tegnListe(navn) {
   const badge = document.querySelector(`[data-badge="${navn}"]`);
   badge.textContent = aabne.length;
   badge.hidden = aabne.length === 0;
-  badge.classList.toggle('haster', aabne.some(p => p.prio === 1));
+  // To do: rød, når noget SKAL være gjort i dag eller er over tid (frist) – blinker, når det er over tid
+  const idagIso = isoDato(new Date());
+  badge.classList.toggle('haster', navn === 'todo' ? aabne.some(p => p.frist && p.frist <= idagIso) : aabne.some(p => p.prio === 1));
+  badge.classList.toggle('over-tid', navn === 'todo' && aabne.some(p => p.frist && p.frist < idagIso));
+  if (navn === 'todo') badge.title = aabne.some(p => p.frist && p.frist <= idagIso) ? 'Noget skal være gjort i dag' : '';
   document.querySelector(`[data-taeller="${navn}"]`).textContent = aabne.length ? aabne.length + (navn === 'indkob' ? ' mangler' : ' åbne') : '';
   document.querySelector(`.ryd[data-liste="${navn}"]`).hidden = !punkter.some(p => p.klaret);
 }
@@ -782,6 +788,21 @@ function omdoebFavorit(f) {
 
 // Prioritet til nye opgaver
 let nyPrio = 2;
+// "Senest" til nye opgaver: '' = ingen frist, ellers en dato. Nulstilles efter hver ny opgave.
+let nyFrist = '';
+function tegnNyFrist() {
+  const boks = document.getElementById('ny-frist');
+  if (!boks) return;
+  const idag = isoDato(new Date()), dato = input('date', 'ny-frist-dato', '');
+  const valg = [['', 'Ingen'], [idag, 'I dag'], [plusDage(idag, 1), 'I morgen'], [plusDage(idag, 7), 'Om en uge']];
+  const egen = nyFrist && !valg.some(([v]) => v === nyFrist);
+  const k = (v, tekst) => { const b = knap(tekst, null, () => { nyFrist = v; tegnNyFrist(); }); b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String(nyFrist === v)); return b; };
+  const datoKnap = knap(egen ? '📅 ' + kortDag(nyFrist) : '📅 Dato', null, () => { try { dato.showPicker(); } catch (e) { dato.focus(); dato.click(); } });
+  datoKnap.setAttribute('role', 'radio'); datoKnap.setAttribute('aria-checked', String(!!egen));
+  dato.className = 'skjult-dato'; dato.min = idag; dato.setAttribute('aria-label', 'Vælg dato');
+  dato.addEventListener('change', () => { if (dato.value) { nyFrist = dato.value; tegnNyFrist(); } });
+  boks.replaceChildren(el('span', 'frist-label', 'Senest:'), ...valg.map(([v, t]) => k(v, t)), datoKnap, dato);
+}
 function tegnNyPrio() {
   document.querySelectorAll('#ny-prio [data-prio]').forEach(b => b.setAttribute('aria-checked', Number(b.dataset.prio) === nyPrio));
 }
@@ -799,8 +820,9 @@ document.querySelectorAll('form.tilfoj[data-liste]').forEach(form => {
     let antal = '';
     if (form.dataset.liste === 'indkob') ({ antal, tekst } = delAntal(tekst));   // "2 mælk" → antal 2
     const felter = { tekst, klaret: false, ...(vigtig ? { vigtig: true } : {}), ...(antal ? { antal } : {}) };
-    if (form.dataset.liste === 'todo') felter.prio = nyPrio;
+    if (form.dataset.liste === 'todo') { felter.prio = nyPrio; if (nyFrist && !erBarn()) felter.frist = nyFrist; }
     const nyt = await tilfoejUdenDublet(form.dataset.liste, felter);
+    if (form.dataset.liste === 'todo' && nyFrist) { nyFrist = ''; tegnNyFrist(); }
     if (nyt) await gemFavorit(form.dataset.liste, tekst);
     felt.value = '';
     felt.focus();
@@ -818,7 +840,7 @@ async function tilfoejUdenDublet(liste, felter) {
     visStatus(findes.tekst + ' står allerede på listen'); return false;
   }
   if (erBarn()) { await Data.add(liste, { ...felter, af: Data.bruger().navn }); return true; }   // børn: hvem ønskede det
-  if (findes) { await Data.update(liste, findes.id, { klaret: false, antal: felter.antal || '', ...(felter.note ? { note: felter.note } : {}), ...(felter.butik ? { butik: felter.butik } : {}), ...(felter.prio ? { prio: felter.prio } : {}), ...(felter.vigtig ? { vigtig: true } : {}) }); return true; }
+  if (findes) { await Data.update(liste, findes.id, { klaret: false, antal: felter.antal || '', ...(felter.note ? { note: felter.note } : {}), ...(felter.butik ? { butik: felter.butik } : {}), ...(felter.prio ? { prio: felter.prio } : {}), ...(felter.frist ? { frist: felter.frist } : {}), ...(felter.vigtig ? { vigtig: true } : {}) }); return true; }
   await Data.add(liste, felter);
   return true;
 }
@@ -4050,7 +4072,7 @@ async function startTavle() {
   if (profil.rolle === 'barn' && BOERN.includes(profil.navn)) tavleVisning = profil.navn;
   else tavleVisning = ['familie', ...BOERN].includes(lokal.get('tavle')) ? lokal.get('tavle') : 'familie';
   if (!BOERN.includes(skemaBarn)) skemaBarn = BOERN[0];
-  tegnNyPrio();
+  tegnNyPrio(); tegnNyFrist();
   tegnListeValg();
   if (laengeSiden()) nulstilTilStart();   // har appen ligget længe, starter man på I dag / Familien
   visFane(lokal.get('fane'));
