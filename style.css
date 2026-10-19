@@ -2083,3 +2083,8 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 .sd-punkt { display: flex; gap: 12px; width: 100%; min-height: var(--raekke); padding: 8px 14px; background: none; border: 0; color: inherit; font: inherit; text-align: left; align-items: center; cursor: pointer; }
 .sd-punkt .sd-dato { color: var(--daempet); font-variant-numeric: tabular-nums; min-width: 64px; }
 .sd-punkt .sd-titel { font-weight: 600; overflow-wrap: anywhere; }
+/* 🏫 Ændring i skolen (ai.js) */
+.ai-gaelder { display: grid; gap: 4px; margin-bottom: 10px; }
+.ai-kort.gemt { opacity: .75; }
+.ai-kort.gemt .ai-tekst { text-decoration: none !important; opacity: 1 !important; }
+.sd-knapper { display: flex; flex-wrap: wrap; gap: 8px; }

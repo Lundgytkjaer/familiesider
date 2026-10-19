@@ -2,19 +2,31 @@
 // To slags:
 //  1) Knapper til faste opgaver, der hvor de bruges: "✨ Foreslå aftensmad" (Madplan), "📷 Seddel" (Indkøb), "📷 Ugeseddel" (Kalender),
 //     "✨ Ryd op med AI" (Vores lister). Hver sender én klar opgave + præcis de data, den skal bruge (aiKontekst(opgave)).
+//     "🏫 Ændring i skolen" (Skoleskema, Kalender, "Ændring" på skolekortet): besked fra Aula/sms/mail/seddel → særlig skoledag,
+//     fri, huskeseddel på tavlen, to do med frist, barnets mad den dag. Sender kun de valgte børns normale skema (fag og tider).
 //  2) ✨-knappen øverst: korte kommandoer ("Oliver tandlæge torsdag kl. 14").
 // Edge Function'en "ai" svarer med FORSLAG ({svar, handlinger}). Appen tjekker hvert forslag (aiTjek), viser kort med flueben, og først
 // "Udfør" gemmer – med appens egne funktioner (aiUdfoer), så børnelås/regler gælder. AI'en sletter aldrig noget.
 // Der sendes aldrig kontakter, kalender, sedler, fødselsdage eller adresse.
 
-const AI_IKON = { kalender_ny: '📅', indkob_ny: '🛒', todo_ny: '☑️', ret_ny: '🍽️', ret_ret: '✏️', ret_saml: '🔗', madplan: '🗓️' };
+const AI_IKON = { kalender_ny: '📅', indkob_ny: '🛒', todo_ny: '☑️', ret_ny: '🍽️', ret_ret: '✏️', ret_saml: '🔗', madplan: '🗓️',
+  skoledag_ny: '🏫', fri_ny: '😎', info_ny: '📌', madplan_barn: '🍕' };
 const AI_OPGAVER = {
   fri: { titel: '✨ Hjælper' },
   madplan: { titel: '✨ Forslag til aftensmad', tekst: 'Foreslå aftensmad til de tomme dage.' },
   seddel: { titel: '📷 Indkøbsseddel', tekst: 'Læg varerne fra sedlen på indkøbslisten.' },
   ugeseddel: { titel: '📷 Ugeseddel', tekst: 'Lav aftaler ud fra billedet.' },
-  ryd_retter: { titel: '✨ Ryd op i retterne', tekst: 'Ryd op i retterne.' }
+  ryd_retter: { titel: '✨ Ryd op i retterne', tekst: 'Ryd op i retterne.' },
+  skole: { titel: '🏫 Ændring i skolen' }   // ingen fast tekst: beskeden skal indsættes (eller et foto)
 };
+let aiSkoleBoern = [...BOERN];   // de børn, der er valgt i "Ændring i skolen" (bruges, hvis AI'en ikke nævner nogen)
+// Børn i et forslag: kun Oliver/Villads; "Fælles"/ingen = de valgte børn
+const aiBoern = v => {
+  const navne = [...new Set((Array.isArray(v) ? v : [v]).map(x => BOERN.find(b => lavt(b) === lavt(aiT(x, 20)))).filter(Boolean))];
+  return navne.length ? navne : [...aiSkoleBoern];
+};
+// "9:00", "09.00", "9" → "09:00" (ellers '')
+const aiKl = v => { const m = String(v ?? '').trim().match(/^(\d{1,2})(?:[:.](\d{2}))?$/); if (!m || +m[1] > 23 || +(m[2] || 0) > 59) return ''; return m[1].padStart(2, '0') + ':' + (m[2] || '00'); };
 const aiIso = v => /^\d{4}-\d{2}-\d{2}$/.test(v || '') && !isNaN(new Date(v + 'T00:00'));
 const aiTid = v => /^\d{2}:\d{2}$/.test(v || '') && Number(v.slice(0, 2)) < 24 && Number(v.slice(3)) < 60;
 const aiT = (v, n = 80) => String(v ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
@@ -46,7 +58,7 @@ function aiVare(v) {
 }
 const aiVareTekst = v => (v.vigtig ? '★ ' : '') + (v.antal ? v.antal + ' ' : '') + v.tekst + (v.pris ? ' (tilbud ' + v.pris + ')' : '') + (v.note ? ' – ' + v.note : '') + (v.usikker ? ' ❓' : '');
 // Det AI'en får at vide – kun det, opgaven skal bruge
-async function aiKontekst(opgave = 'fri', uge = null) {
+async function aiKontekst(opgave = 'fri', uge = null, ekstra = {}) {
   const nu = new Date();
   const k = {
     dato: isoDato(nu), ugedag: DAGE_LANG[(nu.getDay() + 6) % 7].toLowerCase(),
@@ -70,6 +82,22 @@ async function aiKontekst(opgave = 'fri', uge = null) {
     const fra = new Date(mandag); fra.setDate(fra.getDate() - 21);
     k.seneste = [...new Set(Data.listNu('madplan').filter(r => !r.barn && r.ret && !r.ude && r.uge >= isoDato(fra) && r.uge < uge).map(r => r.ret))];
     k.retter = aiRetter().filter(f => passerTil(f, 'ret') && !f.ikkeAuto).map(f => ({ tekst: f.tekst, maaltid: 'ret', gruppe: f.gruppe || '', sider: passerSider(f), kanLide: f.kanLide || [], brugt: f.brugt || 0 }));
+  } else if (opgave === 'skole') {
+    // De valgte børns normale uge (mødetid, fri-tid, fag) + hvad der allerede er lagt ind, så det ikke kommer to gange
+    const boern = (ekstra.boern || BOERN).filter(b => BOERN.includes(b));
+    k.personer = [...boern, ...PERSONER.filter(p => !BOERN.includes(p))];
+    k.boern = await Promise.all(boern.map(async navn => ({ navn, uge: await Promise.all([0, 1, 2, 3, 4].map(async d => {
+      const alle = await dagensTimer(navn, d), { start, slut } = skoleTider(alle);
+      return { ugedag: DAGE_LANG[d].toLowerCase(), moede: start, fri: slut, fridag: await fastFri(navn, d), fag: [...new Set(alle.filter(t => t.fag).map(t => t.fag))] };
+    })) })));
+    const idag = isoDato(nu), slut = new Date(nu); slut.setDate(slut.getDate() + 60);
+    const iBoern = a => personerI(a).some(p => p === 'Fælles' || boern.includes(p));
+    k.kommende = [
+      ...Data.listNu('kalender').filter(a => (a.type === 'skoledag' || a.fri) && a.dato >= idag && a.dato <= isoDato(slut) && iBoern(a))
+        .map(a => a.dato + ' ' + personerI(a).join('+') + ': ' + (a.type === 'skoledag' ? 'skoledag ' + skoledagTitel(a) : 'fri ' + a.titel)),
+      ...Data.listNu('info').filter(x => x.dato >= idag && boern.includes(x.barn)).map(x => x.dato + ' ' + x.barn + ': husk ' + x.tekst),
+      ...Data.listNu('todo').filter(t => !t.klaret && t.frist && t.frist >= idag).map(t => 'to do: ' + t.tekst)
+    ].slice(0, 40);
   } else if (opgave === 'ryd_retter') {
     Object.assign(k, { tilbehoer: SIDER, ekstra: EKSTRA, fyld: FYLD,
       sovse: SOVSE,
@@ -176,6 +204,44 @@ function aiTjek(r) {
       if (!Object.keys(felter).length) return fejl(f.tekst + ': intet at ændre');
       return { h: { type: r.type, id: f.id, felter }, tekst: f.tekst + ': ' + beskriv(felter, f) };
     }
+    case 'skoledag_ny': {
+      if (!aiIso(r.dato)) return fejl('Ændring i skolen uden dato');
+      if (r.dato < isoDato(new Date())) return fejl(aiT(r.titel, 60) || 'Ændring i skolen' + ': dagen er gået');
+      const hvem = aiBoern(r.hvem);
+      const program = (Array.isArray(r.program) ? r.program : []).slice(0, 15)
+        .map(p => ({ tid: rensTid(aiT(p?.tid, 20)), tekst: aiT(p?.tekst, 60) })).filter(p => p.tid && p.tekst)
+        .sort((a, b) => tidSomMin(a.tid)[0] - tidSomMin(b.tid)[0]);
+      const noter = (Array.isArray(r.noter) ? r.noter : []).slice(0, 10).map(n => ({ fag: aiT(n?.fag, 30), tekst: aiT(n?.tekst, 120) })).filter(n => n.tekst);
+      const moede = aiKl(r.moede), friKl = aiKl(r.friKl);
+      if (!program.length && !moede && !friKl && !noter.length) return fejl('Ændring i skolen uden indhold');
+      const h = { type: r.type, dato: r.dato, hvem, titel: aiT(r.titel, 60), program, moede, friKl: moede && friKl && friKl <= moede ? '' : friKl, noter, note: aiT(r.note, 200) };
+      return { h, tekst: aiDag(h.dato) + ': ' + skoledagTitel(h) + ' · ' + hvem.join(' og ')
+        + (program.length ? ' · ' + program.length + (program.length === 1 ? ' punkt ' : ' punkter ') + visTider(program[0].tid.split('-')[0] + '-' + program[program.length - 1].tid.split('-')[1]) : '')
+        + (moede ? ' · møder ' + visTid(moede) : '') + (h.friKl ? ' · fri ' + visTid(h.friKl) : '')
+        + (h.titel || program.length ? noter.map(n => ' · 📝 ' + (n.fag ? n.fag + ': ' : '') + n.tekst).join('') : '') + (h.note ? ' · ' + h.note : '') };
+    }
+    case 'fri_ny': {
+      if (!aiIso(r.dato)) return fejl('Fri uden dato');
+      const tilDato = aiIso(r.tilDato) && r.tilDato > r.dato ? r.tilDato : null;
+      if ((tilDato || r.dato) < isoDato(new Date())) return fejl('Fri: dagen er gået');
+      const hvem = aiBoern(r.hvem), titel = aiT(r.titel, 60) || 'Fri fra skolen';
+      return { h: { type: r.type, dato: r.dato, tilDato, hvem, titel }, tekst: 'Fri: ' + titel + ' · ' + aiDag(r.dato) + (tilDato ? ' til ' + aiDag(tilDato) : '') + ' · ' + hvem.join(' og ') };
+    }
+    case 'info_ny': {
+      const tekst = aiT(r.tekst, 120);
+      if (!tekst || !aiIso(r.dato)) return fejl('Huskeseddel uden tekst eller dato');
+      if (r.dato < isoDato(new Date())) return fejl(tekst + ': dagen er gået');
+      const hvem = aiBoern(r.hvem);
+      return { h: { type: r.type, dato: r.dato, hvem, tekst }, tekst: 'Det sker ' + aiDag(r.dato) + ': ' + tekst + ' · ' + hvem.join(' og ') };
+    }
+    case 'madplan_barn': {
+      const maaltid = r.maaltid === 'morgen' ? 'morgen' : 'frokost';
+      const ret = aiT(r.ret || r.tekst, 80);
+      if (!ret || !aiIso(r.dato)) return fejl('Mad uden ret eller dato');
+      if (r.dato < isoDato(new Date())) return fejl(ret + ': dagen er gået');
+      const hvem = aiBoern(r.hvem);
+      return { h: { type: r.type, dato: r.dato, hvem, maaltid, ret }, tekst: MAALTIDER[maaltid] + ' ' + aiDag(r.dato) + ': ' + ret + ' · ' + hvem.join(' og ') };
+    }
     case 'madplan': {
       const maaltid = MAAL_TYPER.includes(r.maaltid) ? r.maaltid : 'ret';
       const ret = aiT(r.ret || r.tekst, 80);
@@ -241,6 +307,25 @@ async function aiUdfoer(h) {
       await gemMad((d.getDay() + 6) % 7, h.maaltid, h.ret, isoDato(mandagFor(d)));
       return;
     }
+    case 'skoledag_ny':
+      await Data.add('kalender', { dato: h.dato, hvem: h.hvem.length === 1 ? h.hvem[0] : h.hvem, titel: skoledagTitel(h), type: 'skoledag', fri: false,
+        tid: '', slut: '', tilDato: null, gentag: '', gentagTil: null, program: h.program, moede: h.moede, friKl: h.friKl, noter: h.noter, note: h.note });
+      return;
+    case 'fri_ny':
+      await Data.add('kalender', { dato: h.dato, tilDato: h.tilDato, hvem: h.hvem.length === 1 ? h.hvem[0] : h.hvem, titel: h.titel, fri: true,
+        tid: '', slut: '', note: '', gentag: '', gentagTil: null });
+      return;
+    case 'info_ny': {
+      const findes = Data.listNu('info');
+      for (const barn of h.hvem) if (!findes.some(x => x.barn === barn && x.dato === h.dato && lavt(x.tekst) === lavt(h.tekst)))
+        await Data.add('info', { barn, dato: h.dato, tekst: h.tekst, gentag: '' });
+      return;
+    }
+    case 'madplan_barn': {
+      const d = new Date(h.dato + 'T00:00');
+      for (const barn of h.hvem) await gemMad((d.getDay() + 6) % 7, h.maaltid, h.ret, isoDato(mandagFor(d)), barn);
+      return;
+    }
   }
 }
 
@@ -250,6 +335,16 @@ async function aiUdfoer(h) {
 function aabnAI(opts = {}) {
   const opgave = AI_OPGAVER[opts.opgave] ? opts.opgave : 'fri';
   const def = AI_OPGAVER[opgave];
+  const skole = opgave === 'skole';
+  // 🏫 Ændring i skolen: hvilke børn gælder beskeden?
+  const boernValgt = new Set((opts.boern || []).filter(b => BOERN.includes(b)).length ? opts.boern.filter(b => BOERN.includes(b)) : BOERN);
+  const boernSeg = el('div', 'seg wrap ai-boern');
+  const tegnBoern = () => boernSeg.replaceChildren(...BOERN.map(b => {
+    const k = knap(b, null, () => { boernValgt.has(b) ? boernValgt.delete(b) : boernValgt.add(b); tegnBoern(); });
+    k.setAttribute('role', 'checkbox'); k.setAttribute('aria-checked', boernValgt.has(b));
+    return k;
+  }));
+  if (skole) tegnBoern();
   const samtale = [];   // [{rolle, tekst, foto?, forslag?}]
   const historik = () => samtale.slice(-6).map(b => ({
     rolle: b.rolle,
@@ -257,13 +352,23 @@ function aabnAI(opts = {}) {
       : [b.tekst, ...(b.forslag || []).map(f => '- ' + f.tekst + (f.udfoert ? ' (udført)' : f.fejl ? ' (afvist af appen)' : ' (ikke udført)'))].join('\n')
   }));
   const felt = el('textarea', 'ai-felt');
-  felt.rows = 2; felt.maxLength = 1500;
+  felt.rows = skole ? 5 : 2; felt.maxLength = skole ? 6000 : 1500;
   const log = el('div', 'ai-log');
   const knapper = el('div', 'ark-knapper');
   const send = knap('➤', 'knap ai-send', () => spoerg());
   send.setAttribute('aria-label', 'Send');
   const inputRaekke = el('div', 'ai-input');
-  inputRaekke.append(felt, send);
+  // Foto af en seddel (kun Ændring i skolen – de andre foto-opgaver har deres egne knapper)
+  const foto = skole ? knap('📷', 'knap sekundaer ai-send', () => {
+    const fil = el('input'); fil.type = 'file'; fil.accept = 'image/*';
+    fil.addEventListener('change', async () => {
+      if (!fil.files[0]) return;
+      try { spoerg(await laesBillede(fil.files[0], 1568, 0.8)); } catch (e) { visStatus('Kunne ikke læse billedet', true); }
+    });
+    fil.click();
+  }) : null;
+  if (foto) foto.setAttribute('aria-label', 'Foto af en seddel');
+  inputRaekke.append(felt, ...(foto ? [foto] : []), send);
   felt.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); spoerg(); } });
   let aktuelle = null;   // forslagene i det seneste svar
 
@@ -273,7 +378,7 @@ function aabnAI(opts = {}) {
       if (b.rolle === 'user') {
         const boble = el('div', 'ai-boble mig');
         if (b.foto) { const img = el('img', 'ai-foto-vis'); img.src = b.foto; img.alt = ''; boble.append(img); }
-        if (b.vis) boble.append(el('span', null, b.vis));
+        if (b.vis) boble.append(el('span', null, b.vis.length > 400 ? b.vis.slice(0, 400) + ' …' : b.vis));
         log.append(boble); return;
       }
       const boks = el('div', 'ai-boble ai');
@@ -286,7 +391,9 @@ function aabnAI(opts = {}) {
       if (sidst && aktuelle) boks.append(forslagKort(b));
       log.append(boks);
     });
-    felt.placeholder = samtale.length ? (opgave === 'fri' ? 'Skriv videre …' : 'Ret til, fx "ikke fisk" eller "kun hverdage"')
+    felt.placeholder = skole ? (samtale.length ? 'Ret til, fx "det gælder kun Oliver" eller "ingen pizza"'
+      : 'Indsæt beskeden fra skolen (Aula, sms, mail) – eller skriv selv, fx "Villads til tandlæge torsdag 10-11". 📷 = foto af en seddel.')
+      : samtale.length ? (opgave === 'fri' ? 'Skriv videre …' : 'Ret til, fx "ikke fisk" eller "kun hverdage"')
       : opgave === 'fri' ? 'Hej ' + (Data.bruger()?.navn || '') + ' – hvad kan jeg hjælpe med?' : 'Evt. ønsker, fx "noget nemt" – eller tryk ➤';
     knapper.replaceChildren(knap('Luk', 'knap sekundaer', lukArk), ...(aktuelle?.udfoer ? [aktuelle.udfoer] : []));
     setTimeout(() => log.lastElementChild?.scrollIntoView({ block: 'nearest' }), 30);
@@ -319,22 +426,39 @@ function aabnAI(opts = {}) {
           li.append(r);
         }
       }
+      if (f.h.type === 'skoledag_ny') {   // ret i arket for særlig skoledag – gemmes derfra, og AI-arket kommer tilbage
+        li.append(knap('Ret', 'lille-knap', () => {
+          const titel = document.getElementById('ark-titel').textContent, indhold = [...document.getElementById('ark-indhold').childNodes];
+          const h = f.h;
+          redigerSkoledag(h.hvem[0], h.dato, { dato: h.dato, hvem: h.hvem, titel: h.titel, type: 'skoledag', program: h.program, moede: h.moede, friKl: h.friKl, noter: h.noter, note: h.note }, {
+            efter: gemt => {
+              aabnArk(titel, ...indhold);
+              if (!gemt) return;
+              f.udfoert = true; valgt.delete(f); n0++;
+              k.disabled = true; k.setAttribute('aria-checked', 'false'); li.classList.add('gemt');
+              tekstEl.textContent = '✓ Gemt: ' + aiDag(gemt.dato) + ': ' + gemt.titel; li.querySelector('.lille-knap')?.remove();
+              opdater(); tegnAlt();
+            }
+          });
+        }));
+      }
       if (f.h.type === 'kalender_ny') {   // ret selv, før den gemmes
         li.append(knap('Ret', 'lille-knap', () => { const h = f.h; redigerAftale({ titel: h.titel, dato: h.dato, tid: h.tid, slut: h.slut, hvem: h.hvem.length === 1 ? h.hvem[0] : h.hvem, gentag: h.gentag, gentagTil: h.gentagTil, note: h.note }); }));
       }
       ul.append(li);
     }
     if (!gode.length) { aktuelle = null; return ul; }
+    let n0 = 0;   // gemt via "Ret"
     const udfoer = knap('', 'knap', async () => {
-      let n = 0;
+      let n = n0;
       for (const f of gode) {
-        if (!valgt.has(f)) continue;
+        if (!valgt.has(f) || f.udfoert) continue;
         try { await aiUdfoer(f.h); f.udfoert = true; n++; } catch (e) { console.error(e); visStatus('Kunne ikke gemme: ' + f.tekst, true); }
       }
       lukArk(); tegnAlt();   // færdig – næste gang starter rent
       if (n) visStatus('✨ ' + (n === 1 ? 'Det er gjort' : n + ' ting er gjort') + ' – kan fortrydes under Mere → Aktivitet');
     });
-    const opdater = () => { udfoer.textContent = 'Udfør' + (valgt.size > 1 ? ' (' + valgt.size + ')' : ''); udfoer.disabled = !valgt.size; };
+    const opdater = () => { udfoer.textContent = valgt.size ? 'Udfør' + (valgt.size > 1 ? ' (' + valgt.size + ')' : '') : n0 ? 'Færdig' : 'Udfør'; udfoer.disabled = !valgt.size && !n0; };
     opdater();
     aktuelle = { udfoer };
     return ul;
@@ -344,6 +468,8 @@ function aabnAI(opts = {}) {
     const skrevet = felt.value.trim();
     const foerste = !samtale.length;
     if (!skrevet && !billede && !(foerste && def.tekst)) { felt.focus(); return; }
+    if (skole && !boernValgt.size) { visStatus('Vælg hvilke børn beskeden gælder'); return; }
+    if (skole) aiSkoleBoern = BOERN.filter(b => boernValgt.has(b));
     // Første besked i en fast opgave: opgavens tekst (+ evt. ønsker); ellers det der er skrevet
     const tekst = foerste && def.tekst ? def.tekst + (skrevet ? ' Ønsker: ' + skrevet : '') : skrevet;
     const hist = historik();
@@ -356,7 +482,7 @@ function aabnAI(opts = {}) {
     let res;
     try {
       const bil = billede ? { media_type: 'image/jpeg', data: billede.split(',')[1] } : null;
-      res = await Data.ai(tekst, await aiKontekst(opgave, opts.uge), hist, bil, opgave);
+      res = await Data.ai(tekst || (skole ? 'Se billedet.' : ''), await aiKontekst(opgave, opts.uge, { boern: aiSkoleBoern }), hist, bil, opgave);
     } catch (e) {
       samtale.pop(); felt.value = skrevet;
       tegn();
@@ -371,8 +497,10 @@ function aabnAI(opts = {}) {
   }
 
   tegn();
-  aabnArk(def.titel, log, inputRaekke,
-    el('p', 'hint', 'Intet gemmes, før du trykker "Udfør". Den sletter aldrig noget.'), knapper);
+  const gaelder = el('div', 'ai-gaelder'); gaelder.append(el('span', 'felt-label', 'Gælder'), boernSeg);   // ("felt" er tekstfeltet her)
+  aabnArk(def.titel, ...(skole ? [gaelder] : []), log, inputRaekke,
+    el('p', 'hint', skole ? 'AI\'en får kun de valgte børns skema (fag og tider). Intet gemmes, før du trykker "Udfør".'
+      : 'Intet gemmes, før du trykker "Udfør". Den sletter aldrig noget.'), knapper);
   if (opts.auto || opts.billede) spoerg(opts.billede || null);
   else setTimeout(() => felt.focus(), 50);
 }
@@ -398,6 +526,7 @@ function aiSideKnapper() {
   }));
   document.getElementById('handle-knap')?.before(lav('📷 Seddel', 'Foto af indkøbsseddel', () => aiFoto('seddel')));
   document.getElementById('kal-ny')?.before(lav('📷', 'Foto af ugeseddel', () => aiFoto('ugeseddel')));
+  document.getElementById('kal-ny')?.before(lav('🏫', 'Ændring i skolen – besked fra Aula, sms eller seddel', () => aabnAI({ opgave: 'skole' })));
 }
 aiSideKnapper();
 

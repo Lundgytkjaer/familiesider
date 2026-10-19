@@ -2389,7 +2389,7 @@ async function tegnBoernetavle(barn) {
       const saerDele = [];
       if (sd.saerlig && skoledagMaerke(sd.saerlig)) {
         const titelTekst = '🏫 ' + skoledagTitel(sd.saerlig);
-        saerDele.push(erBarn() ? el('p', 'sd-maerke', titelTekst) : knap(titelTekst + ' ›', 'sd-maerke', () => redigerSkoledag(barn, iso, sd.saerlig)));
+        saerDele.push(erBarn() ? el('p', 'sd-maerke', titelTekst) : knap(titelTekst + ' ›', 'sd-maerke', () => redigerSkoledag(barn, iso, sd.saerlig._rediger || sd.saerlig)));
       }
       const noteListe = [...sd.noter.map(n => (n.fag ? n.fag + ': ' : '') + n.tekst), ...(sd.saerlig?.note ? [sd.saerlig.note] : [])];
       const noteEl = noteListe.length ? el('div', 'sd-noter') : '';
@@ -3500,10 +3500,11 @@ function redigerFravaer(barn, iso, x) {
   // Særlig skoledag (program, ændrede tider, noter til fag) har sit eget ark – skoledag.js
   const saerlig = skoledagDen(Data.listNu ? Data.listNu('kalender') : [], iso, barn);
   const saerKnap = x ? '' : knap(saerlig ? '🏫 Ret ' + skoledagTitel(saerlig) : '🏫 Særlig skoledag – program, ændrede tider eller note til et fag', 'lille-knap sd-vej',
-    () => { lukArk(); redigerSkoledag(barn, iso, saerlig); });
+    () => { lukArk(); redigerSkoledag(barn, iso, saerlig?._rediger || saerlig); });
+  const beskedKnap = x ? '' : knap('🏫 Fra en besked fra skolen (Aula, sms, seddel)', 'lille-knap sd-vej', () => { lukArk(); aabnAI({ opgave: 'skole', boern: [barn] }); });
   aabnArk(barn + ' · ' + DAGE_LANG[(d.getDay() + 6) % 7].toLowerCase() + ' ' + d.getDate() + '/' + (d.getMonth() + 1),
     felt('Hvad', valg), tidFelt, tilFelt, felt('Note (valgfri)', note),
-    el('p', 'hint', 'Står i kalenderen, og skemaet på tavlen viser det. En sygedag bryder ikke streak.'), saerKnap, knapper);
+    el('p', 'hint', 'Står i kalenderen, og skemaet på tavlen viser det. En sygedag bryder ikke streak.'), saerKnap, beskedKnap, knapper);
 }
 
 // "Tilpas": hvad hver person vil se (helligdage, mærkedage, sol, vejr). Børn retter kun deres egne.

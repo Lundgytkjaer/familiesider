@@ -17,7 +17,18 @@ function rensTid(tekst) {
   if (fra == null || til == null || fra >= til || til > 24 * 60) return null;
   return tidSpan(fra, til);
 }
-const skoledagDen = (aftaler, iso, barn) => aftalerDen(aftaler, iso, [barn]).find(a => a.type === SKOLEDAG) || null;
+// Barnets ændring(er) i skolen på en dato. Er der flere (fx en temadag for begge + en note til Villads' idræt),
+// lægges de sammen til én visning; `_rediger` er den, der åbnes, når man trykker på mærket.
+function skoledagDen(aftaler, iso, barn) {
+  const alle = aftalerDen(aftaler, iso, [barn]).filter(a => a.type === SKOLEDAG);
+  if (alle.length < 2) return alle[0] || null;
+  const hoved = alle.find(skoledagMaerke) || alle[0];
+  const tider = (felt, f) => alle.map(a => a[felt]).filter(Boolean).sort()[f === 'max' ? 'pop' : 'shift']() || '';
+  return { ...hoved, _rediger: hoved, _alle: alle,
+    program: alle.flatMap(a => a.program || []), noter: alle.flatMap(a => a.noter || []),
+    moede: tider('moede', 'max'), friKl: [...alle.map(a => a.friKl).filter(Boolean)].sort()[0] || '',
+    note: [...new Set(alle.map(a => a.note).filter(Boolean))].join(' · ') };
+}
 
 // Flet barnets normale dag (alle = dagensTimer) med en særlig skoledag (s).
 // Returnerer samme form som skoleTider + timer (rækker med fag) og noter, der ikke passede til et fag.
@@ -94,7 +105,9 @@ function skoleLi(t, erNu, farver) {
 }
 
 // ---------- Ret en særlig skoledag (kun voksne) ----------
-function redigerSkoledag(barn, iso, x = null) {
+// x = eksisterende aftale (med id) eller et udfyldt forslag uden id (fra ✨ Ændring i skolen).
+// opts.efter(gemt) kaldes i stedet for at lukke arket (gemt = null ved "Tilbage") – så AI-arket kan komme igen.
+function redigerSkoledag(barn, iso, x = null, opts = {}) {
   if (erBarn()) return;
   const dato = input('date', 'sd-dato', x?.dato || iso);
   const titel = input('text', 'sd-titel', x?.titel || '', 'Fx Brætspilsdag, Motionsdag, Idræt');
@@ -222,14 +235,15 @@ function redigerSkoledag(barn, iso, x = null) {
     if (!s.program.length && !s.moede && !s.friKl && !s.noter.length) return visFejl('Skriv et program, ændrede tider eller en note til et fag.');
     if (s.moede && s.friKl && s.moede >= s.friKl) return visFejl('Mødetiden skal være før fri-tiden.');
     s.titel = skoledagTitel(s);
-    if (x) await Data.update(kalListe(x), x.id, s); else await Data.add('kalender', s);
-    lukArk(); tegnAlt();
+    if (x?.id) await Data.update(kalListe(x), x.id, s); else await Data.add('kalender', s);
+    if (opts.efter) opts.efter(s); else { lukArk(); tegnAlt(); }
   });
   const knapper = el('div', 'ark-knapper');
-  if (x) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove(kalListe(x), x.id); lukArk(); tegnAlt(); }));
+  if (opts.efter) knapper.append(knap('‹ Tilbage', 'knap sekundaer', () => opts.efter(null)));
+  if (x?.id) knapper.append(knap('Slet', 'knap fare', async () => { await Data.remove(kalListe(x), x.id); lukArk(); tegnAlt(); }));
   knapper.append(gem);
 
-  aabnArk(x ? 'Ret ændring i skolen' : '🏫 Særlig skoledag',
+  aabnArk(x?.id ? 'Ret ændring i skolen' : '🏫 Særlig skoledag',
     felt('Dato', dato), felt('Hvad hedder dagen? (valgfri)', titel), felt('Hvem', hvemSeg),
     el('h3', 'lille-titel', 'Program'),
     el('p', 'hint', 'Kun det, der er anderledes. Resten af dagen viser hvert barns normale skema – og hvert barn beholder sine egne tider.'),
@@ -267,7 +281,10 @@ async function tegnSkemaAendringer() {
   if (!erBarn()) {
     // Standard: næste gang den viste ugedag kommer (i dag, hvis det er i dag)
     const d = new Date(); d.setDate(d.getDate() + ((skemaDag - idagNr() + 7) % 7));
-    dele.push(knap('+ Ændring en bestemt dag', 'lille-knap kun-voksen', () => redigerSkoledag(skemaBarn, isoDato(d))));
+    const knapper = el('div', 'sd-knapper');
+    knapper.append(knap('🏫 Fra en besked (Aula, sms, seddel)', 'lille-knap kun-voksen', () => aabnAI({ opgave: 'skole', boern: [skemaBarn] })),   // ai.js
+      knap('+ Ændring en bestemt dag', 'lille-knap kun-voksen', () => redigerSkoledag(skemaBarn, isoDato(d))));
+    dele.push(knapper);
   }
   boks.replaceChildren(...dele);
 }
