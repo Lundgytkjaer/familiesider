@@ -8,6 +8,8 @@
 //     Værktøjskasse + opslag (2026-10-19q): opgaven 'fri' får kalenderens aftaler med (aiOpslagAftaler – kalender + kalender_voksne,
 //     aldrig "Kun mig"), som Edge Function'en SLÅR OP i (find_aftaler), så den kan rette/flytte/aflyse en aftale (kalender_ret)
 //     og svare på spørgsmål om kalenderen. Dataene går ikke i prompten – AI'en ser kun svarene på sine opslag.
+//     Trin 2 (2026-10-19r): også skoledage (aiOpslagSkole), madplan (aiOpslagMad), to do og indkøb (aiOpslagLister) –
+//     så ✨ kan svare på "hvornår har Villads fri torsdag?" og "hvad skal vi spise i morgen?".
 // Edge Function'en "ai" svarer med FORSLAG ({svar, handlinger}). Appen tjekker hvert forslag (aiTjek), viser kort med flueben, og først
 // "Udfør" gemmer – med appens egne funktioner (aiUdfoer), så børnelås/regler gælder. Sletning/aflysning kun som fravalgt forslag,
 // der skal vælges aktivt. Der sendes aldrig kontakter, "Kun mig"-aftaler, sedler, fødselsdage, budget, dagbog eller adresse.
@@ -54,6 +56,56 @@ function aiOpslagAftaler(fra = plusDage(isoDato(new Date()), -30), til = plusDag
   }
   return ud;
 }
+// Børnenes skoledage (7 dage tilbage – 60 frem): fri med grund, eller mødetid/fri-tid/fag + særlig skoledag og noter
+async function aiOpslagSkole(fra = plusDage(isoDato(new Date()), -7), til = plusDage(isoDato(new Date()), 60)) {
+  const aftaler = await Data.list('kalender'), ud = [];
+  for (const barn of BOERN) {
+    const uge = await Promise.all([0, 1, 2, 3, 4].map(d => dagensTimer(barn, d)));
+    const fastFriDag = await Promise.all([0, 1, 2, 3, 4].map(d => fastFri(barn, d)));
+    for (let iso = fra; iso <= til; iso = plusDage(iso, 1)) {
+      const dag = (tilDag(iso).getDay() + 6) % 7;
+      const x = { barn, dato: iso, ugedag: DAGE_LANG[dag].toLowerCase() };
+      const h = dag < 5 && helligdagDen(iso), f = dag < 5 && friDen(aftaler, iso, barn);
+      const fri = dag >= 5 ? 'weekend' : h ? h.navn : f ? (FRAVAER[f.type]?.titel || f.titel) : fastFriDag[dag] ? 'fast fridag' : '';
+      if (fri) { ud.push({ ...x, fri }); continue; }
+      const s = skoledagDen(aftaler, iso, barn), d = fletSkoledag(uge[dag], s);
+      const tidlig = aftalerDen(aftaler, iso, [barn]).find(a => a.type === 'tidlig' && a.tid);
+      const kl = t => { const m = tidSomMin(visTid(t))[0]; return m == null ? null : m; };   // "8.00" / "08:00" → minutter
+      const slut = kl(d.slut), tidligMin = tidlig ? kl(tidlig.tid) : null;
+      const fag = [...new Set(d.timer.filter(t => !t.saerlig).map(t => t.fag).filter(Boolean))];
+      ud.push({ ...x, moede: kl(d.start) == null ? '' : tilKl(kl(d.start)),
+        fri_kl: tidligMin != null && (slut == null || tidligMin < slut) ? tilKl(tidligMin) : slut == null ? '' : tilKl(slut),
+        fag, ...(!fag.length && !s ? { skema: 'ikke lagt ind' } : {}),
+        ...(tidlig ? { tidlig: 'tidligere fri kl. ' + visTid(tidlig.tid) + (tidlig.note ? ' – ' + tidlig.note : '') } : {}),
+        ...(s ? { saerlig: skoledagTitel(s), program: (s.program || []).map(p => visTider(p.tid) + ' ' + p.tekst) } : {}),
+        noter: [...d.timer.flatMap(t => (t.noter || []).map(n => t.fag + ': ' + n)), ...d.noter.map(n => (n.fag ? n.fag + ': ' : '') + n.tekst)],
+        ...(s?.note ? { note: s.note } : {}) });
+    }
+  }
+  return ud;
+}
+// Madplanen (7 dage tilbage – 14 frem): familiens aftensmad + hvert barns morgenmad og frokost (som på tavlen)
+async function aiOpslagMad(fra = plusDage(isoDato(new Date()), -7), til = plusDage(isoDato(new Date()), 14)) {
+  const datoer = [];
+  for (let iso = fra; iso <= til; iso = plusDage(iso, 1)) datoer.push(iso);
+  return Promise.all(datoer.map(async iso => {
+    const d = new Date(iso + 'T00:00'), f = await madFor(d);
+    const boern = {};
+    for (const barn of BOERN) { const m = await madFor(d, barn); boern[barn] = { morgen: m.visning.morgen || m.morgen || '', frokost: m.visning.frokost || m.frokost || '' }; }
+    return { dato: iso, ugedag: DAGE_LANG[(d.getDay() + 6) % 7].toLowerCase(), aftensmad: f.visning.ret || f.ret || '', boern };
+  }));
+}
+// To do og indkøb – det der ikke er klaret/købt
+const aiOpslagLister = () => ({
+  todo: Data.listNu('todo').filter(t => !t.klaret).map(t => ({ tekst: t.tekst, hvem: t.hvem || '', frist: t.frist || '', prio: t.prio || 2 })),
+  indkob: Data.listNu('indkob').filter(v => !v.klaret).map(v => ({ tekst: v.tekst, antal: v.antal || '', butik: v.butik || '' }))
+});
+// Alle opslag på én gang – går én del galt, sendes resten alligevel (AI'en får så bare ingen data for den del)
+async function aiOpslagAlle() {
+  const proev = async (navn, fn) => { try { return await fn(); } catch (e) { console.error('✨ opslag ' + navn, e); return []; } };
+  const [aftaler, skole, mad, lister] = await Promise.all([proev('aftaler', aiOpslagAftaler), proev('skole', aiOpslagSkole), proev('mad', aiOpslagMad), proev('lister', aiOpslagLister)]);
+  return { aftaler, skole, mad, todo: lister.todo || [], indkob: lister.indkob || [] };
+}
 const aiFindAftale = id => aiKalRaekker().find(a => String(a.id) === String(id)) || null;
 const aiAftaleTekst = (a, iso) => aiDag(iso) + (a.tid ? ' kl. ' + klTekst(a) : '');
 
@@ -91,7 +143,7 @@ async function aiKontekst(opgave = 'fri', uge = null, ekstra = {}) {
   const butikker = () => [...new Set(Data.listNu('favoritter').filter(f => f.type === 'butik').map(f => f.tekst))];
   if (opgave === 'fri') {
     Object.assign(k, { butikker: butikker(), varer: aiKendteVarer().slice(0, 150), retter: aiRetter().map(f => ({ tekst: f.tekst, maaltid: f.type })),
-      opslag: { aftaler: aiOpslagAftaler() } });   // kun til opslag – kommer ikke i prompten
+      opslag: await aiOpslagAlle() });   // kun til opslag – kommer ikke i prompten
   } else if (opgave === 'seddel') {
     Object.assign(k, { butikker: butikker(), varer: aiKendteVarer().slice(0, 300) });
   } else if (opgave === 'madplan') {
@@ -489,7 +541,7 @@ const AI_EMNER = [
   { id: 'skole', ikon: '🏫', navn: 'Skole', eks: 'Indsæt en besked fra Aula, sms eller mail – eller tag et billede af sedlen' },
   { id: 'indkob', ikon: '🛒', navn: 'Indkøb', eks: 'Fx "mælk, 2 rugbrød og æg" – eller tag et billede af sedlen' },
   { id: 'madplan', ikon: '🍽️', navn: 'Madplan', eks: 'Fx "pizza på fredag" – eller tryk ➤ for forslag til ugens aftensmad' },
-  { id: 'kalender', ikon: '📅', navn: 'Kalender', eks: 'Fx "Oliver tandlæge torsdag kl. 14", "flyt tandlægen til fredag" eller "hvornår er der svømning?"' },
+  { id: 'kalender', ikon: '📅', navn: 'Kalender', eks: 'Fx "Oliver tandlæge torsdag kl. 14", "flyt tandlægen til fredag" eller "hvornår har Villads fri torsdag?"' },
   { id: 'todo', ikon: '☑️', navn: 'To do', eks: 'Fx "Ring til VVS i morgen"' }
 ];
 // Hvor står brugeren? Siden og det barn, der vises (børnetavlen eller skemaet)
