@@ -2167,3 +2167,9 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 .ai-oensker-link button { border: 0; background: none; padding: 4px 0; color: var(--accent); font: inherit; font-size: 14px; font-weight: 700; }
 .ai-oensker { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 8px; }
 .ai-oensker li { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px; border: 1px solid var(--linje); border-radius: 14px; background: var(--flade); }
+
+/* Familien ombygget (2026-10-20c): skolekort efter tidspunkt, To do der haster, indkøb som én linje */
+.skole-kort .dagsdel-liste li { padding: 4px 0; }
+.todo-haster-kort { border: 2px solid var(--p1); }
+.over-tid-tekst { color: var(--p1); font-weight: 700; }
+.ov-indkob-linje { display: block; width: 100%; text-align: left; padding: 12px 16px; border: 1px dashed var(--linje); border-radius: 16px; background: none; color: var(--daempet); font: inherit; font-size: 15px; font-weight: 600; }

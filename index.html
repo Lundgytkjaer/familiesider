@@ -24,7 +24,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-20b">
+  <link rel="stylesheet" href="style.css?v=2026-10-20c">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -51,10 +51,10 @@
           <p class="under sol-linje" id="ov-vejr"></p>
           <p class="under sol-linje" id="ov-sol"></p>
         </button>
-        <div class="kort dagsdel-kort" id="ov-nu" hidden></div>
-        <div class="kort" id="ov-boern" hidden></div>
-
-        <div class="kort" id="ov-mine-pligter" hidden></div>
+        <button type="button" class="kort skole-kort" id="ov-skole-kort" data-gaa="skema" hidden>
+          <div class="kort-top"><span class="kort-label" id="ov-skole-label">Skole i dag</span><span class="kort-pil">Skema ›</span></div>
+          <ul class="mini dagsdel-liste" id="ov-skole"></ul>
+        </button>
 
         <button type="button" class="kort" data-gaa="madplan">
           <div class="kort-top"><span class="kort-label">Aftensmad i dag</span><span class="kort-pil">Madplan ›</span></div>
@@ -63,20 +63,15 @@
           <p class="under" id="ov-ret-imorgen"></p>
         </button>
 
-        <button type="button" class="kort" data-gaa="skema">
-          <div class="kort-top"><span class="kort-label" id="ov-skole-label">Skole i dag</span><span class="kort-pil">Skema ›</span></div>
-          <div id="ov-skole"></div>
-        </button>
-
-        <button type="button" class="kort" data-gaa="todo">
-          <div class="kort-top"><span class="kort-label">To do</span><span class="kort-pil" id="ov-todo-antal">›</span></div>
+        <button type="button" class="kort todo-haster-kort" id="ov-todo-kort" data-gaa="todo" hidden>
+          <div class="kort-top"><span class="kort-label">To do – skal gøres i dag</span><span class="kort-pil" id="ov-todo-antal">›</span></div>
           <ul class="mini" id="ov-todo"></ul>
         </button>
 
-        <button type="button" class="kort" data-gaa="indkob">
-          <div class="kort-top"><span class="kort-label">Indkøb</span><span class="kort-pil" id="ov-indkob-antal">›</span></div>
-          <div class="chips" id="ov-indkob"></div>
-        </button>
+        <div class="kort" id="ov-boern" hidden></div>
+        <div class="kort" id="ov-mine-pligter" hidden></div>
+
+        <button type="button" class="ov-indkob-linje" id="ov-indkob" data-gaa="indkob" hidden></button>
         <div class="ov-sedler" id="ov-seddel-link"></div>
       </div>
     </section>
@@ -518,26 +513,26 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
-<script src="data.js?v=2026-10-20b"></script>
-<script src="dage.js?v=2026-10-20b"></script>
-<script src="vejr.js?v=2026-10-20b"></script>
-<script src="app.js?v=2026-10-20b"></script>
-<script src="mere.js?v=2026-10-20b"></script>
-<script src="sjov.js?v=2026-10-20b"></script>
-<script src="seddel.js?v=2026-10-20b"></script>
-<script src="familie.js?v=2026-10-20b"></script>
-<script src="handel.js?v=2026-10-20b"></script>
-<script src="retter.js?v=2026-10-20b"></script>
-<script src="aktivitet.js?v=2026-10-20b"></script>
-<script src="kort.js?v=2026-10-20b"></script>
-<script src="pause.js?v=2026-10-20b"></script>
-<script src="skoledag.js?v=2026-10-20b"></script>
-<script src="mappe.js?v=2026-10-20b"></script>
-<script src="bank.js?v=2026-10-20b"></script>
-<script src="budget.js?v=2026-10-20b"></script>
-<script src="dagbog.js?v=2026-10-20b"></script>
-<script src="opskrifter.js?v=2026-10-20b"></script>
-<script src="push.js?v=2026-10-20b"></script>
-<script src="ai.js?v=2026-10-20b"></script>
+<script src="data.js?v=2026-10-20c"></script>
+<script src="dage.js?v=2026-10-20c"></script>
+<script src="vejr.js?v=2026-10-20c"></script>
+<script src="app.js?v=2026-10-20c"></script>
+<script src="mere.js?v=2026-10-20c"></script>
+<script src="sjov.js?v=2026-10-20c"></script>
+<script src="seddel.js?v=2026-10-20c"></script>
+<script src="familie.js?v=2026-10-20c"></script>
+<script src="handel.js?v=2026-10-20c"></script>
+<script src="retter.js?v=2026-10-20c"></script>
+<script src="aktivitet.js?v=2026-10-20c"></script>
+<script src="kort.js?v=2026-10-20c"></script>
+<script src="pause.js?v=2026-10-20c"></script>
+<script src="skoledag.js?v=2026-10-20c"></script>
+<script src="mappe.js?v=2026-10-20c"></script>
+<script src="bank.js?v=2026-10-20c"></script>
+<script src="budget.js?v=2026-10-20c"></script>
+<script src="dagbog.js?v=2026-10-20c"></script>
+<script src="opskrifter.js?v=2026-10-20c"></script>
+<script src="push.js?v=2026-10-20c"></script>
+<script src="ai.js?v=2026-10-20c"></script>
 </body>
 </html>

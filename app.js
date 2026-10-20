@@ -3248,85 +3248,68 @@ function redigerFoed(f) {
 }
 
 // ---------- I dag – overblik ----------
-// Dagsdel for familieoverblikket: morgen 5–9.30, efter skole 13–18, aften 19–23.30 (ellers intet ekstra kort)
-// "Efter skole" viser kun børn, der stadig er i skole ("fri 15.30") – når alle har fri, forsvinder kortet (Timmos ønske 20/10:
-// "har fri fra 13.00" og dagens husk-noter efter skoletid var ligegyldige)
-function dagsdelNu() {
+// Familien = et hurtigt blik: "hvad skal vi være opmærksomme på i dag?" (ombygget 2026-10-20c efter Timmos ønske).
+// Rækkefølge: (sedler/ønsker der venter) → Kalender i dag → Skole → Aftensmad → To do der haster → Børnene i dag (fra kl. 16)
+// → konkurrence → mine pligter → indkøbslinje. Kort uden indhold vises ikke.
+//
+// Skolekortet skifter efter tidspunktet (`skoleOverblik`):
+//   kl. 0–9.30   "☀️ Skole i dag"    – mødetid og madpakke pr. barn (særlig dag)
+//   kl. 9.30–18  "🏫 Skole i dag"    – kun børn, der stadig er i skole: "fri 14.45"
+//   kl. 18–24    "🌙 Skole i morgen" – morgendagens mødetid, særlig dag og husk-noter
+// Børn uden skole den dag (weekend, ferie, helligdag, syg, fast fridag) står der ikke. Ingen børn = intet kort.
+function skoleDel() {
   const d = new Date(), m = d.getHours() * 60 + d.getMinutes();
-  return m >= 300 && m < 570 ? 'morgen' : m >= 780 && m < 1080 ? 'eftermiddag' : m >= 1140 && m < 1410 ? 'aften' : null;
+  return m < 570 ? 'morgen' : m < 1080 ? 'dag' : 'aften';
 }
-async function dagsdelKort() {
-  const del = dagsdelNu();
-  if (!del) return null;
+async function skoleOverblik() {
+  const del = skoleDel();
   const nu = new Date(), nuMin = nu.getHours() * 60 + nu.getMinutes();
   const dato = new Date(); if (del === 'aften') dato.setDate(dato.getDate() + 1);
   const iso = isoDato(dato), dagNr = (dato.getDay() + 6) % 7;
+  if (dagNr >= 5 || helligdagDen(iso)) return null;   // dage.js
   const kal = await Data.list('kalender'), infoAlle = await Data.list('info');
   const linjer = [];
   for (const barn of BOERN) {
+    if (friDen(kal, iso, barn) || (typeof fastFri === 'function' && await fastFri(barn, dagNr))) continue;   // ferie, fri, syg, fast fridag
+    const sd = await skoleDag(barn, iso, kal);   // skoledag.js
+    if (!sd.timer.length && !sd.start) continue;   // intet skema lagt ind
+    const tidlig = aftalerDen(kal, iso, [barn]).find(a => a.type === 'tidlig' && a.tid);
+    const friMin = [sd.slut ? tidSomMin(sd.slut)[0] : null, tidlig ? tidSomMin(visTid(tidlig.tid))[0] : null].filter(x => x != null).sort((a, b) => a - b)[0];
+    const startMin = sd.start ? tidSomMin(sd.start)[0] : null;
     const dele = [];
-    if (del === 'eftermiddag') {
-      if (dagNr >= 5 || friDen(kal, iso, barn) || helligdagDen(iso) || (typeof fastFri === 'function' && await fastFri(barn, dagNr))) continue;
-      const { slut, saerlig } = await skoleDag(barn, iso, kal);   // skoledag.js
-      const tidlig = aftalerDen(kal, iso, [barn]).find(a => a.type === 'tidlig' && a.tid);
-      const friMin = [slut ? tidSomMin(slut)[0] : null, tidlig ? tidSomMin(visTid(tidlig.tid))[0] : null].filter(x => x != null).sort((a, b) => a - b)[0];
+    if (sd.saerlig && skoledagMaerke(sd.saerlig)) dele.push('🏫 ' + skoledagTitel(sd.saerlig));
+    if (del === 'dag') {
       if (friMin == null || friMin <= nuMin) continue;   // har allerede fri
-      const li = el('li', PK[barn] || '');
-      li.append(el('span', 'prik'), el('b', null, barn + ': '), [saerlig && skoledagMaerke(saerlig) ? '🏫 ' + skoledagTitel(saerlig) : '', 'fri ' + tilKl(friMin)].filter(Boolean).join(' · '));
-      linjer.push(li);
-      continue;
-    }
-    if (dagNr < 5) {
-      const fri = friDen(kal, iso, barn), hellig = helligdagDen(iso);   // dage.js
-      if (fri) dele.push(fri.type === 'syg' ? 'hjemme 🤒' : 'fri ' + friIkon(fri));
-      else if (hellig) dele.push('fri – ' + hellig.navn);
-      else if (typeof fastFri === 'function' && await fastFri(barn, dagNr)) dele.push('fri 🎉');
-      else {
-        const { start, slut, saerlig } = await skoleDag(barn, iso, kal);   // skoledag.js
-        if (saerlig && skoledagMaerke(saerlig)) dele.push('🏫 ' + skoledagTitel(saerlig));
-        if (del === 'eftermiddag' && slut) dele.push((tidSomMin(slut)[0] > nuMin ? 'fri ' : 'har fri fra ') + visTid(slut));
-        else if (del !== 'eftermiddag' && start) dele.push('møder ' + visTid(start));
+      dele.push('fri ' + tilKl(friMin) + (tidlig ? ' ⏰' : ''));
+    } else {
+      if (startMin != null) dele.push('møder ' + tilKl(startMin));
+      if (friMin != null) dele.push('fri ' + tilKl(friMin) + (tidlig ? ' ⏰' : ''));
+      if (del === 'morgen') {
+        // "Madpakke" kun når skolen slutter efter kl. 12 – ellers spiser barnet frokost hjemme
+        const m = await madFor(dato, barn);
+        if (m.frokost && m.frokost !== INGEN_MAD) dele.push((friMin == null || friMin > 12 * 60 ? 'madpakke: ' : 'frokost: ') + (m.visning?.frokost || m.frokost));
+      } else {
+        // I morgen: husk-noterne (i dag står de allerede i Kalender i dag)
+        for (const x of infoDen(infoAlle, barn, iso)) dele.push(/^husk\b/i.test(x.tekst || '') ? x.tekst : 'husk: ' + x.tekst);
       }
-    } else if (del === 'aften') dele.push('weekend 😎');
-    for (const x of infoDen(infoAlle, barn, iso)) dele.push(/^husk\b/i.test(x.tekst || '') ? x.tekst : 'husk: ' + x.tekst);
-    if (del === 'morgen') {
-      const m = await madFor(dato, barn);
-      // "Madpakke" kun på skoledage, hvor skolen slutter efter kl. 12 – ellers spiser barnet frokost hjemme
-      // (weekend, ferie, fridage og korte dage som fri kl. 12)
-      let skole = dagNr < 5 && !(typeof skoleFriNu === 'function' && skoleFriNu(barn, iso));
-      if (skole) {
-        const { slut } = await skoleDag(barn, iso, kal);
-        const min = slut ? tidSomMin(slut)[0] : null;   // minutter efter midnat
-        if (min != null && min <= 12 * 60) skole = false;
-      }
-      if (m.frokost && m.frokost !== INGEN_MAD) dele.push((skole ? 'madpakke: ' : 'frokost: ') + (m.visning?.frokost || m.frokost));
     }
-    if (del === 'aften' && typeof pligtData === 'function') {
-      const mangler = skalKlares(dagensOpgaver(await pligtData(barn))).filter(r => !r.f && !r.sprunget).length;   // mere.js
-      if (mangler) dele.push(mangler + (mangler === 1 ? ' pligt mangler i aften' : ' pligter mangler i aften'));
-    }
-    if (dele.length) {
-      const li = el('li', PK[barn] || '');
-      li.append(el('span', 'prik'), el('b', null, barn + ': '), dele.join(' · '));
-      linjer.push(li);
-    }
+    const li = el('li', PK[barn] || '');
+    li.append(el('span', 'prik'), el('b', null, barn + ': '), dele.join(' · '));
+    linjer.push(li);
   }
   if (!linjer.length) return null;
-  const titel = del === 'morgen' ? '☀️ God morgen' : del === 'eftermiddag' ? '🏠 Efter skole' : '🌙 I morgen · ' + DAGE_LANG[dagNr].toLowerCase();
-  const top = el('div', 'kort-top');
-  top.append(el('span', 'kort-label', titel));
-  const ul = el('ul', 'mini dagsdel-liste');
-  ul.append(...linjer);
-  return [top, ul];
+  return { titel: del === 'morgen' ? '☀️ Skole i dag' : del === 'dag' ? '🏫 Skole i dag' : '🌙 Skole i morgen · ' + DAGE_LANG[dagNr].toLowerCase(), linjer };
 }
-// Skift dagsdel → tegn overblikket igen (tjekkes hvert minut)
-let dagsdelSidst = dagsdelNu();
-setInterval(() => {
-  const n = dagsdelNu();
-  if (n === dagsdelSidst) return;
-  dagsdelSidst = n;
-  if (document.body.dataset.tilstand === 'klar' && Data.bruger()?.rolle === 'voksen') tegnOverblik();
-}, 60000);
+// Skolekortet ændrer sig hen over dagen (fri-tider, morgen/aften): tegn Familien igen hvert 5. minut, hvis noget er ændret
+let skoleSidst = '';
+setInterval(async () => {
+  if (document.body.dataset.tilstand !== 'klar' || Data.bruger()?.rolle !== 'voksen' || tavleVisning !== 'familie' || document.hidden) return;
+  if (!document.getElementById('ark')?.hidden) return;   // et åbent ark får lov at være i fred
+  const s = await skoleOverblik().catch(() => null), n = s ? s.titel + s.linjer.map(l => l.textContent).join('|') : '';
+  const boernFra16 = new Date().getHours() >= 16;
+  if (n === skoleSidst && boernFra16 === document.body.classList.contains('ov-aften')) return;
+  tegnOverblik();
+}, 300000);
 
 async function tegnOverblik() {
   tegnTavleValg();
@@ -3365,19 +3348,16 @@ async function tegnOverblik() {
   oensker.replaceChildren(...oenskeIndhold);
   oensker.hidden = !oenskeIndhold.length;
 
-  // Én linje pr. barn (mere.js)
+  // Én linje pr. barn (mere.js) – kun fra kl. 16, hvor pligterne bliver lavet
   const ovBoern = document.getElementById('ov-boern');
-  if (ovBoern) { const bk = await boernLinjerKort(); ovBoern.replaceChildren(...(bk ? [...bk.childNodes] : [])); ovBoern.hidden = !bk; }
+  const aften = new Date().getHours() >= 16;
+  document.body.classList.toggle('ov-aften', aften);
+  if (ovBoern) { const bk = aften ? await boernLinjerKort() : null; ovBoern.replaceChildren(...(bk ? [...bk.childNodes] : [])); ovBoern.hidden = !bk; }
   // 🚴 Ugens konkurrence – vises, når nogen har skrevet km i denne uge (sjov.js)
   let ovKonk = document.getElementById('ov-konk');
   if (!ovKonk && ovBoern) { ovKonk = el('div'); ovKonk.id = 'ov-konk'; ovBoern.after(ovKonk); }
   if (ovKonk) { const kk = await konkKort(null); ovKonk.replaceChildren(...(kk ? [kk] : [])); ovKonk.hidden = !kk; }
 
-  // Det vigtigste lige nu: morgen (møder, husk, madpakke), efter skole (fri), aften (i morgen)
-  const ovNu = document.getElementById('ov-nu');
-  const nuKort = await dagsdelKort();
-  ovNu.replaceChildren(...(nuKort || []));
-  ovNu.hidden = !nuKort;
 
   const minePladser = document.getElementById('ov-mine-pligter');
   const mine = await minePligterKort();
@@ -3405,13 +3385,6 @@ async function tegnOverblik() {
   for (const a of dagens) {
     const li = el('li', aftaleFarve(a));
     li.append(el('span', 'prik'), el('span', null, tidTekst(a) + a.titel + laas(a) + ' · ' + personerI(a).join(', ')));
-    ovKal.append(li);
-  }
-  // To do med frist i dag (eller over tid)
-  const dagensTodo = (await Data.list('todo')).filter(p => !p.klaret && p.frist && p.frist <= iDagIso);
-  for (const p of dagensTodo) {
-    const li = el('li', p.hvem ? PK[p.hvem] : 'p' + p.prio);
-    li.append(el('span', 'prik'), el('span', null, '☑️ ' + p.tekst + (p.hvem ? ' · ' + p.hvem : '') + (p.frist < iDagIso ? ' (over tid)' : '')));
     ovKal.append(li);
   }
   const samlet = new Map();
@@ -3463,58 +3436,34 @@ async function tegnOverblik() {
     ? 'I morgen: ' + (imorgen || 'ikke bestemt') + (morgenAfv.length ? ' (' + morgenAfv.join(', ') + ')' : '')
     : '';
 
-  // Skole: i dag, eller næste skoledag i weekenden / efter skole
-  let dag = idag, label = 'Skole i dag';
-  if (idag >= 5) { dag = 0; label = 'Skole på mandag'; }
-  const skoleIso = plusDage(iDagIso, idag >= 5 ? 7 - idag : 0);
-  document.getElementById('ov-skole-label').textContent = label;
-  const skole = document.getElementById('ov-skole');
-  skole.replaceChildren();
-  for (const barn of BOERN) {
-    const sd = await skoleDag(barn, skoleIso, aftaler);   // skoledag.js
-    const timer = sd.timer;
-    const linje = el('div', 'barn-linje');
-    linje.append(el('span', 'barn-navn', barn));
-    const helligSkole = helligdagDen(skoleIso);
-    const fri = friDen(aftaler, skoleIso, barn) || (helligSkole && { titel: helligSkole.navn, dato: skoleIso, fri: true, helligIkon: helligSkole.ikon });
-    const tidlig = aftalerDen(aftaler, skoleIso, [barn]).find(a => a.type === 'tidlig' && a.tid);
-    if (fri) {
-      linje.append(el('span', 'barn-fri', fri.type === 'syg' ? 'Syg 🤒' : 'Fri ' + (fri.helligIkon || friIkon(fri))), el('span', 'barn-fag', fri.type === 'syg' ? 'Hjemme i dag' : friTekst(fri)));
-    } else if (await fastFri(barn, dag)) {
-      linje.append(el('span', 'barn-fri', 'Fri 🎉'), el('span', 'barn-fag', 'Fast fridag'));
-    } else if (tidlig) {
-      linje.append(el('span', 'barn-fri', '⏰ Fri ' + visTid(tidlig.tid)), el('span', 'barn-fag', 'Tidligere fri i dag'));
-    } else if (!timer.length) {
-      linje.append(el('span', 'barn-fri', 'Intet skema'));
-    } else {
-      const { start, slut, saerlig } = sd;
-      const titel = saerlig && skoledagMaerke(saerlig) ? '🏫 ' + skoledagTitel(saerlig) + ' · ' : '';
-      linje.append(el('span', 'barn-fri', slut ? 'Fri ' + visTid(slut) : ''));
-      linje.append(el('span', 'barn-fag', titel + (start ? 'Møder ' + visTid(start) + ' · ' : '') + [...new Set(timer.map(t => t.fag))].join(', ')));
-    }
-    skole.append(linje);
+  // Skole – skifter hen over dagen (skoleOverblik); intet kort, når ingen har skole
+  const skoleKort = document.getElementById('ov-skole-kort');
+  const so = await skoleOverblik();
+  skoleSidst = so ? so.titel + so.linjer.map(l => l.textContent).join('|') : '';
+  skoleKort.hidden = !so;
+  if (so) {
+    document.getElementById('ov-skole-label').textContent = so.titel;
+    document.getElementById('ov-skole').replaceChildren(...so.linjer);
   }
 
-  // To do: de vigtigste åbne
-  const todo = (await Data.list('todo')).filter(p => !p.klaret).sort((a, b) => a.prio - b.prio);
+  // To do: kun det, der SKAL gøres i dag eller er over tid (resten ligger under To do)
+  const haster = (await Data.list('todo')).filter(p => !p.klaret && p.frist && p.frist <= iDagIso)
+    .sort((a, b) => a.frist.localeCompare(b.frist) || a.prio - b.prio);
   const ovTodo = document.getElementById('ov-todo');
-  ovTodo.replaceChildren();
-  if (!todo.length) ovTodo.append(el('li', null, 'Ingen åbne opgaver'));
-  for (const p of todo.slice(0, 4)) {
-    const li = el('li', 'p' + p.prio);
-    const ekstra = [p.hvem, p.frist ? fristTekst(p.frist).tekst : ''].filter(Boolean).join(' · ');
-    li.append(el('span', 'prik'), el('span', null, p.tekst), ekstra ? el('span', 'todo-ekstra', ' · ' + ekstra) : '');
-    ovTodo.append(li);
-  }
-  document.getElementById('ov-todo-antal').textContent = todo.length > 4 ? '+' + (todo.length - 4) + ' mere ›' : 'Alle ›';
+  ovTodo.replaceChildren(...haster.slice(0, 5).map(p => {
+    const li = el('li', p.hvem ? PK[p.hvem] : 'p' + p.prio);
+    li.append(el('span', 'prik'), el('span', null, p.tekst), el('span', 'todo-ekstra' + (p.frist < iDagIso ? ' over-tid-tekst' : ''), ' · ' + [p.hvem, p.frist < iDagIso ? fristTekst(p.frist).tekst : 'i dag'].filter(Boolean).join(' · ')));
+    return li;
+  }));
+  document.getElementById('ov-todo-kort').hidden = !haster.length;
+  document.getElementById('ov-todo-antal').textContent = haster.length > 5 ? '+' + (haster.length - 5) + ' mere ›' : 'To do ›';
 
-  // Indkøb
+  // Indkøb: én lille linje (tallet står også i bundmenuen)
   const varer = (await Data.list('indkob')).filter(p => !p.klaret);
   const ovInd = document.getElementById('ov-indkob');
-  ovInd.replaceChildren();
-  if (!varer.length) ovInd.append(el('span', null, 'Listen er tom'));
-  for (const v of varer.slice(0, 8)) ovInd.append(el('span', v.af ? 'hvem-tag ' + (PK[v.af] || '') : null, (v.antal ? v.antal + ' ' : '') + v.tekst + (v.af ? ' · ' + v.af : '')));
-  document.getElementById('ov-indkob-antal').textContent = varer.length ? varer.length + (varer.length === 1 ? ' vare ›' : ' varer ›') : '›';
+  ovInd.hidden = !varer.length;
+  const vigtige = varer.filter(v => v.vigtig).length;
+  ovInd.textContent = '🛒 ' + varer.length + (varer.length === 1 ? ' vare' : ' varer') + ' på indkøbslisten' + (vigtige ? ' · ' + vigtige + ' vigtig' + (vigtige > 1 ? 'e' : '') : '') + ' ›';
 }
 
 // ---------- Eksempler første gang ----------
