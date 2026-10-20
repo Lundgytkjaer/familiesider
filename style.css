@@ -2286,3 +2286,12 @@ body.barn .visning-knap { min-height: 40px; }
 .fyld-ugen[open] > summary { border-color: var(--accent); color: var(--accent); }
 .fyld-ugen .madplan-knapper { margin-top: 10px; }
 body.barn .fyld-ugen { display: none; }
+
+/* Tablet og computer (brugertest 2, Timmos valg): Familien i 2 kolonner – det der fylder bredt (ønsker, sedler, links) går hele vejen */
+@media (min-width: 760px) {
+  #familie-overblik { grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-flow: row dense; align-items: start; }
+  #familie-overblik > #ov-sedler, #familie-overblik > #ov-noter, #familie-overblik > #ov-pause, #familie-overblik > #ov-oensker,
+  #familie-overblik > #ov-fravaer, #familie-overblik > #ov-indkob, #familie-overblik > #ov-seddel-link, #familie-overblik > #ov-mine-pligter { grid-column: 1 / -1; }
+  .ov-fravaer { margin: -6px 0 0; }
+  .bundmenu-indre { max-width: 640px; }
+}
