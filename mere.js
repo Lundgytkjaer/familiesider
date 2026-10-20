@@ -602,6 +602,15 @@ function dagensOpgaver(d, iso = isoDato(new Date())) {
 }
 // Det der skal klares (bonus-pligter tæller ikke med)
 const skalKlares = liste => liste.filter(r => !r.o.frivillig);
+// Kun pligter, der hører til netop i dag (ikke ugens/engangs/med mellemrum – de kan vente til i morgen)
+const iDagsPligt = liste => liste.filter(r => !['uge', 'engang', 'interval'].includes(r.o.gentag));
+// Hvor mange af dagens pligter (uden bonus) mangler – bruges om aftenen, så tavlen bliver på i dag, til de er klaret
+async function pligterMangler(barn) {
+  if (typeof pausePligter === 'function' && pausePligter(barn, isoDato(new Date()))) return 0;
+  const d = await pligtData(barn);
+  if (!d.opgaver.length) return 0;
+  return iDagsPligt(skalKlares(dagensOpgaver(d).filter(r => !r.sprunget))).filter(r => !r.f).length;
+}
 // Spring en bonus over i dag (barnet må selv – gemmes som et flueben uden belønning)
 async function springOver(barn, r) {
   const iso = isoDato(new Date());
@@ -772,12 +781,15 @@ async function pligtKort(barn, titel = 'Pligter i dag') {
   const klaret = pligt.filter(r => r.f).length;
   const naesteP = pligt.find(r => !r.f);
   const bonus = liste.filter(r => r.o.frivillig && !r.f && !r.sprunget).length;
-  k.tavle = { noegle: 'pligter', ikon: '✅', titel: (titel === 'Pligter i dag' ? 'Pligter' : titel) + (pligt.length && bonus ? ' · +' + bonus + ' bonus' : ''),
+  const manglerIDag = iDagsPligt(pligt).filter(r => !r.f).length;
+  const aften = new Date().getHours() >= 19 && manglerIDag > 0;   // om aftenen: tydeligt, at der mangler noget i dag
+  k.tavle = { noegle: 'pligter', ikon: '✅', haster: !!aften, titel: (titel === 'Pligter i dag' ? 'Pligter' : titel.startsWith('Pligter i dag (') ? 'Pligter i dag' : titel) + (pligt.length && bonus ? ' +' + bonus + ' bonus' : ''),
     andel: pligt.length ? klaret / pligt.length : 0, klar: pligt.length > 0 && !naesteP,
     // Bonus tæller ikke med i "x af y" – står i titlen ("Pligter · +1 bonus"), så tallet passer med listen
     stor: !pligt.length ? (bonus ? bonus + ' bonus' : 'Ingen i dag') : !naesteP ? 'Alle klaret' : klaret + ' af ' + pligt.length,
     lille: naesteP ? (bs.joker ? '🃏 Jokeren kan redde dine dage i træk' : bs.mulig ? (bs.milepael ? '🏅 +★ ' + (bs.n + bs.milepael) + ' når alt er klaret' : '🔥 +★ ' + bs.n + ' når alt er klaret') : 'Næste: ' + naesteP.o.navn)
       : bs.givet ? '🔥 +★ ' + bs.givet.stjerner + ' ekstra for dage i træk' : st >= 2 ? streakTekst(st) : bonus ? 'Bonus venter ⭐' : 'Sejt! 🎉' };
+  if (aften) k.tavle.lille = '⏰ Mangler ' + manglerIDag + ' i dag – så kommer i morgen';
   return k;
 }
 

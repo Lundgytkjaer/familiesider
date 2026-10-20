@@ -2487,7 +2487,9 @@ async function tegnBoernetavle(barn) {
   document.body.classList.toggle('pause-hele', !!helePause);
   if (helePause) { lukZoom(); boks.classList.remove('som-tavle'); boks.replaceChildren(await pauseSkaerm(barn)); return; }
   if (typeof svarTilBarn === 'function') svarTilBarn(barn);   // besked om svar fra en voksen (mere.js)
-  const auto = tavleAutoDato();
+  let auto = tavleAutoDato();
+  // Efter kl. 19.30 skifter tavlen til i morgen – men ikke så længe dagens pligter mangler (brugertest 2)
+  if (isoDato(auto) !== isoDato(new Date()) && typeof pligterMangler === 'function' && await pligterMangler(barn)) { auto = new Date(); auto.setHours(0, 0, 0, 0); }
   const valgt = tavleValgt || auto;
   const iso = isoDato(valgt);
   const idagIso = isoDato(new Date());
@@ -2619,9 +2621,10 @@ async function tegnBoernetavle(barn) {
   for (const felt of ['morgen', 'frokost', 'ret']) if (typeof pauseMad === 'function' && pauseMad(barn, iso, felt)) {
     plan[felt] = ''; plan.visning[felt] = 'Ikke bestemt endnu 🍽️'; if (plan.oenske) plan.oenske[felt] = null; if (plan.venter) plan.venter[felt] = null; plan.eget[felt] = false; (plan.pause ||= {})[felt] = true;
   }
-  // Børn: maden for dage længere fremme er skjult (madSkjultForBarn)
+  // Børn: maden for dage længere fremme er skjult (madSkjultForBarn) – men barnet kan stadig ønske (brugertest 2)
   if (madSkjultForBarn(iso)) for (const felt of ['morgen', 'frokost', 'ret']) {
-    plan[felt] = ''; plan.visning[felt] = MAD_SKJULT; if (plan.oenske) plan.oenske[felt] = null; if (plan.venter) plan.venter[felt] = null; plan.eget[felt] = false; (plan.pause ||= {})[felt] = true;
+    if (plan.pause?.[felt] || plan.oenske?.[felt]) continue;   // barnets eget valg må det gerne se
+    plan[felt] = ''; plan.visning[felt] = plan.venter?.[felt] ? MAD_SKJULT : '💭 Ønsk noget'; plan.eget[felt] = false;
   }
   const madKort = kort('Mad');
   for (const [felt, navn] of [['morgen', 'Morgen'], ['frokost', 'Frokost'], ['ret', 'Aften']]) {
@@ -3112,6 +3115,9 @@ async function oenskMad(barn, dato, felt) {
   const iso = isoDato(dato);
   if (iso < isoDato(new Date())) return;   // ikke bagud i tiden
   const plan = await madFor(dato, barn);
+  // Dage længere fremme: barnet må gerne ønske, men ser ikke, hvad der er planlagt (madSkjultForBarn)
+  const skjult = erBarn() && madSkjultForBarn(iso);
+  if (skjult) { plan[felt] = ''; plan.visning[felt] = MAD_SKJULT; }
   const { gaelder, venter } = await madOensker(barn, iso);
   const frit = [...(await maaVaelges(felt))];
   const favs = (await Data.list('favoritter')).filter(f => passerTil(f, felt) && f.boernevalg).map(f => f.tekst).sort((a, b) => a.localeCompare(b, 'da'));
