@@ -1093,7 +1093,8 @@ async function konkKort(barn) {
   const foerst = st[0], minKm = st.find(s => s.hvem === mig)?.km || 0;
   const k = el('div', 'kort konk-kort');
   const top = el('div', 'kort-top');
-  top.append(el('span', 'kort-label', 'Ugens konkurrence 🚴'), knap('Skriv km ›', 'kort-pil link-knap', () => { if (typeof lukZoom === 'function') lukZoom(); visFane('konkurrence'); window.scrollTo(0, 0); }));
+  const tilKonk = () => { if (typeof lukZoom === 'function') lukZoom(); visFane('konkurrence'); window.scrollTo(0, 0); };
+  top.append(el('span', 'kort-label', 'Ugens konkurrence 🚴'));
   const ol = el('ol', 'konk-liste lille');
   st.slice(0, 4).forEach((s, i) => {
     const li = el('li', 'konk-raekke ' + (PK[s.hvem] || '') + (i === 0 ? ' foerer' : ''));
@@ -1103,6 +1104,8 @@ async function konkKort(barn) {
   });
   k.append(top, ol);
   if (barn && !minKm) k.append(el('p', 'hint', 'Du er ikke med endnu – en cykeltur tæller! 🚲'));
+  // En rigtig knap (brugertest: "Skriv km ›" i hjørnet var svær at finde for et barn)
+  k.append(knap(barn ? '🚴 Skriv dine km' : '🚴 Skriv km', 'knap sekundaer-knap konk-skriv', tilKonk));
   k.tavle = { noegle: 'konk', ikon: '🚴', titel: 'Konkurrence',
     stor: foerst.hvem === mig ? 'Du fører! 🥇' : kaldNavn(foerst.hvem) + ' fører',
     // Fører man selv: hvor langt man er, og hvem der er nr. 2 – ellers: én selv og føreren

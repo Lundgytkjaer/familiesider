@@ -2304,3 +2304,10 @@ body.barn .fyld-ugen { display: none; }
 .ekstra-antal-raekke { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ekstra-antal-raekke .seg { margin-bottom: 0; }
 #ark .ekstra-antal-raekke input.ekstra-antal { flex: none; width: 76px; min-height: 44px; text-align: center; font-size: 17px; font-weight: 700; }
+/* Forbogstav-knappen viser et lille tandhjul, så man kan se, at den åbner Indstillinger */
+.bruger-tandhjul { position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--flade); color: var(--fg); border: 1px solid var(--linje); font-size: 11px; line-height: 16px; text-align: center; font-weight: 400; pointer-events: none; }
+.konk-skriv { width: 100%; margin-top: 10px; min-height: 48px; }
+/* Tryk på makkeren: et tydeligt hop (alle makkere) – før drejede kun Alfies hoved en smule */
+.alfie-figur.vip, .makker-figur.vip { animation: makker-hop .55s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes makker-hop { 0% { transform: translateY(0) scale(1); } 35% { transform: translateY(-14px) scale(1.06, .96); } 70% { transform: translateY(0) scale(.97, 1.03); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .alfie-figur.vip, .makker-figur.vip { animation: none; } }

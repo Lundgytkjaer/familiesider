@@ -178,7 +178,8 @@ function visFane(navn, fraTilbage = false) {
   const sideNavn = navn === 'idag' ? 'I dag' : sideH2?.textContent.trim() || FANE_NAVN[navn] || 'Familietavlen';
   document.getElementById('side-titel').textContent = sideNavn;
   document.title = sideNavn + ' · Familietavlen';
-  const iMenu = underMere(navn) ? 'mere' : navn;
+  // Under Mere lyser "Mere" – men kom man fra en hovedfane (fx tavlen → konkurrencen), lyser den fane, man kom fra
+  const iMenu = underMere(navn) ? (tilbageTil && !underMere(tilbageTil) ? tilbageTil : 'mere') : navn;
   if (navn === 'pligter' && typeof tegnPligter === 'function') tegnPligter();
   if (navn === 'kalender' && fra !== 'kalender' && kalVisning === 'liste' && (kalListeStart || kalListeAntal !== 21)) { kalListeStart = 0; kalListeAntal = 21; tegnKalender(); }   // listen starter i dag
   document.querySelectorAll('[data-fane]').forEach(b => b.setAttribute('aria-selected', b.dataset.fane === iMenu));
@@ -866,7 +867,7 @@ document.querySelectorAll('form.tilfoj[data-liste]').forEach(form => {
 async function tilfoejUdenDublet(liste, felter) {
   const findes = (await Data.list(liste)).find(p => p.tekst.trim().toLowerCase() === felter.tekst.trim().toLowerCase());
   if (findes && !findes.klaret) {
-    if (felter.antal && felter.antal !== findes.antal && !erBarn()) { await Data.update(liste, findes.id, { antal: felter.antal }); visStatus(findes.tekst + ': antal ' + felter.antal); return false; }
+    if (felter.antal && felter.antal !== findes.antal && !erBarn()) { await Data.update(liste, findes.id, { antal: felter.antal }); visStatus(findes.tekst + ' stod der allerede – antal sat til ' + felter.antal); return false; }
     visStatus(findes.tekst + ' står allerede på listen'); return false;
   }
   if (erBarn()) { await Data.add(liste, { ...felter, af: Data.bruger().navn }); return true; }   // børn: hvem ønskede det
@@ -1312,6 +1313,7 @@ async function tegnMadplan() {
       if (ER_RESTER.test(ret)) { felt.value = egen || fast; felt.dispatchEvent(new Event('input')); resterArk(i, dato, '', /i\s*går/i.test(ret)); return; }   // "rester (fra i går)" → vælg hvilken ret
       await gemRet(i, ret === fast ? '' : ret);
       if (ret) { await gemFavorit('ret', ret); tegnForslag('ret'); }
+      visStatus(ret ? '✓ ' + DAGE_LANG[i] + ': ' + ret : '✓ ' + DAGE_LANG[i] + ' er tømt');   // brugertest: man kunne ikke se, at det var gemt
       tegnMadplan();
     });
     felt.addEventListener('keydown', e => { if (e.key === 'Enter') felt.blur(); });
@@ -4053,6 +4055,7 @@ function saetTema(tema) {
 saetTema(lokal.get('tema') || 'auto');
 
 document.getElementById('log-ud').addEventListener('click', () => aabnIndstillinger());
+document.getElementById('mere-indstillinger')?.addEventListener('click', () => aabnIndstillinger());   // også fra Mere (brugertest: cirklen var svær at gætte)
 
 // ---------- Fortryd efter sletning ----------
 // Vises i 8 sekunder nederst: "Slettet: Lasagne · Fortryd"
@@ -4181,6 +4184,7 @@ async function startTavle() {
   const profil = Data.bruger();
   const logUd = document.getElementById('log-ud');
   logUd.textContent = profil.navn[0];
+  logUd.append(el('span', 'bruger-tandhjul', '⚙'));   // lille tandhjul: knappen åbner Indstillinger
   logUd.className = 'bruger-knap ' + (PK[profil.navn] || 'c-faelles');
   logUd.setAttribute('aria-label', 'Indstillinger – logget ind som ' + profil.navn);
   logUd.hidden = false;

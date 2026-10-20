@@ -24,7 +24,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-20u">
+  <link rel="stylesheet" href="style.css?v=2026-10-20v">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -259,6 +259,10 @@
         <button type="button" class="kort mere-kort" data-gaa="vejr">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 18a4 4 0 0 1-.6-7.96A5.5 5.5 0 0 1 17 8.5a3.75 3.75 0 0 1 .5 7.47V16H7z"/><path d="M8 21l1-1.5M12 21l1-1.5M16 21l1-1.5"/></svg>
           <span class="mere-navn">Vejret</span><span class="under">I dag og de næste 7 dage</span>
+        </button>
+        <button type="button" class="kort mere-kort" id="mere-indstillinger">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+          <span class="mere-navn">Indstillinger</span><span class="under">Udseende, faner, notifikationer, log ud</span>
         </button>
         <button type="button" class="kort mere-kort" data-gaa="hjaelp">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8 1c0 1.7-2.4 2.2-2.4 3.7M12 17.2v.1"/></svg>
@@ -514,26 +518,26 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
-<script src="data.js?v=2026-10-20u"></script>
-<script src="dage.js?v=2026-10-20u"></script>
-<script src="vejr.js?v=2026-10-20u"></script>
-<script src="app.js?v=2026-10-20u"></script>
-<script src="mere.js?v=2026-10-20u"></script>
-<script src="sjov.js?v=2026-10-20u"></script>
-<script src="seddel.js?v=2026-10-20u"></script>
-<script src="familie.js?v=2026-10-20u"></script>
-<script src="handel.js?v=2026-10-20u"></script>
-<script src="retter.js?v=2026-10-20u"></script>
-<script src="aktivitet.js?v=2026-10-20u"></script>
-<script src="kort.js?v=2026-10-20u"></script>
-<script src="pause.js?v=2026-10-20u"></script>
-<script src="skoledag.js?v=2026-10-20u"></script>
-<script src="mappe.js?v=2026-10-20u"></script>
-<script src="bank.js?v=2026-10-20u"></script>
-<script src="budget.js?v=2026-10-20u"></script>
-<script src="dagbog.js?v=2026-10-20u"></script>
-<script src="opskrifter.js?v=2026-10-20u"></script>
-<script src="push.js?v=2026-10-20u"></script>
-<script src="ai.js?v=2026-10-20u"></script>
+<script src="data.js?v=2026-10-20v"></script>
+<script src="dage.js?v=2026-10-20v"></script>
+<script src="vejr.js?v=2026-10-20v"></script>
+<script src="app.js?v=2026-10-20v"></script>
+<script src="mere.js?v=2026-10-20v"></script>
+<script src="sjov.js?v=2026-10-20v"></script>
+<script src="seddel.js?v=2026-10-20v"></script>
+<script src="familie.js?v=2026-10-20v"></script>
+<script src="handel.js?v=2026-10-20v"></script>
+<script src="retter.js?v=2026-10-20v"></script>
+<script src="aktivitet.js?v=2026-10-20v"></script>
+<script src="kort.js?v=2026-10-20v"></script>
+<script src="pause.js?v=2026-10-20v"></script>
+<script src="skoledag.js?v=2026-10-20v"></script>
+<script src="mappe.js?v=2026-10-20v"></script>
+<script src="bank.js?v=2026-10-20v"></script>
+<script src="budget.js?v=2026-10-20v"></script>
+<script src="dagbog.js?v=2026-10-20v"></script>
+<script src="opskrifter.js?v=2026-10-20v"></script>
+<script src="push.js?v=2026-10-20v"></script>
+<script src="ai.js?v=2026-10-20v"></script>
 </body>
 </html>

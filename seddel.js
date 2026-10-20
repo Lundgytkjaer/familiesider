@@ -288,6 +288,7 @@ function skrivSeddel(tilStandard, gl) {
       }
       kladdeGlem('seddel');
       if (barn) besked('✉️ Sedlen er sendt til ' + tilNavn(s.til));
+      else visStatus('✉️ Sedlen er sendt til ' + tilNavn(s.til));
     } else {
       await Data.update('sedler', gl.id, felter);   // gaven og modtageren kan ikke ændres bagefter
     }

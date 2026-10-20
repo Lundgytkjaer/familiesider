@@ -307,7 +307,7 @@ function visRutine(r, iso) {
   tegn();
   const knapper = el('div', 'ark-knapper');
   knapper.append(knap('Start forfra', 'knap sekundaer-knap', () => { tjek.clear(); gemTjek(r, iso, tjek); tegn(); }),
-    knap('Færdig', 'knap', () => { lukArk(); tegnAlt(); }));
+    knap('Færdig', 'knap', () => { lukArk(); if (typeof lukZoom === 'function') lukZoom(); tegnAlt(); }));
   const tidT = rutineTidTekst(r);
   aabnArk(r.navn + (tidT && tidT.toLowerCase() !== (r.navn || '').toLowerCase() ? ' · ' + tidT : ''), status, grid,
     trin.some(t => t.piktogram || t.soeg) ? el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA') : '', knapper);
@@ -722,7 +722,7 @@ async function boernLinjerKort() {
     const dele = [pause ? '⏸ pligter på pause' : dagens.length ? klaret + '/' + dagens.length + ' pligter' : 'fri i dag'];
     if (d.regel.stjerner) dele.push('★ ' + stjVis(s.stjerner));
     if (d.regel.kr) dele.push(kr(s.tilGode));
-    if (typeof ugeStatus === 'function') { const u = ugeStatus(d, isoDato(mandagDenneUge())); if (u.maal) dele.push('🏆 ' + u.n + '/' + u.maal); }
+    // (Ugens pokal står kun på barnets egen tavle – her forvirrede "🏆 0/5", brugertest 2)
     const li = el('li', 'boern-linje' + (dagens.length && klaret === dagens.length ? ' klaret' : ''));
     li.dataset.barn = barn;
     li.append(knap('', 'boern-linje-knap', () => { pligtBarn = barn; lokal.set('pligt-barn', barn); visFane('pligter'); tegnPligter(); window.scrollTo(0, 0); }));
