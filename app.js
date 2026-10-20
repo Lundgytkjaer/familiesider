@@ -159,6 +159,11 @@ function visFane(navn, fraTilbage = false) {
   else if (fra && fra !== navn && !underMere(fra)) tilbageTil = fra === 'mere' ? null : fra;
   aktivFane = navn;
   document.querySelectorAll('.fane').forEach(s => (s.hidden = s.id !== navn));
+  // Toppen viser sidens navn (2026-10-20d) – sidens egen overskrift skjules med CSS (.fane > .sek-hoved > h2:first-child)
+  const sideH2 = document.querySelector('#' + navn + ' > .sek-hoved > h2');
+  const sideNavn = navn === 'idag' ? 'I dag' : sideH2?.textContent.trim() || FANE_NAVN[navn] || 'Familietavlen';
+  document.getElementById('side-titel').textContent = sideNavn;
+  document.title = sideNavn + ' · Familietavlen';
   const iMenu = underMere(navn) ? 'mere' : navn;
   if (navn === 'pligter' && typeof tegnPligter === 'function') tegnPligter();
   if (navn === 'kalender' && fra !== 'kalender' && kalVisning === 'liste' && (kalListeStart || kalListeAntal !== 21)) { kalListeStart = 0; kalListeAntal = 21; tegnKalender(); }   // listen starter i dag
@@ -4107,7 +4112,7 @@ async function gaaTil(tag) {
 navigator.serviceWorker?.addEventListener('message', e => { if (e.data?.gaa) gaaTil(e.data.gaa); });
 
 document.documentElement.lang = 'da'; // giver dansk orddeling i kalenderen
-const visDato = () => { document.getElementById('dato').textContent = new Date().toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' }); };
+const visDato = () => { const d = new Date(); document.getElementById('dato').textContent = d.toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' }) + ' · uge ' + ugenummer(mandagFor(d)); };
 visDato();
 // Efter midnat (fx en iPad der står tændt): ny dato i toppen og alt tegnes for den nye dag
 let dagenNu = isoDato(new Date());
