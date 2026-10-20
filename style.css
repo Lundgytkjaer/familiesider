@@ -2212,3 +2212,20 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 #mad-uge .dag .fuld-felt { min-height: 44px; }
 #mad-uge .dag .fuld-vis, #mad-uge .dag input[type="text"] { min-height: 44px; }
 #mad-uge .dag .var-chips { margin-top: 4px; padding-bottom: 4px; }
+
+/* Indstillinger (2026-10-20k): tænd/sluk-rækker, foldede afsnit */
+.kontakt-liste { display: flex; flex-direction: column; border: 1px solid var(--linje); border-radius: 14px; background: var(--flade); overflow: hidden; margin: 4px 0 6px; }
+.kontakt { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 52px; padding: 8px 14px; border: 0; background: none; color: inherit; font: inherit; font-size: 16px; text-align: left; cursor: pointer; }
+.kontakt + .kontakt { border-top: 1px solid var(--linje); }
+.kontakt-tekst { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.kontakt-tekst small { font-size: 13px; color: var(--daempet); }
+.kontakt-skyder { flex: none; position: relative; width: 46px; height: 28px; border-radius: 14px; background: var(--linje); transition: background .15s; }
+.kontakt-skyder::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgb(0 0 0 / .25); transition: transform .15s; }
+.kontakt[aria-checked="true"] .kontakt-skyder { background: var(--accent); }
+.kontakt[aria-checked="true"] .kontakt-skyder::after { transform: translateX(18px); }
+.indst-fold { margin: 14px 0 4px; }
+.indst-fold > summary { cursor: pointer; font-weight: 700; padding: 10px 0; color: var(--accent); }
+.indst-avanceret > summary { font-size: 17px; color: var(--fg); }
+.indst-fold .lille-knap { margin: 4px 6px 4px 0; }
+.mere-vis-alle { display: block; margin: 14px auto 0; }
+@media (prefers-reduced-motion: reduce) { .kontakt-skyder, .kontakt-skyder::after { transition: none; } }

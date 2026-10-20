@@ -123,6 +123,7 @@ const FANE_NAVN = { idag: 'I dag', kalender: 'Kalender', madplan: 'Madplan', ind
 const BOERNE_FANER = ['kalender', 'madplan', 'mere'];   // standard for børn
 const VALGBARE_FANER = { kalender: 'Kalender', madplan: 'Madplan', indkob: 'Indkøb', todo: 'To do', mere: 'Mere' };
 let tilladteFaner = null;   // null = alle (voksne)
+let visAlleMere = false;   // "Vis alle sider" under Mere (huskes kun, mens appen er åben)
 async function anvendFaner() {
   const p = Data.bruger();
   if (!p || p.rolle !== 'barn') { tilladteFaner = null; }
@@ -132,9 +133,22 @@ async function anvendFaner() {
   }
   const knapper = [...document.querySelectorAll('.bundmenu [data-fane]')];
   const voksen = p?.rolle === 'voksen';
+  // Voksne kan selv skjule faner og sider under Mere (Indstillinger → Bundmenu og sider). Kun en visning – siderne kan stadig nås via links.
+  const mineValg = voksen ? await valgFor(p.navn) : {};
+  const skjulF = new Set(voksen && Array.isArray(mineValg.skjulFaner) ? mineValg.skjulFaner : []);
   knapper.forEach(b => {
-    b.hidden = b.dataset.fane === 'pligter' ? !voksen : !!tilladteFaner && !tilladteFaner.includes(b.dataset.fane);
+    b.hidden = b.dataset.fane === 'pligter' ? !voksen || skjulF.has('pligter') : voksen ? skjulF.has(b.dataset.fane) : !!tilladteFaner && !tilladteFaner.includes(b.dataset.fane);
   });
+  const skjulM = new Set(voksen && Array.isArray(mineValg.skjulMere) ? mineValg.skjulMere : []);
+  document.querySelectorAll('#mere .mere-kort[data-gaa]').forEach(k => { k.hidden = !visAlleMere && skjulM.has(k.dataset.gaa); });
+  let alleKnap = document.getElementById('mere-vis-alle');
+  if (!alleKnap) {
+    alleKnap = el('button', 'lille-knap mere-vis-alle'); alleKnap.type = 'button'; alleKnap.id = 'mere-vis-alle';
+    alleKnap.addEventListener('click', () => { visAlleMere = !visAlleMere; anvendFaner(); });
+    document.querySelector('#mere .mere-grid')?.after(alleKnap);
+  }
+  alleKnap.hidden = !skjulM.size;
+  alleKnap.textContent = visAlleMere ? 'Skjul de sider, jeg har slået fra' : 'Vis alle sider (' + skjulM.size + ' skjult)';
   const synlige = knapper.filter(b => !b.hidden).length;
   const indre = document.querySelector('.bundmenu-indre');
   indre.style.gridTemplateColumns = 'repeat(' + synlige + ', 1fr)';
@@ -3729,111 +3743,141 @@ async function fuldBackup() {
   } catch (e) { console.warn(e); visStatus('Backup kunne ikke laves – tjek forbindelsen', true); }
 }
 
+// Tænd/sluk-række (Indstillinger): tydeligt slået til/fra – i stedet for ens knapper (Winnie-testen 20/10)
+function kontakt(tekst, til, fn, under = '') {
+  const k = el('button', 'kontakt');
+  k.type = 'button';
+  k.setAttribute('role', 'switch');
+  k.setAttribute('aria-checked', String(!!til));
+  const t = el('span', 'kontakt-tekst', tekst);
+  if (under) t.append(el('small', null, under));
+  k.append(t, el('span', 'kontakt-skyder'));
+  k.addEventListener('click', async () => { til = !til; k.setAttribute('aria-checked', String(til)); await fn(til); });
+  return k;
+}
+const kontaktListe = (...r) => { const l = el('div', 'kontakt-liste'); l.append(...r.filter(Boolean)); return l; };
+// Siderne under Mere (navn fra kortet) – til "Sider under Mere"
+const mereSider = () => [...document.querySelectorAll('#mere .mere-kort[data-gaa]')].map(k => [k.dataset.gaa, k.querySelector('.mere-navn')?.textContent || k.dataset.gaa, k.classList.contains('kun-voksen')]);
+
+// ---------- Indstillinger (ombygget 2026-10-20k) ----------
+// Det vigtigste øverst med tænd/sluk-knapper; resten under "Avanceret" (foldet sammen).
+// Voksen for sig selv: Udseende · Bundmenu og sider (faner + sider under Mere) · Vis i kalender og på I dag · Notifikationer · Avanceret.
+// Voksen for et barn: Tavlen · Faner · Pause · Notifikationer · Avanceret. Barn for sig selv: Tavlen · Vis · Udseende.
 async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
   const mig = Data.bruger()?.navn;
+  const voksen = !erBarn();
+  const forMig = hvem === mig;
+  const forBarn = BOERN.includes(hvem);
   const folk = erBarn() ? [mig] : [mig, ...BOERN.filter(b => b !== mig)];
   const valg = await valgFor(hvem);
-  const dele = [el('h3', 'lille-titel', 'Hvad skal vises?')];
-  if (folk.length > 1) {
-    dele.push(el('p', 'hint', 'Vælg hvem du retter for:'), chipValg(folk, hvem, v => aabnIndstillinger(v), v => v));
+  const saet = felt => async v => { valg[felt] = v; await saetValg(hvem, felt, v); tegnAlt(); };
+  const titel = t => el('h3', 'lille-titel indst-titel', t);
+  const dele = [];
+  if (folk.length > 1) dele.push(el('label', 'felt-label', 'Indstillinger for'), chipValg(folk, hvem, v => aabnIndstillinger(v), v => (v === mig ? v + ' (mig)' : v)));
+  const avanceret = [];
+
+  // --- Tavlen (børn) ---
+  if (forBarn) {
+    dele.push(titel(voksen ? '👧 ' + hvem + 's tavle' : '🧒 Min tavle'));
+    if (voksen) {
+      const stilSeg = chipValg(['sjov', 'cool'], valg.stil === 'cool' ? 'cool' : 'sjov', async v => {
+        await saetValg(hvem, 'stil', v);
+        await saetValg(hvem, 'makker', v !== 'cool');   // Cool: ingen makker (kan slås til igen nedenfor)
+        tegnAlt(); aabnIndstillinger(hvem);
+      }, v => (v === 'cool' ? '😎 Cool' : '🎉 Sjov'));
+      dele.push(stilSeg, el('p', 'hint', 'Cool: ingen konfetti, ingen makker og ingen billeder ved rutinerne.'));
+    }
+    dele.push(kontaktListe(
+      kontakt('🐰 Makker', valg.makker, saet('makker')),
+      kontakt('⏳ Nedtælling', valg.nedtaelling, saet('nedtaelling')),
+      kontakt('🧩 Dagens gåde eller vits', valg.sjov, saet('sjov')),
+      kontakt('🚴 Ugens konkurrence', valg.konk, saet('konk'))));
   }
-  const MULIGHEDER = [['helligdage', '🎄 Helligdage'], ['maerkedage', '🎃 Mærkedage (halloween, mors dag …)'],
-    ['sol', '🌅 Solopgang og solnedgang'], ['vejr', '🌦️ Vejret'], ['relationer', '👪 Familierelation ved fødselsdage – fx "Bente (mormor)"'],
-    ['emoji', '😀 Automatisk emoji ved pligter og belønninger'],
-    ...(hvem === mig && !erBarn() ? [['fortryd', '↩️ "Fortryd"-knap efter sletning og svar (ellers: Mere → Aktivitet)']] : []),
-    ...(BOERN.includes(hvem) ? [['nedtaelling', '⏳ Nedtælling på tavlen'], ['makker', '🐰 Makker på tavlen'], ['sjov', '🧩 Dagens gåde/vits på tavlen'], ['konk', '🚴 Ugens konkurrence på tavlen']] : [])];
-  const seg = el('div', 'seg wrap tilpas-valg');
-  for (const [felt, tekst] of MULIGHEDER) {
-    const k = knap(tekst, null, async () => {
-      valg[felt] = !valg[felt];
-      k.setAttribute('aria-checked', valg[felt]);
-      await saetValg(hvem, felt, valg[felt]);
-      tegnAlt();
-    });
-    k.setAttribute('role', 'checkbox');
-    k.setAttribute('aria-checked', valg[felt]);
-    seg.append(k);
+
+  // --- Udseende (denne enhed) ---
+  const temaValg = chipValg(Object.keys(TEMA_NAVN), lokal.get('tema') || 'auto', v => { lokal.set('tema', v); saetTema(v); }, v => TEMA_NAVN[v]);
+  if (forMig) dele.push(titel('🎨 Udseende på denne enhed'), temaValg, el('p', 'hint', 'Automatisk følger telefonens lys/mørk.'));
+
+  // --- Bundmenu og sider (voksen for sig selv) ---
+  if (voksen && forMig) {
+    const FANER_V = { kalender: 'Kalender', madplan: 'Madplan', indkob: 'Indkøb', todo: 'To do', pligter: 'Pligter' };
+    const skjulte = new Set(Array.isArray(valg.skjulFaner) ? valg.skjulFaner : []);
+    const faneListe = kontaktListe(...Object.entries(FANER_V).map(([f, navn]) => kontakt(navn, !skjulte.has(f), async til => {
+      if (til) skjulte.delete(f); else skjulte.add(f);
+      await saetValg(mig, 'skjulFaner', [...skjulte]); anvendFaner();
+    })));
+    const skjultMere = new Set(Array.isArray(valg.skjulMere) ? valg.skjulMere : []);
+    const mereListe = kontaktListe(...mereSider().map(([f, navn]) => kontakt(navn, !skjultMere.has(f), async til => {
+      if (til) skjultMere.delete(f); else skjultMere.add(f);
+      await saetValg(mig, 'skjulMere', [...skjultMere]); anvendFaner();
+    })));
+    const mereBoks = el('details', 'indst-fold');
+    mereBoks.append(el('summary', null, 'Sider under Mere' + (skjultMere.size ? ' (' + skjultMere.size + ' skjult)' : '')),
+      el('p', 'hint', 'Slå de sider fra, du ikke bruger. De forsvinder ikke – "Vis alle sider" nederst under Mere viser dem igen.'), mereListe);
+    dele.push(titel('📱 Bundmenu og sider'), el('label', 'felt-label', 'Faner i bunden'), faneListe,
+      el('p', 'hint', 'I dag og Mere er der altid. Gælder kun dig – på alle dine enheder.'), mereBoks);
   }
-  dele.push(seg, el('p', 'hint', (hvem === mig ? 'Gælder din kalender og din I dag-side – på alle dine enheder.' : 'Gælder ' + hvem + 's tavle og kalender.')
-    + ' Relationen kan også slås til og fra for den enkelte person på personens kort under Mere → Familie.'));
-  // Voksne: hvad kalder børnene mig? (vises i stedet for fornavnet i børnenes visning: "Far gav dig 2 ★")
-  if (!erBarn() && hvem === mig) {
-    const kseg = chipValg(['Far', 'Mor', ''], valg.kaldes || '', async v => { await saetValg(mig, 'kaldes', v || null); tegnAlt(); }, v => v || 'Mit navn');
-    dele.push(el('label', 'felt-label', 'Børnene kalder mig'), kseg);
-  }
-  // Udseende på barnets tavle: Sjov (piktogrammer, makker, konfetti) eller Cool (roligere – fx til Oliver)
-  if (BOERN.includes(hvem)) {
-    if (!erBarn()) dele.push(el('h3', 'lille-titel indst-titel', '👧 Børnenes regler: ' + hvem));
-    const stilSeg = chipValg(['sjov', 'cool'], valg.stil === 'cool' ? 'cool' : 'sjov', async v => {
-      await saetValg(hvem, 'stil', v);
-      await saetValg(hvem, 'makker', v !== 'cool');   // Cool: ingen makker (kan slås til igen ovenfor)
-      tegnAlt(); aabnIndstillinger(hvem);
-    }, v => (v === 'cool' ? '😎 Cool' : '🎉 Sjov'));
-    dele.push(el('label', 'felt-label', 'Udseende på tavlen'), stilSeg,
-      el('p', 'hint', 'Cool: ingen konfetti, ingen makker og ingen billeder ved rutinerne.'));
-    if (!erBarn() && typeof redigerPause === 'function') {   // ⏸ pause.js
+
+  // --- Vis i kalender og på I dag ---
+  const visListe = kontaktListe(
+    kontakt('🎄 Helligdage', valg.helligdage, saet('helligdage')),
+    kontakt('🎃 Mærkedage', valg.maerkedage, saet('maerkedage'), 'Halloween, mors dag, sommertid …'),
+    kontakt('🌦️ Vejret', valg.vejr, saet('vejr')),
+    kontakt('🌅 Solopgang og solnedgang', valg.sol, saet('sol')));
+  if (forBarn && voksen) avanceret.push(el('label', 'felt-label', 'Vis i kalenderen og på tavlen'), visListe);
+  else dele.push(titel(forBarn ? '📅 Vis på min tavle' : '📅 Vis i kalenderen og på I dag'), visListe);
+
+  // --- Faner, pause og sedler for et barn (voksne) ---
+  if (voksen && forBarn) {
+    const faner = new Set(Array.isArray(valg.faner) ? valg.faner : BOERNE_FANER);
+    dele.push(el('label', 'felt-label', 'Faner ' + hvem + ' kan se (tavlen er der altid)'),
+      kontaktListe(...Object.entries(VALGBARE_FANER).map(([f, navn]) => kontakt(navn, faner.has(f), async til => {
+        if (til) faner.add(f); else faner.delete(f);
+        await saetValg(hvem, 'faner', Object.keys(VALGBARE_FANER).filter(x => faner.has(x)));
+      }))),
+      el('p', 'hint', 'Gælder, når ' + hvem + ' selv er logget ind.'));
+    if (typeof redigerPause === 'function') {   // ⏸ pause.js
       const aktiv = pauseListe().find(p => (p.hvem === hvem || p.hvem === 'Begge') && (!p.til || p.til >= isoDato(new Date())));
       dele.push(el('label', 'felt-label', 'Pause'), knap(aktiv ? '⏸ ' + pauseTekst(aktiv) + ' – ret' : '⏸ Sæt ' + hvem + ' på pause …', 'lille-knap', () => redigerPause(aktiv || {}, hvem)));
     }
+    const sk = kontakt('✉️ Må sende sedler og skrive svar', true, async til => { await saetRegel(hvem, 'sedler', til); tegnAlt(); },   // mere.js
+      'Fra: kan stadig svare med en emoji');
+    regelFor(hvem).then(r => sk.setAttribute('aria-checked', String(r.sedler)));
+    avanceret.push(el('label', 'felt-label', 'Sedler'), kontaktListe(sk));
   }
-  // Voksne vælger, hvilke faner et barn kan se (tavlen er der altid)
-  if (!erBarn() && BOERN.includes(hvem)) {
-    const faner = new Set(Array.isArray(valg.faner) ? valg.faner : BOERNE_FANER);
-    const fseg = el('div', 'seg wrap tilpas-valg');
-    for (const [f, navn] of Object.entries(VALGBARE_FANER)) {
-      const k = knap(navn, null, async () => {
-        if (faner.has(f)) faner.delete(f); else faner.add(f);
-        k.setAttribute('aria-checked', faner.has(f));
-        await saetValg(hvem, 'faner', Object.keys(VALGBARE_FANER).filter(x => faner.has(x)));
-      });
-      k.setAttribute('role', 'checkbox');
-      k.setAttribute('aria-checked', faner.has(f));
-      fseg.append(k);
-    }
-    dele.push(el('label', 'felt-label', 'Faner ' + hvem + ' kan se (tavlen er der altid)'), fseg,
-      el('p', 'hint', 'Gælder, når ' + hvem + ' selv er logget ind. Pligter, belønninger og rutiner ligger på tavlen.'));
-    // Sedler: må barnet selv sende sedler og skrive svar? (gemmes i personregler, som kun voksne kan rette)
-    const sseg = el('div', 'seg wrap tilpas-valg');
-    const sk = knap('✉️ Må sende sedler og skrive svar', null, async () => {
-      const ny = sk.getAttribute('aria-checked') !== 'true';
-      sk.setAttribute('aria-checked', ny);
-      await saetRegel(hvem, 'sedler', ny);   // fra mere.js
-      tegnAlt();
-    });
-    sk.setAttribute('role', 'checkbox');
-    sk.setAttribute('aria-checked', 'true');
-    regelFor(hvem).then(r => sk.setAttribute('aria-checked', r.sedler));
-    sseg.append(sk);
-    dele.push(el('label', 'felt-label', 'Sedler'), sseg,
-      el('p', 'hint', 'Slået fra: ' + hvem + ' kan stadig se jeres sedler og svare med en emoji, men ikke selv skrive.'));
+
+  // --- Notifikationer ---
+  if (typeof pushIndstilling === 'function' && forMig) dele.push(titel('🔔 Notifikationer på denne telefon'), pushIndstilling());
+  if (typeof pushValg === 'function' && (forMig || voksen)) {
+    const pv = el('details', 'indst-fold');
+    pv.append(el('summary', null, 'Hvad giver besked til ' + (forMig ? 'dig' : hvem)), pushValg(hvem),
+      el('p', 'hint', 'Gælder alle ' + (forMig ? 'dine' : hvem + 's') + ' telefoner, hvor notifikationer er slået til.'));
+    if (forMig) dele.push(pv); else dele.push(titel('🔔 Notifikationer'), pv);
   }
-  // Notifikationer – kun denne telefon (push.js)
-  if (typeof pushIndstilling === 'function' && hvem === Data.bruger()?.navn) dele.push(el('h3', 'lille-titel indst-titel', '🔔 Notifikationer på denne telefon'), pushIndstilling());
-  if (typeof pushValg === 'function') dele.push(el('label', 'felt-label', 'Hvad giver besked til ' + (hvem === Data.bruger()?.navn ? 'dig' : hvem)), pushValg(hvem),
-    el('p', 'hint', 'Gælder alle ' + (hvem === Data.bruger()?.navn ? 'dine' : hvem + 's') + ' telefoner, hvor notifikationer er slået til.'));
-  // Udseende – kun denne enhed
-  const temaValg = chipValg(Object.keys(TEMA_NAVN), lokal.get('tema') || 'auto', v => { lokal.set('tema', v); saetTema(v); }, v => TEMA_NAVN[v]);
-  dele.push(el('h3', 'lille-titel indst-titel', 'Udseende på denne enhed'), temaValg,
-    el('p', 'hint', 'Automatisk følger telefonens lys/mørk-indstilling.'));
-  // By til vejr og sol – fælles for familien
-  if (!erBarn()) {
-    const stedKnap = knap('📍 Sted for vejr og sol …', 'lille-knap', () => vaelgSted());   // fra vejr.js
+
+  // --- Avanceret ---
+  avanceret.push(el('label', 'felt-label', 'Andet'), kontaktListe(
+    kontakt('👪 Familierelation ved fødselsdage', valg.relationer, saet('relationer'), 'Fx "Bente (mormor)"'),
+    kontakt('😀 Automatisk emoji ved pligter og belønninger', valg.emoji, saet('emoji')),
+    voksen && forMig ? kontakt('↩️ "Fortryd" efter sletning og svar', valg.fortryd, saet('fortryd'), 'Slettet kan altid findes under Mere → Aktivitet') : null));
+  if (voksen && forMig) {
+    avanceret.push(el('label', 'felt-label', 'Børnene kalder mig'), chipValg(['Far', 'Mor', ''], valg.kaldes || '', async v => { await saetValg(mig, 'kaldes', v || null); tegnAlt(); }, v => v || 'Mit navn'));
+    const stedKnap = knap('📍 Sted for vejr og sol …', 'lille-knap', () => vaelgSted());   // vejr.js
     familieSted().then(st => { stedKnap.textContent = '📍 Vejr og sol: ' + (st.navn || 'Ukendt sted') + ' – skift'; });
-    dele.push(el('h3', 'lille-titel indst-titel', 'Vejr og sol'), stedKnap);
-  }
-  // 💾 Sikkerhedskopi (kun voksne, kun for sig selv)
-  if (hvem === mig && !erBarn()) {
+    avanceret.push(el('label', 'felt-label', 'Vejr og sol (hele familien)'), stedKnap);
     const sidst = lokal.get('backup-sidst');
     const dage = sidst ? Math.floor((Date.now() - new Date(sidst)) / 864e5) : null;
-    dele.push(el('h3', 'lille-titel indst-titel', '💾 Sikkerhedskopi'),
+    avanceret.push(el('label', 'felt-label', '💾 Sikkerhedskopi'),
       knap('💾 Gem en kopi af alle data', 'lille-knap', () => gemBackup()),
-      knap('📦 Hent fuld backup (zip: data, filer og kode)', 'lille-knap', () => fuldBackup()),
+      knap('📦 Hent fuld backup (data, filer og kode)', 'lille-knap', () => fuldBackup()),
       el('p', 'hint', (sidst ? 'Sidste kopi på denne enhed: ' + (dage === 0 ? 'i dag' : 'for ' + dage + (dage === 1 ? ' dag' : ' dage') + ' siden') + '. ' : 'Der er ikke gemt en kopi fra denne enhed endnu. ')
-        + 'Gem en kopi en gang om måneden og før større opdateringer. Filen indeholder alt det, du kan se – også private ting – så gem den et sikkert sted.'));
+        + 'Gem en kopi en gang om måneden. Filen indeholder alt det, du kan se – også private ting – så gem den et sikkert sted.'));
   }
-  // Hjælp
-  dele.push(el('h3', 'lille-titel indst-titel', 'Hjælp'),
-    knap('❓ Sådan virker Familietavlen ›', 'lille-knap', () => { lukArk(); visFane('hjaelp'); window.scrollTo(0, 0); }));
+  const av = el('details', 'indst-fold indst-avanceret');
+  av.append(el('summary', null, '⚙️ Avanceret'), ...avanceret);
+  dele.push(av);
+
+  dele.push(titel('❓ Hjælp'), knap('Sådan virker Familietavlen ›', 'lille-knap', () => { lukArk(); visFane('hjaelp'); window.scrollTo(0, 0); }));
   const knapper = el('div', 'ark-knapper');
   knapper.append(bekraeftKnap('Log ud', 'logge ud', 'knap fare', () => Data.logud()), knap('Færdig', 'knap', () => lukArk()));   // to tryk: ingen logger ud ved et uheld
   aabnArk('Indstillinger', ...dele,
