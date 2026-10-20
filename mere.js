@@ -789,7 +789,7 @@ async function pligtKort(barn, titel = 'Pligter i dag') {
     stor: !pligt.length ? (bonus ? bonus + ' bonus' : 'Ingen i dag') : !naesteP ? 'Alle klaret' : klaret + ' af ' + pligt.length,
     lille: naesteP ? (bs.joker ? '🃏 Jokeren kan redde dine dage i træk' : bs.mulig ? (bs.milepael ? '🏅 +★ ' + (bs.n + bs.milepael) + ' når alt er klaret' : '🔥 +★ ' + bs.n + ' når alt er klaret') : 'Næste: ' + naesteP.o.navn)
       : bs.givet ? '🔥 +★ ' + bs.givet.stjerner + ' ekstra for dage i træk' : st >= 2 ? streakTekst(st) : bonus ? 'Bonus venter ⭐' : 'Sejt! 🎉' };
-  if (aften) k.tavle.lille = '⏰ Mangler ' + manglerIDag + ' i dag – så kommer i morgen';
+  if (aften) Object.assign(k.tavle, { stor: '⏰ Mangler ' + manglerIDag, lille: 'i dag – så kommer i morgen' });
   return k;
 }
 

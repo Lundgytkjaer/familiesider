@@ -191,13 +191,14 @@ async function tegnHandleliste(viste) {
   const boks = document.getElementById('handle-liste');
   if (!handler) { boks.replaceChildren(); return; }
   const fav = await Data.list('favoritter');
-  const mangler = viste.filter(p => !p.klaret), kurv = viste.filter(p => p.klaret);
+  // Lige krydset af: står stadig i sin afdeling (iVent) – men tæller med i kurven
+  const mangler = viste.filter(p => !p.klaret || iVent(p.id)), kurv = viste.filter(p => p.klaret && !iVent(p.id));
   const dele = [];
   const ialt = mangler.length + kurv.length;
   const status = el('div', 'handle-status');
-  status.append(el('span', null, ialt ? kurv.length + ' af ' + ialt + ' i kurven' : 'Listen er tom'));
+  status.append(el('span', null, ialt ? viste.filter(p => p.klaret).length + ' af ' + ialt + ' i kurven' : 'Listen er tom'));
   const bar = el('span', 'handle-bar');
-  const fyld = el('span'); fyld.style.width = (ialt ? Math.round(100 * kurv.length / ialt) : 0) + '%';
+  const fyld = el('span'); fyld.style.width = (ialt ? Math.round(100 * viste.filter(p => p.klaret).length / ialt) : 0) + '%';
   bar.append(fyld);
   status.append(bar);
   if (!erBarn()) {
@@ -241,20 +242,23 @@ async function tegnHandleliste(viste) {
   }
   boks.replaceChildren(...dele);
 }
-// En vare, der lige er krydset af, bliver stående (grå) i 1,5 sek., før den flytter ned i kurven –
-// ellers hopper listen, og næste tryk rammer en anden vare. Tryk igen inden da = fortryd.
-const ventKurv = new Map();   // id → timer
+// En vare, der lige er krydset af, gemmes MED DET SAMME, men bliver stående (grå) i sin afdeling i 1,5 sek., før den
+// flytter ned i kurven – ellers hopper listen, og næste tryk rammer en anden vare (brugertest 2).
+const nyligKurv = new Map();   // id → tidspunkt for krydset
+const iVent = id => nyligKurv.has(id) && Date.now() - nyligKurv.get(id) < 1500;
+let kurvTimer = null;
 function handleLi(p, k) {
-  const li = el('li', 'handle-vare' + (p.klaret || ventKurv.has(p.id) ? ' klaret' : ''));
+  const li = el('li', 'handle-vare' + (p.klaret ? ' klaret' : ''));
   const b = knap('', 'handle-tjek', async () => {
-    if (p.klaret) { await Data.update('indkob', p.id, { klaret: false }); tegnAlt(); return; }
-    if (ventKurv.has(p.id)) { clearTimeout(ventKurv.get(p.id)); ventKurv.delete(p.id); li.classList.remove('klaret'); b.setAttribute('aria-pressed', false); return; }
-    li.classList.add('klaret'); b.setAttribute('aria-pressed', true);
-    ventKurv.set(p.id, setTimeout(async () => { ventKurv.delete(p.id); await Data.update('indkob', p.id, { klaret: true }); tegnAlt(); }, 1500));
+    const ny = !p.klaret;
+    if (ny) nyligKurv.set(p.id, Date.now()); else nyligKurv.delete(p.id);
+    li.classList.toggle('klaret', ny); b.setAttribute('aria-pressed', ny);
+    await Data.update('indkob', p.id, { klaret: ny });
+    tegnAlt();   // tælleren opdateres – varen bliver på sin plads (iVent)
+    clearTimeout(kurvTimer);
+    kurvTimer = setTimeout(() => { nyligKurv.clear(); tegnAlt(); }, 1600);   // flyt alle de nyligt krydsede ned samlet
   });
-  // Hold = slet / ret / kategori (fra app.js)
-  langtTryk(b, () => punktValg('indkob', p, erBarn() ? [] : [knap('🏷️ Kategori: ' + KAT[k].ikon + ' ' + KAT[k].navn, 'knap sekundaer', () => vaelgKategori(p, k))]));
-  b.setAttribute('aria-pressed', !!p.klaret || ventKurv.has(p.id));
+  b.setAttribute('aria-pressed', !!p.klaret);
   const tjek = el('span', 'tjek'); tjek.innerHTML = IKON_TJEK;
   const tekst = el('span', 'handle-tekst', '');
   if (p.antal) tekst.append(antalTag(p.antal));   // app.js
