@@ -4184,7 +4184,9 @@ async function startTavle() {
   const profil = Data.bruger();
   const logUd = document.getElementById('log-ud');
   logUd.textContent = profil.navn[0];
-  logUd.append(el('span', 'bruger-tandhjul', '⚙'));   // lille tandhjul: knappen åbner Indstillinger
+  const hjul = el('span', 'bruger-tandhjul');   // lille tandhjul: knappen åbner Indstillinger (SVG – ⚙-tegnet så forskelligt ud på telefonerne)
+  hjul.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M10.3 2h3.4l.5 2.6a7.6 7.6 0 0 1 1.9 1.1l2.5-.9 1.7 2.9-2 1.7a7.7 7.7 0 0 1 0 2.2l2 1.7-1.7 2.9-2.5-.9a7.6 7.6 0 0 1-1.9 1.1l-.5 2.6h-3.4l-.5-2.6a7.6 7.6 0 0 1-1.9-1.1l-2.5.9-1.7-2.9 2-1.7a7.7 7.7 0 0 1 0-2.2l-2-1.7 1.7-2.9 2.5.9a7.6 7.6 0 0 1 1.9-1.1zM12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4z" transform="translate(0 1)"/></svg>';
+  logUd.append(hjul);
   logUd.className = 'bruger-knap ' + (PK[profil.navn] || 'c-faelles');
   logUd.setAttribute('aria-label', 'Indstillinger – logget ind som ' + profil.navn);
   logUd.hidden = false;

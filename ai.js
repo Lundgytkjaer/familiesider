@@ -1104,12 +1104,13 @@ aiSideKnapper();
 (() => {
   // Eget ikon (Timmos ønske: flottere end ✨-emojien): åben firkant med "AI" og tre stjerner i appens farver
   const k = el('button', 'ai-knap kun-voksen');
-  k.innerHTML = '<svg viewBox="0 0 32 32" aria-hidden="true">'
-    + '<path class="ai-ramme" d="M13 6H9a5 5 0 0 0-5 5v12a5 5 0 0 0 5 5h12a5 5 0 0 0 5-5v-4"/>'
-    + '<text class="ai-tekst" x="15" y="23" text-anchor="middle">AI</text>'
-    + '<path class="ai-stjerne s1" d="M24.5 3.5C25.93 8.57 25.93 8.57 31.0 10C25.93 11.43 25.93 11.43 24.5 16.5C23.07 11.43 23.07 11.43 18.0 10C23.07 8.57 23.07 8.57 24.5 3.5z"/>'
-    + '<path class="ai-stjerne s2" d="M17.5 1.1C18.25 3.75 18.25 3.75 20.9 4.5C18.25 5.25 18.25 5.25 17.5 7.9C16.75 5.25 16.75 5.25 14.1 4.5C16.75 3.75 16.75 3.75 17.5 1.1z"/>'
-    + '<path class="ai-stjerne s3" d="M30 1.1C30.53 2.97 30.53 2.97 32.4 3.5C30.53 4.03 30.53 4.03 30 5.9C29.47 4.03 29.47 4.03 27.6 3.5C29.47 2.97 29.47 2.97 30 1.1z"/>'
+  // Rund som forbogstav-knappen ved siden af: grøn cirkel med "AI" (tegnet som streger, så skriften er ens overalt)
+  // og to stjerner i guld oppe i hjørnet – ligesom tandhjulet sidder nede i hjørnet på forbogstavet
+  k.innerHTML = '<svg viewBox="0 0 36 36" aria-hidden="true">'
+    + '<circle class="ai-cirkel" cx="18" cy="18" r="18"/>'
+    + '<g class="ai-tekst" transform="translate(1.6 0.5)"><path fill-rule="evenodd" d="M8.6 24.5 12.4 11.5h3.6l3.8 13h-3.2l-.8-2.9h-4.2l-.8 2.9zM12.3 19h2.9l-1.45-5.2z"/><rect x="21.2" y="11.5" width="3.2" height="13"/></g>'
+    + '<path class="ai-stjerne s1" d="M31 -0.7000000000000002C32.36 4.14 32.36 4.14 37.2 5.5C32.36 6.86 32.36 6.86 31 11.7C29.64 6.86 29.64 6.86 24.8 5.5C29.64 4.14 29.64 4.14 31 -0.7000000000000002z"/>'
+    + '<path class="ai-stjerne s2" d="M22.6 0.20C23.08 1.92 23.08 1.92 24.8 2.4C23.08 2.88 23.08 2.88 22.6 4.60C22.12 2.88 22.12 2.88 20.400000000000002 2.4C22.12 1.92 22.12 1.92 22.6 0.20z"/>'
     + '</svg>';
   k.type = 'button';
   k.setAttribute('aria-label', 'AI-hjælper');

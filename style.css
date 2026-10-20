@@ -2305,23 +2305,22 @@ body.barn .fyld-ugen { display: none; }
 .ekstra-antal-raekke .seg { margin-bottom: 0; }
 #ark .ekstra-antal-raekke input.ekstra-antal { flex: none; width: 76px; min-height: 44px; text-align: center; font-size: 17px; font-weight: 700; }
 /* Forbogstav-knappen viser et lille tandhjul, så man kan se, at den åbner Indstillinger */
-.bruger-tandhjul { position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 50%; background: var(--flade); color: var(--fg); border: 1px solid var(--linje); font-size: 11px; line-height: 16px; text-align: center; font-weight: 400; pointer-events: none; }
+.bruger-tandhjul { position: absolute; right: -4px; bottom: -4px; width: 17px; height: 17px; display: grid; place-items: center; border-radius: 50%; background: var(--flade); color: var(--daempet); box-shadow: 0 0 0 1.5px var(--bg); pointer-events: none; }
+.bruger-tandhjul svg { width: 12px; height: 12px; fill: currentColor; }
 .konk-skriv { width: 100%; margin-top: 10px; min-height: 48px; }
 /* Tryk på makkeren: et tydeligt hop (alle makkere) – før drejede kun Alfies hoved en smule */
 .alfie-figur.vip, .makker-figur.vip { animation: makker-hop .55s cubic-bezier(.3, 1.6, .5, 1); }
 @keyframes makker-hop { 0% { transform: translateY(0) scale(1); } 35% { transform: translateY(-14px) scale(1.06, .96); } 70% { transform: translateY(0) scale(.97, 1.03); } 100% { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .alfie-figur.vip, .makker-figur.vip { animation: none; } }
 
-/* AI-knappen øverst: eget ikon i stedet for ✨ (2026-10-20w) – ramme og "AI" i tekstfarven, stjernerne i appens grønne og guld */
-.ai-knap { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 12px; background: none; }
-.ai-knap svg { width: 34px; height: 34px; overflow: visible; }
-.ai-knap .ai-ramme { fill: none; stroke: var(--fg); stroke-width: 2.4; stroke-linecap: round; }
-.ai-knap .ai-tekst { fill: var(--fg); font: 800 12.5px/1 var(--font-titel, system-ui), sans-serif; letter-spacing: .3px; }
-.ai-knap .ai-stjerne { fill: var(--accent); transform-box: fill-box; transform-origin: center; }
-.ai-knap .ai-stjerne.s2 { fill: var(--p2); }
-.ai-knap .ai-stjerne.s3 { fill: color-mix(in srgb, var(--accent) 60%, var(--p2)); }
+/* AI-knappen øverst (2026-10-20w): rund som forbogstav-knappen – grøn cirkel, hvidt "AI", guldstjerner i hjørnet */
+.ai-knap { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 50%; background: none; overflow: visible; }
+.ai-knap svg { width: 36px; height: 36px; overflow: visible; }
+.ai-knap .ai-cirkel { fill: var(--accent); }
+.ai-knap .ai-tekst { fill: var(--paa-accent); }
+.ai-knap .ai-stjerne { fill: var(--p2); stroke: var(--bg); stroke-width: 1.4; paint-order: stroke; transform-box: fill-box; transform-origin: center; }
 .ai-knap:hover .ai-stjerne, .ai-knap:active .ai-stjerne { animation: ai-glimt .7s ease-in-out; }
-.ai-knap:hover .ai-stjerne.s2, .ai-knap:active .ai-stjerne.s2 { animation-delay: .12s; }
-.ai-knap:hover .ai-stjerne.s3, .ai-knap:active .ai-stjerne.s3 { animation-delay: .24s; }
-@keyframes ai-glimt { 50% { transform: scale(1.35) rotate(20deg); } }
+.ai-knap:hover .ai-stjerne.s2, .ai-knap:active .ai-stjerne.s2 { animation-delay: .15s; }
+@keyframes ai-glimt { 50% { transform: scale(1.3) rotate(20deg); } }
 @media (prefers-reduced-motion: reduce) { .ai-knap .ai-stjerne { animation: none !important; } }
+.ai-knap + .bruger-knap { margin-left: 14px; }
