@@ -182,7 +182,8 @@ async function seddelSkrivLink(barn) {
     return knap(kladdeHent('seddel') ? '✉️ Skriv videre på din seddel' : '✉️ Skriv en seddel', 'seddel-skriv-link', () => skrivSeddel(VOKSNE[0]));
   }
   if (!erVoksen()) return null;
-  return knap((kladdeHent('seddel') ? '✉️ Skriv videre på din seddel' : '✉️ Skriv en seddel') + (barn ? ' til ' + barn : ''), 'seddel-skriv-link', () => skrivSeddel(barn || BOERN[0]));
+  // På Familien: tydeligt forskellig fra "Note på tavlen" (Winnie-testen 20/10 kunne ikke se forskel)
+  return knap(kladdeHent('seddel') ? '✉️ Skriv videre på din seddel' : barn ? '✉️ Skriv en seddel til ' + barn : '✉️ Seddel til en i familien', 'seddel-skriv-link', () => skrivSeddel(barn || BOERN[0]));
 }
 
 // Sedlerne på et barns tavle (øverst)

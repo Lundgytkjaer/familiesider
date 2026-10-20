@@ -468,6 +468,9 @@ function pligtPersoner() {
   return [...BOERN, ...(mig && !BOERN.includes(mig) ? [mig] : [])];
 }
 
+// Stjerner vises aldrig som minus (fx når et ønske venter, eller en voksen har trukket fra) – "★ -10" lignede en straf/fejl (Winnie-testen 20/10).
+// Det rigtige tal bruges stadig i Justér.
+const stjVis = n => Math.max(0, Math.round(n || 0));
 async function regelFor(navn) {
   const r = (await Data.list('personregler')).find(x => x.navn === navn);
   const barn = BOERN.includes(navn);
@@ -698,7 +701,7 @@ async function boernLinjerKort() {
     const s = saldo(d);
     const pause = typeof pausePligter === 'function' && pausePligter(barn, isoDato(new Date()));   // ⏸ pause.js
     const dele = [pause ? '⏸ pligter på pause' : dagens.length ? klaret + '/' + dagens.length + ' pligter' : 'fri i dag'];
-    if (d.regel.stjerner) dele.push('★ ' + s.stjerner);
+    if (d.regel.stjerner) dele.push('★ ' + stjVis(s.stjerner));
     if (d.regel.kr) dele.push(kr(s.tilGode));
     if (typeof ugeStatus === 'function') { const u = ugeStatus(d, isoDato(mandagDenneUge())); if (u.maal) dele.push('🏆 ' + u.n + '/' + u.maal); }
     const li = el('li', 'boern-linje' + (dagens.length && klaret === dagens.length ? ' klaret' : ''));
@@ -720,7 +723,7 @@ async function pligtKort(barn, titel = 'Pligter i dag') {
   const liste = dagensOpgaver(d);
   const s = saldo(d);
   const status = [];
-  if (d.regel.stjerner) status.push('★ ' + s.stjerner);
+  if (d.regel.stjerner) status.push('★ ' + stjVis(s.stjerner));
   if (d.regel.kr) status.push(kr(s.tilGode));
   const k = el('div', 'kort');
   const top = el('div', 'kort-top');
@@ -895,7 +898,7 @@ async function tegnPligter() {
     const stat = el('div', 'stat-raekke' + (d.regel.stjerner && d.regel.kr ? '' : ' en'));
     if (d.regel.stjerner) {
       const st = el('div', 'stat stjerne-stat');
-      st.append(el('span', 'stat-tal', '★ ' + s.stjerner), el('span', 'stat-navn', 'stjerner at bruge'));
+      st.append(el('span', 'stat-tal', '★ ' + stjVis(s.stjerner)), el('span', 'stat-navn', 'stjerner at bruge'));
       stat.append(st);
     }
     if (d.regel.kr) {
@@ -1228,7 +1231,7 @@ async function beloenningKort(barn) {
   const s = saldo(d);
   const k = el('div', 'kort');
   const top = el('div', 'kort-top');
-  top.append(el('span', 'kort-label', 'Belønninger'), el('span', 'kort-pil stjerne-saldo', '★ ' + s.stjerner));
+  top.append(el('span', 'kort-label', 'Belønninger'), el('span', 'kort-pil stjerne-saldo', '★ ' + stjVis(s.stjerner)));
   const ul = el('ul', 'beloen-liste i-kort');
   d.indl.filter(x => x.status === 'afventer').forEach(x => ul.append(oenskeLi(x, !erVoksen())));
   // Alle belønninger (billigste først) – også dem man sparer op til
@@ -1261,7 +1264,7 @@ async function beloenningKort(barn) {
       andel: maalB.stjerner ? s.stjerner / maalB.stjerner : 1, klar: s.stjerner >= maalB.stjerner };
     return k;
   }
-  k.tavle = { noegle: 'beloenninger', ikon: '🎁', titel: 'Belønninger', stor: '★ ' + s.stjerner + (tjentIdag ? '  +' + tjentIdag + ' i dag' : ''),
+  k.tavle = { noegle: 'beloenninger', ikon: '🎁', titel: 'Belønninger', stor: '★ ' + stjVis(s.stjerner) + (tjentIdag ? '  +' + tjentIdag + ' i dag' : ''),
     lille: venter.length ? 'Ønske venter på en voksen 🎁' : raad.length ? 'Nok stjerner til ' + (raad.length === 1 ? '"' + raad[0].navn + '"' : raad.length + ' belønninger') + ' 🎉'
       : naesteB ? 'Mangler ★ ' + (naesteB.stjerner - s.stjerner) + ' til ' + naesteB.navn + (kanNaas ? ' · ★ ' + kanNaas + ' at hente i dag' : '') : '',
     andel: naesteB ? s.stjerner / naesteB.stjerner : 1 };

@@ -2186,3 +2186,11 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 /* Pligter ryddet op (2026-10-20e): knapperne samlet nederst */
 .pligt-bund-knapper { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 .pligt-bund-knapper > * { flex: 1 1 auto; }
+
+/* Indkøb/To do: hurtigvalget foldet sammen (2026-10-20f) */
+.forslag-fold { display: inline-block; margin: 8px 0 2px; padding: 6px 2px; border: 0; background: none; color: var(--accent); font: inherit; font-size: 15px; font-weight: 700; }
+
+/* Madplan: aftensmaden ligner et felt, man kan skrive i (Winnie-testen 20/10) */
+#mad-uge .dag .fuld-felt { border: 1.5px solid var(--linje); border-radius: 10px; background: var(--bg); padding: 0 10px; }
+#mad-uge .dag .fuld-felt:focus-within { border-color: var(--accent); }
+#mad-uge .dag.forbi .fuld-felt, #mad-uge .dag.ude .fuld-felt, #mad-uge .dag.rester .fuld-felt { background: transparent; border-style: dashed; }

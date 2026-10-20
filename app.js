@@ -732,10 +732,14 @@ function punktValg(liste, p, ekstra = []) {
 
 // ---------- Antal på indkøbslisten ----------
 // Data: indkob.antal (tekst, fx "2", "2 l", "500 g"). Skrives forrest: "2 mælk", "2 l mælk", "500 g hakket oksekød".
-const ANTAL_RE = /^(\d+(?:[.,]\d+)?\s*(?:x|stk|l|dl|cl|kg|g|pk|pakker?|ps|poser?|bakker?|ds|dåser?|bdt|bundter?|fl|flasker?)?\.?)\s+(\S.*)$/i;
+// Lange ord først ("liter" før "l"), så "2 liter mælk" bliver antal "2 l" + Mælk (Winnie-testen 20/10: blev en ny vare)
+const ANTAL_RE = /^(\d+(?:[.,]\d+)?\s*(?:liter|l|deciliter|dl|centiliter|cl|kilo(?:gram)?|kg|gram|g|stykker|styk|stk|x|pakker?|pk|poser?|ps|bakker?|dåser?|ds|bundter?|bdt|flasker?|fl)?\.?)\s+(\S.*)$/i;
+const ENHED_KORT = { liter: 'l', deciliter: 'dl', centiliter: 'cl', kilo: 'kg', kilogram: 'kg', gram: 'g', stykker: 'stk', styk: 'stk' };
 function delAntal(tekst) {
   const m = tekst.match(ANTAL_RE);
-  return m ? { antal: m[1].replace(/\.$/, '').replace(/\s*x$/i, '').trim(), tekst: m[2].trim() } : { antal: '', tekst };
+  if (!m) return { antal: '', tekst };
+  const antal = m[1].replace(/\.$/, '').replace(/\s*x$/i, '').trim().replace(/[a-zæøå]+$/i, e => ENHED_KORT[e.toLowerCase()] || e);
+  return { antal: antal.replace(/(\d)([a-zæøå])/i, '$1 $2'), tekst: m[2].trim() };
 }
 const antalTag = antal => el('span', 'antal-tag', antal);
 // Vælg antal (fra "hold fingeren"-vinduet og fra Ret vare)
@@ -800,7 +804,9 @@ function tegnNyFrist() {
   const boks = document.getElementById('ny-frist');
   if (!boks) return;
   const idag = isoDato(new Date()), dato = input('date', 'ny-frist-dato', '');
-  const valg = [['', 'Ingen'], [idag, 'I dag'], [plusDage(idag, 1), 'I morgen'], [plusDage(idag, 7), 'Om en uge']];
+  // Ingen · I dag · I morgen · de næste ugedage (fx "Lør") · 📅 Dato – "senest lørdag" er ét tryk (Winnie-testen 20/10)
+  const valg = [['', 'Ingen'], [idag, 'I dag'], [plusDage(idag, 1), 'I morgen'],
+    ...[2, 3, 4, 5, 6].map(n => { const iso = plusDage(idag, n); return [iso, DAGE[(tilDag(iso).getDay() + 6) % 7]]; })];
   const egen = nyFrist && !valg.some(([v]) => v === nyFrist);
   const k = (v, tekst) => { const b = knap(tekst, null, () => { nyFrist = v; tegnNyFrist(); }); b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String(nyFrist === v)); return b; };
   const datoKnap = knap(egen ? '📅 ' + kortDag(nyFrist) : '📅 Dato', null, () => { try { dato.showPicker(); } catch (e) { dato.focus(); dato.click(); } });
@@ -825,6 +831,10 @@ document.querySelectorAll('form.tilfoj[data-liste]').forEach(form => {
     if (!tekst) return;
     let antal = '';
     if (form.dataset.liste === 'indkob') ({ antal, tekst } = delAntal(tekst));   // "2 mælk" → antal 2
+    if (!tekst) return;
+    // Stort forbogstav – men en kendt stavemåde fra hurtigvalget vinder ("æg" → "Æg", "ipad" → "iPad" hvis det står sådan)
+    const kendt = Data.listNu('favoritter').find(f => f.type === form.dataset.liste && lavt(f.tekst) === lavt(tekst));
+    tekst = kendt ? kendt.tekst : tekst[0].toUpperCase() + tekst.slice(1);
     const felter = { tekst, klaret: false, ...(vigtig ? { vigtig: true } : {}), ...(antal ? { antal } : {}) };
     if (form.dataset.liste === 'todo') { felter.prio = nyPrio; if (nyFrist && !erBarn()) felter.frist = nyFrist; }
     const nyt = await tilfoejUdenDublet(form.dataset.liste, felter);
@@ -1067,6 +1077,17 @@ async function tegnForslag(type) {
   if (!filter && favs.length && !erBarn()) {
     styr(st.ret ? 'Færdig' : erMaaltid ? 'Fjern fra listen' : 'Ret forslag', () => { st.ret = !st.ret; if (st.ret) Lide.person = null; tegnForslag(type); });
   }
+  // Indkøb og To do: hurtigvalget er foldet sammen, så selve listen står lige under feltet (Winnie-testen 20/10).
+  // Det folder sig selv ud, mens man skriver (så det virker som forslag), og kan åbnes med "＋ Hurtigvalg".
+  if (!erMaaltid) {
+    let fold = boks.previousElementSibling?.classList.contains('forslag-fold') ? boks.previousElementSibling : null;
+    if (!fold) { fold = el('button', 'forslag-fold'); fold.type = 'button'; fold.addEventListener('click', () => { st.aaben = !st.aaben; tegnForslag(type); }); boks.before(fold); }
+    const aaben = !!(st.aaben || st.ret || filter);
+    boks.hidden = !aaben || (!favs.length && !st.ret);
+    fold.hidden = !!filter || (!favs.length && !st.aaben);
+    fold.textContent = st.aaben ? '− Skjul hurtigvalg' : '＋ Hurtigvalg (' + favs.length + ')';
+    fold.setAttribute('aria-expanded', String(aaben));
+  }
   if (erMaaltid && !st.ret && !erBarn()) {
     if (type === 'ret') {
       const { ligner, udenKategori } = rydOpForslag(await Data.list('favoritter'));   // retter.js
@@ -1242,7 +1263,7 @@ async function tegnMadplan() {
     const felt = el('input');
     felt.type = 'text';
     felt.id = 'dag-' + i;
-    felt.placeholder = i === idag ? 'Hvad skal vi have i dag?' : '–';
+    felt.placeholder = i === idag ? 'Hvad skal vi have i dag?' : 'Skriv en ret';
     felt.autocomplete = 'off';
     felt.enterKeyHint = 'done';
     felt.setAttribute('list', 'retter-forslag');

@@ -554,7 +554,7 @@ function tavleNoter() {
 }
 // 📝 Ny huskeseddel – hurtigt: skriv, og den hænger på tavlen
 // Diskret link nederst på Familien – ved siden af "✉️ Skriv en seddel"
-const huskeseddelLink = () => erBarn() ? null : knap(kladdeHent('huskeseddel') ? '📝 Skriv videre på din huskeseddel' : '📝 Ny huskeseddel', 'seddel-skriv-link', () => nyHuskeseddel());
+const huskeseddelLink = () => erBarn() ? null : knap(kladdeHent('huskeseddel') ? '📌 Skriv videre på din note' : '📌 Note på tavlen', 'seddel-skriv-link', () => nyHuskeseddel());
 function nyHuskeseddel() {
   const k = kladdeHent('huskeseddel') || {};
   const s = { syn: k.syn || 'mig', tjek: !!k.tjek };
