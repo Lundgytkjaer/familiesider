@@ -1351,9 +1351,20 @@ function givEkstra(barn, x = null) {
   const tekst = input('text', 'ekstra-tekst', x?.tekst || '', 'Fx Hjalp med at bære indkøb');
   const forslag = el('div', 'seg wrap');
   for (const g of EKSTRA_GRUNDE) forslag.append(knap(g, null, () => { tekst.value = g; }));
-  let n = Math.min(EKSTRA_MAX, Math.max(1, Math.round(tal(x?.stjerner)) || 1));
-  const antal = chipValg([1, 2, 3, 5], n, v => { n = v; }, v => '★ ' + v);
+  let n = Math.max(1, Math.round(tal(x?.stjerner)) || 1);
+  // Hurtigvalg 1/2/3/5 – eller skriv selv et antal (Timmos ønske)
+  const egen = input('text', 'ekstra-antal', String(n), 'Antal');
+  egen.inputMode = 'numeric'; egen.className = 'ekstra-antal'; egen.setAttribute('aria-label', 'Antal stjerner');
+  const antalValg = chipValg([1, 2, 3, 5], n, v => { n = v; egen.value = String(v); }, v => '★ ' + v);
+  egen.addEventListener('input', () => {
+    const v = Math.round(tal(egen.value));
+    n = v > 0 ? Math.min(v, 100) : 0;
+    antalValg.querySelectorAll('button').forEach(b => b.setAttribute('aria-checked', b.textContent === '★ ' + n));
+  });
+  const antal = el('div', 'ekstra-antal-raekke');
+  antal.append(antalValg, egen);
   const gem = knap(x ? 'Godkend' : 'Giv stjerne', 'knap', async () => {
+    if (!(n > 0)) { visStatus('Skriv et antal stjerner (1–100)', true); egen.focus(); return; }
     const t = tekst.value.trim() || 'Ekstra indsats';
     const fra = Data.bruger()?.navn || '';
     if (x) await Data.update('ekstra', x.id, { tekst: t, stjerner: n, status: 'godkendt', fra, besvaret: isoDato(new Date()) });

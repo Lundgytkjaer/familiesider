@@ -2300,3 +2300,7 @@ body.barn .fyld-ugen { display: none; }
 .boern-linje { display: flex; align-items: center; gap: 4px; }
 .boern-linje > .boern-linje-knap { flex: 1; min-width: 0; }
 .boern-stjerne { flex: none; width: 44px; height: 44px; border: 1.5px solid var(--linje); border-radius: 50%; background: var(--flade); font-size: 20px; }
+/* Giv stjerner: hurtigvalg + eget antal på én linje */
+.ekstra-antal-raekke { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ekstra-antal-raekke .seg { margin-bottom: 0; }
+#ark .ekstra-antal-raekke input.ekstra-antal { flex: none; width: 76px; min-height: 44px; text-align: center; font-size: 17px; font-weight: 700; }
