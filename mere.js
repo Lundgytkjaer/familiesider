@@ -728,6 +728,8 @@ async function boernLinjerKort() {
     li.append(knap('', 'boern-linje-knap', () => { pligtBarn = barn; lokal.set('pligt-barn', barn); visFane('pligter'); tegnPligter(); window.scrollTo(0, 0); }));
     const b = li.firstChild;
     b.append(el('span', 'prik c-' + barn.toLowerCase()), el('strong', null, barn), el('span', 'boern-linje-tal', dele.join(' · ')), el('span', 'kort-pil', '›'));
+    // ⭐ Giv en stjerne direkte herfra (kontroltest: ellers via Pligter → barnet)
+    if (d.regel.stjerner) { const st = knap('⭐', 'boern-stjerne', () => givEkstra(barn)); st.setAttribute('aria-label', 'Giv ' + barn + ' en stjerne'); li.append(st); }
     ul.append(li);
   }
   if (!ul.children.length) return null;

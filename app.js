@@ -1208,6 +1208,9 @@ async function madFor(dato, barn = null) {
       if (v) res.venter[f] = v.ret;
     }
   }
+  // "Ikke bestemt" (sat af en voksen på tavlen): dagens/den faste plan gælder ikke – vises som ikke bestemt, og barnet kan ønske
+  res.ikkeBestemt = {};
+  for (const f of ['morgen', 'frokost', 'ret']) if (res[f] === IKKE_BESTEMT) { res[f] = ''; res.ikkeBestemt[f] = true; }
   // Det der vises: med tilbehør ("Kylling i karry med ris") – barnets eget valg eller rettens standard (retter.js)
   const favs = await Data.list('favoritter');
   for (const f of ['morgen', 'frokost', 'ret']) if (res[f]) res.visning[f] = retVisning(favs, f, res[f]);
@@ -2632,13 +2635,24 @@ async function tegnBoernetavle(barn) {
     const fremtid = iso >= idagIso && !plan.pause?.[felt];
     const r = erBarn() ? (fremtid ? knap('', 'maaltid', () => oenskMad(barn, valgt, felt)) : el('div', 'maaltid')) : knap('', 'maaltid', () => redigerMaaltid(barn, valgt, felt));
     if (!erBarn()) r.setAttribute('aria-label', navn + ': ' + (ret || 'ikke bestemt') + '. Tryk for at ændre');
-    const retEl = el('span', 'm-ret' + (ret && ret !== INGEN_MAD ? '' : ' tom-ret'), ret === INGEN_MAD ? 'Ingenting 🚫' : plan.visning[felt] || ret || 'Ikke bestemt');
+    const retEl = el('span', 'm-ret' + (ret && ret !== INGEN_MAD ? '' : ' tom-ret'), ret === INGEN_MAD ? 'Ingenting 🚫'
+      : plan.visning[felt] || ret || (erBarn() && fremtid ? 'Ikke bestemt · 💭 ønsk noget' : 'Ikke bestemt'));
     // Kun de voksne ser, at retten er ændret for netop denne dag (barnet ser bare maden)
     if (plan.eget[felt] && !plan.oenske?.[felt] && !erBarn()) retEl.append(el('span', 'eget-tag', 'Kun denne dag'));
     if (plan.oenske?.[felt]) retEl.append(el('span', 'eget-tag', erBarn() ? 'Dit valg' : genitiv(barn) + ' valg'));
     if (plan.venter?.[felt]) retEl.append(el('span', 'venter-tag', '⏳ ønsker ' + plan.venter[felt]));
     r.append(el('span', 'm-navn', navn), retEl, erBarn() && !fremtid ? '' : el('span', 'm-pil', '›'));
     madKort.append(r);
+  }
+  // Barnet: ønsk mad til i morgen direkte herfra (kontroltest: det var en lang omvej via ugedagene)
+  if (erBarn() && iso === idagIso) {
+    const imorgenD = new Date(valgt); imorgenD.setDate(imorgenD.getDate() + 1);
+    madKort.append(knap('💭 Ønsk mad til i morgen ›', 'link-knap oensk-imorgen', () => {
+      const valg = el('div', 'mad-valg');
+      for (const [felt, navn] of [['morgen', '🥣 Morgenmad'], ['frokost', '🥪 Frokost'], ['ret', '🍽️ Aftensmad']])
+        valg.append(knap(navn, 'mad-valg-knap', () => { lukArk(); oenskMad(barn, imorgenD, felt); }));
+      aabnArk('Hvad vil du ønske til i morgen?', valg);
+    }));
   }
 
   {
@@ -2991,6 +3005,8 @@ function redigerInfo(barn, iso, x) {
 
 // "Ingenting": et måltid der springes over (gemmes som tekst, så det også kan gøres fast, fx ingen morgenmad om søndagen)
 const INGEN_MAD = 'Ingenting';
+// "Ikke bestemt": de voksne har ikke bestemt endnu – den faste plan (fx skolemadpakken) skal ikke stå på tavlen den dag
+const IKKE_BESTEMT = 'Ikke bestemt';
 // Vælg et måltid til et barn (direkte fra børnetavlen)
 async function redigerMaaltid(barn, dato, felt) {
   const NAVN = { morgen: 'Morgenmad', frokost: 'Frokost', ret: 'Aftensmad' };
@@ -3066,6 +3082,7 @@ async function redigerMaaltid(barn, dato, felt) {
   terning.innerHTML = IKON_TERNING + '<span>Slå med terningen</span>';
   knapper.append(terning);
   if (voksen && plan[felt] !== INGEN_MAD) knapper.append(knap('🚫 Ingenting', 'knap sekundaer-knap', () => vaelg(INGEN_MAD)));
+  if (voksen && !plan.ikkeBestemt?.[felt]) knapper.append(knap('❔ Ikke bestemt', 'knap sekundaer-knap', () => vaelg(IKKE_BESTEMT)));
   const standard = felt === 'ret' ? plan.faelles.ret : plan.fast[felt];
   if (plan.eget[felt]) {
     knapper.append(knap(felt === 'ret' ? 'Brug familiens' : 'Brug den faste', 'knap sekundaer-knap',
@@ -3518,9 +3535,9 @@ async function tegnOverblik() {
   if (new Date().getHours() >= 16) for (const b of BOERN) {
     const m = await madFor(imorgenDato, b);
     const mo = m.visning?.morgen || m.morgen, fr = m.visning?.frokost || m.frokost;
-    if (!mo && !fr) continue;
-    const linje = el('span', 'boern-mad ' + (PK[b] || ''));
-    linje.append(el('span', 'prik'), el('b', null, b + ': '), [mo, fr].map(x => x === INGEN_MAD ? 'ingenting' : x || 'ikke bestemt').join(' · '));
+    // Intet sat for barnet: står der alligevel ("ikke bestemt"), så man kan se, at der mangler noget
+    const linje = el('span', 'boern-mad ' + (PK[b] || '') + (!mo && !fr ? ' mangler' : ''));
+    linje.append(el('span', 'prik'), el('b', null, b + ': '), !mo && !fr ? 'ikke bestemt' : [mo, fr].map(x => x === INGEN_MAD ? 'ingenting' : x || 'ikke bestemt').join(' · '));
     madLinjer.push(linje);
   }
   boernMad.replaceChildren(...(madLinjer.length ? [el('span', 'boern-mad-titel', 'Morgenmad · frokost i morgen'), ...madLinjer] : []));

@@ -2295,3 +2295,8 @@ body.barn .fyld-ugen { display: none; }
   .ov-fravaer { margin: -6px 0 0; }
   .bundmenu-indre { max-width: 640px; }
 }
+.boern-mad.mangler { color: var(--daempet); font-style: italic; }
+.oensk-imorgen { display: block; margin-top: 10px; min-height: 44px; font-weight: 700; color: var(--accent); text-align: left; }
+.boern-linje { display: flex; align-items: center; gap: 4px; }
+.boern-linje > .boern-linje-knap { flex: 1; min-width: 0; }
+.boern-stjerne { flex: none; width: 44px; height: 44px; border: 1.5px solid var(--linje); border-radius: 50%; background: var(--flade); font-size: 20px; }

@@ -236,7 +236,7 @@ function skrivSeddel(tilStandard, gl) {
   const ny = !gl;
   const mig = Data.bruger()?.navn || '';
   const barn = !erVoksen();
-  const modtagere = barn ? [...VOKSNE, ALLE_VOKSNE] : [...BOERN, ALLE_BOERN, ...VOKSNE.filter(v => v !== mig)];
+  const modtagere = barn ? [ALLE_VOKSNE, ...VOKSNE] : [...BOERN, ALLE_BOERN, ...VOKSNE.filter(v => v !== mig)];
   const tilNavn = v => (v === ALLE_BOERN ? 'Begge børn' : v === ALLE_VOKSNE ? (barn ? 'Mor og far' : VOKSNE.join(' og ')) : kaldNavn(v));
   const s = {
     til: gl?.til || (modtagere.includes(tilStandard) ? tilStandard : modtagere[0]), fra: gl?.fra || mig, tekst: gl?.tekst || '',
