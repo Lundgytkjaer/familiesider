@@ -929,8 +929,10 @@ async function alfieKort(barn) {
   figurBoks.append(figur);
   const hoejre = el('div', 'alfie-hoejre');
   hoejre.append(boble, ialt ? fremskridt(klaret / ialt) : '');
-  hoejre.append(el('p', 'makker-niveau', (nv.niveau ? 'Niveau ' + (nv.niveau + 1) + ' ' + nv.pynt.join('') : 'Niveau 1')
-    + (nv.naeste ? ' · ' + (nv.naeste[0] - nv.dage) + (nv.naeste[0] - nv.dage === 1 ? ' dag' : ' dage') + ' til ' + nv.naeste[1] : '')));
+  // Børnevenligt (brugertest 2): ikke "Niveau 1" – men hvad der skal til for at få den næste ting
+  const nvMangler = nv.naeste ? nv.naeste[0] - nv.dage : 0;
+  hoejre.append(el('p', 'makker-niveau', [nv.pynt.length ? nv.pynt.join('') : '',
+    nv.naeste ? 'Klar alt ' + nvMangler + (nvMangler === 1 ? ' dag' : ' dage') + ' mere → ' + nv.naeste[1] : ''].filter(Boolean).join(' · ')));
   // Nyt pynt siden sidst (husket på enheden) → fest
   if (loggetIndBarn() === barn) {
     const noegle = 'makker-niveau-' + barn, foer = lokal.get(noegle);
@@ -1039,11 +1041,12 @@ async function sjovKort(barn, iso) {
   if (x.loesning) {
     const svar = el('p', 'sjov-svar', x.loesning);
     svar.hidden = true;
-    const vis = knap(x.slags === 'gaade' ? '🤔 Se svaret' : 'Se pointen', 'lille-knap sjov-vis', () => { svar.hidden = false; vis.remove(); });
-    k.append(vis, svar);
+    const gaet = x.slags === 'gaade' ? el('p', 'hint', 'Gæt først – sig dit svar højt! 🤔') : '';
+    const vis = knap(x.slags === 'gaade' ? 'Se svaret' : 'Se pointen', 'lille-knap sjov-vis', () => { svar.hidden = false; vis.remove(); if (gaet) gaet.remove(); });
+    k.append(gaet, vis, svar);
   }
   k.tavle = { noegle: 'sjov', ikon, titel, linjer: [x.tekst.length > 90 ? x.tekst.slice(0, 88).replace(/\s+\S*$/, '') + ' …' : x.tekst],
-    lille: x.loesning ? (x.slags === 'gaade' ? 'Tryk for at se svaret' : 'Tryk for pointen') : '' };
+    lille: x.loesning ? (x.slags === 'gaade' ? 'Gæt – og tryk for svaret' : 'Tryk for pointen') : '' };
   return k;
 }
 let sjovHenter = false;

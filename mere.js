@@ -737,8 +737,7 @@ async function pligtKort(barn, titel = 'Pligter i dag') {
   if (d.regel.kr) status.push(kr(s.tilGode));
   const k = el('div', 'kort');
   const top = el('div', 'kort-top');
-  const st = streak(d);
-  if (st >= 2) status.unshift('🔥 ' + st);
+  const st = streak(d);   // dage i træk står på makkeren og nederst på kortet – ikke i linket (det blev for meget at læse)
   top.append(el('span', 'kort-label', titel),
     knap((status.length ? status.join(' · ') + ' ' : 'Alle ') + '›', 'kort-pil link-knap', () => {
       pligtBarn = barn; visFane('pligter'); tegnPligter(); window.scrollTo(0, 0);
@@ -773,10 +772,10 @@ async function pligtKort(barn, titel = 'Pligter i dag') {
   const klaret = pligt.filter(r => r.f).length;
   const naesteP = pligt.find(r => !r.f);
   const bonus = liste.filter(r => r.o.frivillig && !r.f && !r.sprunget).length;
-  k.tavle = { noegle: 'pligter', ikon: '✅', titel: titel === 'Pligter i dag' ? 'Pligter' : titel,
+  k.tavle = { noegle: 'pligter', ikon: '✅', titel: (titel === 'Pligter i dag' ? 'Pligter' : titel) + (pligt.length && bonus ? ' · +' + bonus + ' bonus' : ''),
     andel: pligt.length ? klaret / pligt.length : 0, klar: pligt.length > 0 && !naesteP,
-    // Bonus tæller ikke med i "x af y" – men står der, så tallet passer med listen
-    stor: !pligt.length ? (bonus ? bonus + ' bonus' : 'Ingen i dag') : !naesteP ? 'Alle klaret' : klaret + ' af ' + pligt.length + (bonus ? ' +⭐' + bonus : ''),
+    // Bonus tæller ikke med i "x af y" – står i titlen ("Pligter · +1 bonus"), så tallet passer med listen
+    stor: !pligt.length ? (bonus ? bonus + ' bonus' : 'Ingen i dag') : !naesteP ? 'Alle klaret' : klaret + ' af ' + pligt.length,
     lille: naesteP ? (bs.joker ? '🃏 Jokeren kan redde dine dage i træk' : bs.mulig ? (bs.milepael ? '🏅 +★ ' + (bs.n + bs.milepael) + ' når alt er klaret' : '🔥 +★ ' + bs.n + ' når alt er klaret') : 'Næste: ' + naesteP.o.navn)
       : bs.givet ? '🔥 +★ ' + bs.givet.stjerner + ' ekstra for dage i træk' : st >= 2 ? streakTekst(st) : bonus ? 'Bonus venter ⭐' : 'Sejt! 🎉' };
   return k;
@@ -1148,7 +1147,7 @@ function beloenLi(barn, b, d, s) {
   const nok = s.stjerner >= b.stjerner;
   const info = el('div', 'beloen-info');
   // 📌 = mit mål (ét ad gangen) – barnet vælger selv; tryk igen for at fjerne
-  const pin = knap(erMaal ? '📌 Mit mål' : '📌', 'lille-knap maal-knap', async () => {
+  const pin = knap(erMaal ? '🎯 Mit mål' : '🎯 Gør til mit mål', 'lille-knap maal-knap', async () => {
     await saetValg(barn, 'maal', erMaal ? null : b.navn);   // dage.js
     if (!erMaal && loggetIndBarn() === barn) fejr('Nyt mål: ' + b.navn + ' 🎯');
     tegnAlt();
@@ -1162,7 +1161,7 @@ function beloenLi(barn, b, d, s) {
     fremskridt(b.stjerner ? s.stjerner / b.stjerner : 1));
   const venter = d.indl.find(x => x.status === 'afventer' && x.navn === b.navn);
   let indloes;
-  if (venter) indloes = el('span', 'venter-tag', 'Venter på en voksen');
+  if (venter) indloes = el('span', 'venter-tag', '⏳ Venter på svar');
   else if (erVoksen()) {
     indloes = bekraeftKnap('Indløs', 'indløse', 'lille-knap', async () => {
       await Data.add('indloesninger', { barn, navn: b.navn, stjerner: b.stjerner, dato: isoDato(new Date()), status: 'godkendt' });
@@ -1170,12 +1169,12 @@ function beloenLi(barn, b, d, s) {
     });
     indloes.disabled = !nok;
   } else {
-    indloes = bekraeftKnap('Ønsk', 'ønske', 'lille-knap', async () => {
+    // Ikke nok stjerner: ingen grå knap (lignede en fejl) – "mangler N" står allerede under navnet
+    indloes = !nok ? el('span') : bekraeftKnap('🎁 Ønsk', 'ønske', 'lille-knap godkend', async () => {
       await Data.add('indloesninger', { barn, navn: b.navn, stjerner: b.stjerner, dato: isoDato(new Date()), status: 'afventer' });
       fejr('Ønsket er sendt til mor og far 🎁');   // fra sjov.js
       tegnAlt();
     });
-    indloes.disabled = !nok;
   }
   li.append(info, indloes);
   return li;
@@ -1193,7 +1192,7 @@ function ugepokalLinje(barn, d) {
     setTimeout(() => fejr('🏆 Du har vundet ugens pokal!'), 2200);
   }
   return el('p', 'bonus-linje ugepokal' + (vundet ? ' givet' : ''), vundet ? '🏆 Ugens pokal er vundet! (' + st.n + ' dage)'
-    : '🏆 Ugepokal: ' + st.n + ' af ' + st.maal + ' dage med alle pligter');
+    : '🏆 Ugens pokal: ' + st.n + ' af ' + st.maal + ' dage med alle pligter klaret');
 }
 
 // 🏆 Pokalhylde: det barnet har opnået – regnes ud fra det, der allerede er gemt (ingen ny data)
@@ -1286,7 +1285,7 @@ async function beloenningKort(barn) {
 function oenskeLi(x, egen) {
   const li = el('li', 'beloen oenske');
   const info = el('div', 'beloen-info');
-  info.append(el('span', 'beloen-navn', (egen ? '' : x.barn + ' vil gerne: ') + x.navn), el('span', 'beloen-pris', '★ ' + x.stjerner + ' · ' + kortDato(x.dato)));
+  info.append(el('span', 'beloen-navn', (egen ? '' : x.barn + ' vil gerne: ') + x.navn), el('span', 'beloen-pris', (egen ? '⏳ Venter på svar · ' : '') + '★ ' + x.stjerner + ' · ' + kortDato(x.dato)));
   const knapper = el('div', 'oenske-knapper');
   if (egen) knapper.append(knap('Fortryd', 'lille-knap', async () => { await Data.remove('indloesninger', x.id); tegnAlt(); }));
   else knapper.append(
