@@ -831,7 +831,7 @@ function retPligterDele(barn, d, erMig) {
     regelSeg.append(k);
   }
   dele.push(regelSeg, el('p', 'hint', 'Slå begge fra for pligter uden belønning.'));
-  if (d.regel.stjerner) {
+  if (d.regel.stjerner && BOERN.includes(barn)) {   // dage i træk bruges kun af børnene
     // Streak-bonus: ekstra stjerner, når alle hver-dag-pligter er klaret to (eller flere) dage i træk
     const avanceret = el('details', 'avanceret');
     avanceret.append(el('summary', null, 'Avanceret: 🔥 bonus for dage i træk og joker'));
@@ -882,7 +882,6 @@ async function tegnPligter() {
     // Børn-fanen samler det hele: først det, børnene venter på svar på
     const oensker = await oenskerIndhold();
     if (oensker.length) { const ok = el('div', 'kort oensker-kort venter'); ok.append(...oensker); dele.push(ok); }
-    dele.push(knap('📊 Ugens overblik – hvad har drengene tjent?', 'lille-knap uge-knap', () => ugeOverblik(0)));
   }
 
   if (personer.length > 1) {
@@ -890,6 +889,7 @@ async function tegnPligter() {
       v => v));
   }
 
+  const statusDele = [], knapDele = [];
   // Status – kun for det personen er sat op til
   if (d.regel.stjerner || d.regel.kr) {
     const stat = el('div', 'stat-raekke' + (d.regel.stjerner && d.regel.kr ? '' : ' en'));
@@ -903,28 +903,30 @@ async function tegnPligter() {
       st.append(el('span', 'stat-tal', kr(s.tilGode)), el('span', 'stat-navn', 'til gode · ' + kr(s.ugeKr) + ' i denne uge'));
       stat.append(st);
     }
-    dele.push(stat);
+    statusDele.push(stat);
   }
-  const st = streak(d);
-  if (st >= 1) dele.push(el('p', 'streak-linje', streakTekst(st) + (st >= 2 ? ' – sejt!' : '')));
-  if (d.regel.stjerner && bonusStjerner(d)) {   // fra sjov.js
+  // Dage i træk, bonus og justering kun for børnene (Timmos ønske 20/10 – voksne bruger det ikke)
+  const erBarnetsSide = BOERN.includes(barn);
+  const st = erBarnetsSide ? streak(d) : 0;
+  if (st >= 1) statusDele.push(el('p', 'streak-linje', streakTekst(st) + (st >= 2 ? ' – sejt!' : '')));
+  if (erBarnetsSide && d.regel.stjerner && bonusStjerner(d)) {   // fra sjov.js
     const bs = bonusStatus(d), nm = naesteMilepael(st);
     const info = [nm ? '🏅 Næste milepæl: ' + nm + ' dage (+★ ' + milepaelStjerner(nm) + ' ekstra)' : '',
       jokerTil(d) ? (bs.jokerBrugt ? '🃏 Jokeren er brugt i denne måned' : '🃏 1 joker i denne måned') : ''].filter(Boolean);
     const bl = bonusLinje(bs);
-    if (bl) dele.push(bl);
-    if (info.length) dele.push(el('p', 'hint streak-info', info.join(' · ')));
+    if (bl) statusDele.push(bl);
+    if (info.length) statusDele.push(el('p', 'hint streak-info', info.join(' · ')));
   }
 
-  dele.push(...ekstraDele(barn, d));   // ⭐ ekstra stjerner
+  statusDele.push(...ekstraDele(barn, d));   // ⭐ ekstra stjerner
   const jkP = BOERN.includes(barn) ? jobsKort(barn, d) : null;
-  if (jkP) dele.push(jkP);
-  if (erVoksen() && (d.regel.kr || d.regel.stjerner || d.opgaver.length)) {
-    dele.push(knap('Justér stjerner, kr eller dage i træk', 'lille-knap juster-knap', () => justerSaldo(barn, d, s, st)));
+  if (jkP) statusDele.push(jkP);
+  if (erVoksen() && erBarnetsSide) {
+    knapDele.push(knap('Justér stjerner, kr eller dage i træk', 'lille-knap juster-knap', () => justerSaldo(barn, d, s, st)));
   }
 
   if (erVoksen() && d.regel.kr && s.tilGode > 0) {
-    dele.push(bekraeftKnap('Udbetal ' + kr(s.tilGode), 'udbetale', 'ryd udbetal', async () => {
+    knapDele.push(bekraeftKnap('Udbetal ' + kr(s.tilGode), 'udbetale', 'ryd udbetal', async () => {
       await Data.add('udbetalinger', { barn, kr: s.tilGode, dato: isoDato(new Date()) });
       tegnAlt();
     }));
@@ -975,6 +977,9 @@ async function tegnPligter() {
     dele.push(kl);
   }
 
+  // Stjerner/kr, dage i træk, ekstra stjerner og jobs – efter pligterne
+  if (statusDele.length) dele.push(el('h3', 'lille-titel', erBarnetsSide ? 'Stjerner og lommepenge' : 'Stjerner og kr'), ...statusDele);
+
   // Ønsker der venter på en voksen
   const ventende = d.indl.filter(x => x.status === 'afventer');
   if (ventende.length) {
@@ -1021,10 +1026,13 @@ async function tegnPligter() {
     }
   }
 
-  // Voksne: ret pligter og belønninger (egen tilstand – se retPligterDele)
+  // Voksne: knapperne samlet nederst – ret pligter, justér, udbetal og ugens overblik
   if (erVoksen()) {
     dele.push(knap('✏️ ' + (erMig ? 'Ret mine pligter' : 'Ret pligter og belønninger'), 'ryd ret-start',
       () => { pligtRet = true; tegnPligter(); window.scrollTo(0, 0); }));
+    const bund = el('div', 'pligt-bund-knapper');
+    bund.append(...knapDele, knap('📊 Ugens overblik', 'lille-knap uge-knap', () => ugeOverblik(0)));
+    dele.push(bund);
   }
 
   if (d.opgaver.some(x => x.piktogram)) dele.push(el('p', 'kilde', 'Piktogrammer: Sergio Palao / ARASAAC, CC BY-NC-SA'));

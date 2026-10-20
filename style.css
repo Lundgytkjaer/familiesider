@@ -2182,3 +2182,7 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 .hoved .hoved-titel .dato { text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .fane > .sek-hoved > h2:first-child { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .fane > .sek-hoved:not(:has(> :not(h2):not([hidden]))) { display: none; }
+
+/* Pligter ryddet op (2026-10-20e): knapperne samlet nederst */
+.pligt-bund-knapper { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.pligt-bund-knapper > * { flex: 1 1 auto; }
