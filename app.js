@@ -3249,6 +3249,8 @@ function redigerFoed(f) {
 
 // ---------- I dag – overblik ----------
 // Dagsdel for familieoverblikket: morgen 5–9.30, efter skole 13–18, aften 19–23.30 (ellers intet ekstra kort)
+// "Efter skole" viser kun børn, der stadig er i skole ("fri 15.30") – når alle har fri, forsvinder kortet (Timmos ønske 20/10:
+// "har fri fra 13.00" og dagens husk-noter efter skoletid var ligegyldige)
 function dagsdelNu() {
   const d = new Date(), m = d.getHours() * 60 + d.getMinutes();
   return m >= 300 && m < 570 ? 'morgen' : m >= 780 && m < 1080 ? 'eftermiddag' : m >= 1140 && m < 1410 ? 'aften' : null;
@@ -3263,6 +3265,17 @@ async function dagsdelKort() {
   const linjer = [];
   for (const barn of BOERN) {
     const dele = [];
+    if (del === 'eftermiddag') {
+      if (dagNr >= 5 || friDen(kal, iso, barn) || helligdagDen(iso) || (typeof fastFri === 'function' && await fastFri(barn, dagNr))) continue;
+      const { slut, saerlig } = await skoleDag(barn, iso, kal);   // skoledag.js
+      const tidlig = aftalerDen(kal, iso, [barn]).find(a => a.type === 'tidlig' && a.tid);
+      const friMin = [slut ? tidSomMin(slut)[0] : null, tidlig ? tidSomMin(visTid(tidlig.tid))[0] : null].filter(x => x != null).sort((a, b) => a - b)[0];
+      if (friMin == null || friMin <= nuMin) continue;   // har allerede fri
+      const li = el('li', PK[barn] || '');
+      li.append(el('span', 'prik'), el('b', null, barn + ': '), [saerlig && skoledagMaerke(saerlig) ? '🏫 ' + skoledagTitel(saerlig) : '', 'fri ' + tilKl(friMin)].filter(Boolean).join(' · '));
+      linjer.push(li);
+      continue;
+    }
     if (dagNr < 5) {
       const fri = friDen(kal, iso, barn), hellig = helligdagDen(iso);   // dage.js
       if (fri) dele.push(fri.type === 'syg' ? 'hjemme 🤒' : 'fri ' + friIkon(fri));
