@@ -14,6 +14,7 @@
 //     (foto/link/tekst → opskrift_ny koblet til en ret, evt. ret_ny og indkøb; Edge Function'en henter selv linket).
 //     Trin 4 (2026-10-19v): 'fri' kan oprette pligter, rutiner, ting på pakkelister og noter i Familiemappen (slår op i
 //     pligter/rutiner og pakkelister først); opgaven 'mappe' (foto/PDF af et dokument → note med billedet/PDF'en).
+//     ✨ som søgning (2026-10-20h): opslag i Familiemappen (find_noter – Alle + Kun voksne, aldrig Kun mig) og opskrifter (find_opskrifter).
 //     Trin 5: det ✨ ikke kunne, gemmes af Edge Function'en (ai_oensker) og kan ses under "💡 Det ✨ ikke kunne" i arket.
 // Edge Function'en "ai" svarer med FORSLAG ({svar, handlinger}). Appen tjekker hvert forslag (aiTjek), viser kort med flueben, og først
 // "Udfør" gemmer – med appens egne funktioner (aiUdfoer), så børnelås/regler gælder. Sletning/aflysning kun som fravalgt forslag,
@@ -113,7 +114,18 @@ async function aiOpslagAlle() {
   const proev = async (navn, fn) => { try { return await fn(); } catch (e) { console.error('✨ opslag ' + navn, e); return []; } };
   const [aftaler, skole, mad, lister] = await Promise.all([proev('aftaler', aiOpslagAftaler), proev('skole', aiOpslagSkole), proev('mad', aiOpslagMad), proev('lister', aiOpslagLister)]);
   const ekstra = (() => { try { return aiOpslagPligterOgPak(); } catch (e) { console.error('✨ opslag pligter', e); return {}; } })();
-  return { aftaler, skole, mad, todo: lister.todo || [], indkob: lister.indkob || [], ...ekstra };
+  const viden = (() => { try { return aiOpslagViden(); } catch (e) { console.error('✨ opslag noter', e); return {}; } })();
+  return { aftaler, skole, mad, todo: lister.todo || [], indkob: lister.indkob || [], ...ekstra, ...viden };
+}
+// ✨ som søgning (2026-10-20h): Familiemappen (Alle + Kun voksne – ALDRIG "Kun mig") og opskrifter, som AI'en kan slå op i
+function aiOpslagViden() {
+  const blokTekst = b => b.type === 'tekst' ? b.tekst || '' : b.type === 'tjek' ? (b.punkter || []).map(p => (p.klaret ? '☑ ' : '☐ ') + p.tekst).join('\n')
+    : b.type === 'tabel' ? [(b.kolonner || []).join(' | '), ...(b.raekker || []).map(r => r.join(' | '))].join('\n') : b.type === 'fil' ? '[fil: ' + (b.navn || '') + ']' : b.type === 'billede' ? '[billede]' : '';
+  const noter = ['noter', 'noter_voksne'].flatMap(l => Data.listNu(l).map(n => ({ titel: n.titel || '', mappe: n.mappe || 'Andet', hvem: n.hvem || [],
+    tekst: noteBlokke(n).map(blokTekst).filter(Boolean).join('\n').slice(0, 2500), ...(n.skjult ? { skjult: n.skjult } : {}), ...(l === 'noter_voksne' ? { kun_voksne: true } : {}), rettet: (n.rettet || n.oprettet || '').slice(0, 10) })));
+  const opskrifter = Data.listNu('opskrifter').map(o => ({ titel: o.titel, ret: o.ret ? (Data.listNu('favoritter').find(f => f.id === o.ret)?.tekst || '') : '',
+    portioner: o.portioner || null, tid: o.tid || null, ingredienser: o.ingredienser || [], fremgang: o.fremgang || [], note: o.note || '', kilde: o.kilde || '' }));
+  return { noter, opskrifter };
 }
 // Pligter, rutiner og pakkelister – kort beskrevet, så AI'en kan se, hvad der findes
 const AI_UGEDAGE = ['mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag', 'søndag'];
