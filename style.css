@@ -2311,3 +2311,17 @@ body.barn .fyld-ugen { display: none; }
 .alfie-figur.vip, .makker-figur.vip { animation: makker-hop .55s cubic-bezier(.3, 1.6, .5, 1); }
 @keyframes makker-hop { 0% { transform: translateY(0) scale(1); } 35% { transform: translateY(-14px) scale(1.06, .96); } 70% { transform: translateY(0) scale(.97, 1.03); } 100% { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .alfie-figur.vip, .makker-figur.vip { animation: none; } }
+
+/* AI-knappen øverst: eget ikon i stedet for ✨ (2026-10-20w) – ramme og "AI" i tekstfarven, stjernerne i appens grønne og guld */
+.ai-knap { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 0; border-radius: 12px; background: none; }
+.ai-knap svg { width: 34px; height: 34px; overflow: visible; }
+.ai-knap .ai-ramme { fill: none; stroke: var(--fg); stroke-width: 2.4; stroke-linecap: round; }
+.ai-knap .ai-tekst { fill: var(--fg); font: 800 12.5px/1 var(--font-titel, system-ui), sans-serif; letter-spacing: .3px; }
+.ai-knap .ai-stjerne { fill: var(--accent); transform-box: fill-box; transform-origin: center; }
+.ai-knap .ai-stjerne.s2 { fill: var(--p2); }
+.ai-knap .ai-stjerne.s3 { fill: color-mix(in srgb, var(--accent) 60%, var(--p2)); }
+.ai-knap:hover .ai-stjerne, .ai-knap:active .ai-stjerne { animation: ai-glimt .7s ease-in-out; }
+.ai-knap:hover .ai-stjerne.s2, .ai-knap:active .ai-stjerne.s2 { animation-delay: .12s; }
+.ai-knap:hover .ai-stjerne.s3, .ai-knap:active .ai-stjerne.s3 { animation-delay: .24s; }
+@keyframes ai-glimt { 50% { transform: scale(1.35) rotate(20deg); } }
+@media (prefers-reduced-motion: reduce) { .ai-knap .ai-stjerne { animation: none !important; } }

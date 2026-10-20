@@ -1102,7 +1102,15 @@ aiSideKnapper();
 
 // ✨-knappen øverst (kun voksne – Edge Function'en tjekker det også)
 (() => {
-  const k = el('button', 'ai-knap kun-voksen', '✨');
+  // Eget ikon (Timmos ønske: flottere end ✨-emojien): åben firkant med "AI" og tre stjerner i appens farver
+  const k = el('button', 'ai-knap kun-voksen');
+  k.innerHTML = '<svg viewBox="0 0 32 32" aria-hidden="true">'
+    + '<path class="ai-ramme" d="M13 6H9a5 5 0 0 0-5 5v12a5 5 0 0 0 5 5h12a5 5 0 0 0 5-5v-4"/>'
+    + '<text class="ai-tekst" x="15" y="23" text-anchor="middle">AI</text>'
+    + '<path class="ai-stjerne s1" d="M24.5 3.5C25.93 8.57 25.93 8.57 31.0 10C25.93 11.43 25.93 11.43 24.5 16.5C23.07 11.43 23.07 11.43 18.0 10C23.07 8.57 23.07 8.57 24.5 3.5z"/>'
+    + '<path class="ai-stjerne s2" d="M17.5 1.1C18.25 3.75 18.25 3.75 20.9 4.5C18.25 5.25 18.25 5.25 17.5 7.9C16.75 5.25 16.75 5.25 14.1 4.5C16.75 3.75 16.75 3.75 17.5 1.1z"/>'
+    + '<path class="ai-stjerne s3" d="M30 1.1C30.53 2.97 30.53 2.97 32.4 3.5C30.53 4.03 30.53 4.03 30 5.9C29.47 4.03 29.47 4.03 27.6 3.5C29.47 2.97 29.47 2.97 30 1.1z"/>'
+    + '</svg>';
   k.type = 'button';
   k.setAttribute('aria-label', 'AI-hjælper');
   k.addEventListener('click', () => aabnAI());
