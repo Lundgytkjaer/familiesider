@@ -1095,13 +1095,15 @@ async function konkKort(barn) {
   st.slice(0, 4).forEach((s, i) => {
     const li = el('li', 'konk-raekke ' + (PK[s.hvem] || '') + (i === 0 ? ' foerer' : ''));
     const bar = el('span', 'konk-bar'); const fyld = el('span'); fyld.style.width = Math.round(100 * s.km / foerst.km) + '%'; bar.append(fyld);
-    li.append(el('span', 'konk-plads', (i + 1) + '.'), el('span', 'konk-navn', s.hvem === mig && barn ? 'Dig' : s.hvem), bar, el('span', 'konk-km', fmtKm(s.km)));
+    li.append(el('span', 'konk-plads', (i + 1) + '.'), el('span', 'konk-navn', s.hvem === mig && barn ? 'Dig' : kaldNavn(s.hvem)), bar, el('span', 'konk-km', fmtKm(s.km)));
     ol.append(li);
   });
   k.append(top, ol);
   if (barn && !minKm) k.append(el('p', 'hint', 'Du er ikke med endnu – en cykeltur tæller! 🚲'));
   k.tavle = { noegle: 'konk', ikon: '🚴', titel: 'Konkurrence',
-    stor: foerst.hvem === mig ? 'Du fører! 🥇' : foerst.hvem + ' fører',
-    lille: (minKm ? 'Dig: ' + fmtKm(minKm) + ' · ' : '') + foerst.hvem + ': ' + fmtKm(foerst.km) };
+    stor: foerst.hvem === mig ? 'Du fører! 🥇' : kaldNavn(foerst.hvem) + ' fører',
+    // Fører man selv: hvor langt man er, og hvem der er nr. 2 – ellers: én selv og føreren
+    lille: foerst.hvem === mig ? fmtKm(foerst.km) + (st[1] ? ' · nr. 2: ' + kaldNavn(st[1].hvem) + ' ' + fmtKm(st[1].km) : ' · ingen andre endnu')
+      : (minKm ? 'Dig: ' + fmtKm(minKm) + ' · ' : '') + kaldNavn(foerst.hvem) + ': ' + fmtKm(foerst.km) };
   return k;
 }

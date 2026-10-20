@@ -71,9 +71,18 @@ async function valgFor(navn) {
   return { ...STANDARD_VALG, ...(r || {}) };
 }
 // Hvad børnene kalder en voksen ("Far", "Mor") – personvalg.kaldes. Kun i børnenes visning; voksne ser fornavne.
+// Ikke valgt = ud fra personens køn i familien (m → Far, k → Mor); 'navn' = fornavnet
+function kaldStandard(navn) {
+  const p = Data.listNu('personer').find(x => x.bruger && String(x.bruger).toLowerCase() === String(navn).toLowerCase());
+  return p?.koen === 'm' ? 'Far' : p?.koen === 'k' ? 'Mor' : '';
+}
+function kaldValg(navn) {
+  const k = Data.listNu('personvalg').find(x => x.navn === navn)?.kaldes;
+  return k === 'navn' ? '' : k || kaldStandard(navn);
+}
 function kaldNavn(navn) {
   if (!navn || typeof erBarn !== 'function' || !erBarn()) return navn;
-  return Data.listNu('personvalg').find(x => x.navn === navn)?.kaldes || navn;
+  return kaldValg(navn) || navn;
 }
 async function saetValg(navn, felt, vaerdi) {
   const r = (await Data.list('personvalg')).find(x => x.navn === navn);

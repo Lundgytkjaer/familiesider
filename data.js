@@ -163,6 +163,7 @@ const Data = (() => {
       const { data, error } = await db.from('punkter').insert({ liste, data: felter }).select().single();
       if (error) throw error;
       gemLokalt(data);
+      fortaelLyttere();   // tegn med det samme – vent ikke på live-opdateringen
       pushOm(liste, data.id);
       return tilPunkt(data);
     },
@@ -173,6 +174,7 @@ const Data = (() => {
       const { data, error } = await db.from('punkter').insert(felterListe.map(f => ({ liste, data: f }))).select();
       if (error) throw error;
       data.forEach(gemLokalt);
+      fortaelLyttere();
     },
 
     // Vises med det samme – gemmes i baggrunden (se iBaggrund)

@@ -2478,7 +2478,9 @@ function tegnTavleValg() {
   opdaterVenter();   // rødt tal på "Familien", hvis noget venter
 }
 
+let tavleGen = 0;   // tavlen tegnes asynkront – kun den nyeste tegning må vises (ellers kan en ældre, langsommere tegning med gamle tal vinde)
 async function tegnBoernetavle(barn) {
+  const gen = ++tavleGen;
   const boks = document.getElementById('boernetavle');
   // ⏸ Hele tavlen holder pause (pause.js): barnet ser kun sin makker
   const helePause = erBarn() && typeof pauseHele === 'function' && pauseHele(barn, isoDato(new Date()));
@@ -2736,6 +2738,7 @@ async function tegnBoernetavle(barn) {
   if (barnValg.vejr || barnValg.sol) {
     vejrStribe(iso, barnValg.sol, barnValg.vejr).then(k => { if (k) vejrPlads.replaceChildren(k); });
   }
+  if (gen !== tavleGen) return;   // en nyere tegning er i gang
   hoved.append(visningsKnap());
   if (tavleStil() === 'tavle') {
     // Tavle-visning: alt som fliser på en tavle; tryk på en flise for at "zoome" ind
@@ -3861,7 +3864,7 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     kontakt('😀 Automatisk emoji ved pligter og belønninger', valg.emoji, saet('emoji')),
     voksen && forMig ? kontakt('↩️ "Fortryd" efter sletning og svar', valg.fortryd, saet('fortryd'), 'Slettet kan altid findes under Mere → Aktivitet') : null));
   if (voksen && forMig) {
-    avanceret.push(el('label', 'felt-label', 'Børnene kalder mig'), chipValg(['Far', 'Mor', ''], valg.kaldes || '', async v => { await saetValg(mig, 'kaldes', v || null); tegnAlt(); }, v => v || 'Mit navn'));
+    avanceret.push(el('label', 'felt-label', 'Børnene kalder mig'), chipValg(['Far', 'Mor', ''], kaldValg(mig), async v => { await saetValg(mig, 'kaldes', v || 'navn'); tegnAlt(); }, v => v || 'Mit navn'));
     const stedKnap = knap('📍 Sted for vejr og sol …', 'lille-knap', () => vaelgSted());   // vejr.js
     familieSted().then(st => { stedKnap.textContent = '📍 Vejr og sol: ' + (st.navn || 'Ukendt sted') + ' – skift'; });
     avanceret.push(el('label', 'felt-label', 'Vejr og sol (hele familien)'), stedKnap);

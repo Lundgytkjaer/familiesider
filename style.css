@@ -657,7 +657,9 @@ input.ugyldig { border-color: var(--fare) !important; }
 }
 .trin-nr { position: absolute; top: 8px; left: 10px; font-weight: 800; font-size: 14px; color: #64706b; }
 .trin-billede { width: 100%; max-width: 140px; aspect-ratio: 1; object-fit: contain; }
-.trin-billede.tomt-billede { background: #f2f5f3; border-radius: 12px; font-size: 40px; }
+.trin-billede.tomt-billede { background: var(--bg); border-radius: 12px; font-size: 40px; }
+.mini-billede.emoji-billede { font-size: 20px; font-weight: 400; background: transparent; border-color: transparent; }
+.trin-billede.emoji-billede { font-size: 56px; }
 .trin-tekst { font-weight: 700; font-size: 16px; text-align: center; }
 .trin-flueben {
   position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%;
@@ -2229,3 +2231,7 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 .indst-fold .lille-knap { margin: 4px 6px 4px 0; }
 .mere-vis-alle { display: block; margin: 14px auto 0; }
 @media (prefers-reduced-motion: reduce) { .kontakt-skyder, .kontakt-skyder::after { transition: none; } }
+
+/* 2026-10-20l: ekstra-jobs med to knapper – knapperne under navnet, så navnet ikke klemmes ned på tre linjer */
+.jobs-boks .beloen:has(.oenske-knapper > :nth-child(2)) { grid-template-columns: 1fr; }
+.jobs-boks .beloen:has(.oenske-knapper > :nth-child(2)) .oenske-knapper > * { flex: 1; max-width: none; }
