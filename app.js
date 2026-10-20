@@ -2221,7 +2221,9 @@ async function tegnKalender() {
       for (const a of aftalerDen(aftaler, iso, [p])) {
         const b = el('button', 'beg ' + PK[p]);
         b.type = 'button';
-        if (a.tid) b.append(el('b', null, klTekst(a)));
+        // Ugevisningen er smal: kun starttid (hele tiden ses, når man trykker på aftalen)
+        if (a.tid) b.append(el('b', null, (a.ca ? 'ca. ' : '') + visTid(a.tid)));
+        b.title = (a.tid ? klTekst(a) + ' ' : '') + a.titel;
         b.append(el('span', null, a.titel + (a.gentag ? ' ↻' : '') + laas(a)));
         b.addEventListener('click', e => { e.stopPropagation(); redigerAftale(a, forekomstStart(a, iso)); });
         celle.append(b);
