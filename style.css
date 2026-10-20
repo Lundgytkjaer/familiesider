@@ -2278,3 +2278,11 @@ body.barn .visning-knap { min-height: 40px; }
 .valg-badge { background: var(--accent); color: var(--paa-accent); animation: none; }
 .seg button[aria-checked="true"] .valg-badge { background: var(--paa-accent); color: var(--accent); }
 #pligter .oensker-kort { margin-bottom: 16px; }
+
+/* Madplan: de fire knapper samlet bag "Fyld ugen ▾" (Timmos valg, brugertest 2) */
+.fyld-ugen { margin: 0 0 12px; }
+.fyld-ugen > summary { list-style: none; display: inline-flex; align-items: center; min-height: 44px; padding: 0 16px; border: 1.5px solid var(--linje); border-radius: 999px; background: var(--flade); font-weight: 700; cursor: pointer; }
+.fyld-ugen > summary::-webkit-details-marker { display: none; }
+.fyld-ugen[open] > summary { border-color: var(--accent); color: var(--accent); }
+.fyld-ugen .madplan-knapper { margin-top: 10px; }
+body.barn .fyld-ugen { display: none; }

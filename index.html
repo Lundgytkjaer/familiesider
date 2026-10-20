@@ -24,7 +24,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-20o">
+  <link rel="stylesheet" href="style.css?v=2026-10-20p">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -120,15 +120,18 @@
         </div>
         <button type="button" class="pil" id="mad-naeste" aria-label="Næste uge">›</button>
       </div>
-      <div class="madplan-knapper">
-        <button type="button" class="lille-knap" id="kopier-uge">⧉ Kopiér sidste uge</button>
-        <button type="button" class="lille-knap" id="fyld-tomme">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Fyld tomme dage
-        </button>
-        <button type="button" class="lille-knap" id="bland-uge" data-tekst="Bland hele ugen" data-handling="blande">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>Bland hele ugen
-        </button>
-      </div>
+      <details class="fyld-ugen kun-voksen">
+        <summary>🍽️ Fyld ugen ▾</summary>
+        <div class="madplan-knapper">
+          <button type="button" class="lille-knap" id="kopier-uge">📋 Kopiér sidste uge</button>
+          <button type="button" class="lille-knap" id="fyld-tomme">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Fyld tomme dage
+          </button>
+          <button type="button" class="lille-knap" id="bland-uge" data-tekst="Bland hele ugen" data-handling="blande">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>Bland hele ugen
+          </button>
+        </div>
+      </details>
       <ol class="uge" id="mad-uge"></ol>
       <div id="mad-indkob" class="mad-indkob"></div>
       <datalist id="retter-forslag"></datalist>
@@ -511,26 +514,26 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
-<script src="data.js?v=2026-10-20o"></script>
-<script src="dage.js?v=2026-10-20o"></script>
-<script src="vejr.js?v=2026-10-20o"></script>
-<script src="app.js?v=2026-10-20o"></script>
-<script src="mere.js?v=2026-10-20o"></script>
-<script src="sjov.js?v=2026-10-20o"></script>
-<script src="seddel.js?v=2026-10-20o"></script>
-<script src="familie.js?v=2026-10-20o"></script>
-<script src="handel.js?v=2026-10-20o"></script>
-<script src="retter.js?v=2026-10-20o"></script>
-<script src="aktivitet.js?v=2026-10-20o"></script>
-<script src="kort.js?v=2026-10-20o"></script>
-<script src="pause.js?v=2026-10-20o"></script>
-<script src="skoledag.js?v=2026-10-20o"></script>
-<script src="mappe.js?v=2026-10-20o"></script>
-<script src="bank.js?v=2026-10-20o"></script>
-<script src="budget.js?v=2026-10-20o"></script>
-<script src="dagbog.js?v=2026-10-20o"></script>
-<script src="opskrifter.js?v=2026-10-20o"></script>
-<script src="push.js?v=2026-10-20o"></script>
-<script src="ai.js?v=2026-10-20o"></script>
+<script src="data.js?v=2026-10-20p"></script>
+<script src="dage.js?v=2026-10-20p"></script>
+<script src="vejr.js?v=2026-10-20p"></script>
+<script src="app.js?v=2026-10-20p"></script>
+<script src="mere.js?v=2026-10-20p"></script>
+<script src="sjov.js?v=2026-10-20p"></script>
+<script src="seddel.js?v=2026-10-20p"></script>
+<script src="familie.js?v=2026-10-20p"></script>
+<script src="handel.js?v=2026-10-20p"></script>
+<script src="retter.js?v=2026-10-20p"></script>
+<script src="aktivitet.js?v=2026-10-20p"></script>
+<script src="kort.js?v=2026-10-20p"></script>
+<script src="pause.js?v=2026-10-20p"></script>
+<script src="skoledag.js?v=2026-10-20p"></script>
+<script src="mappe.js?v=2026-10-20p"></script>
+<script src="bank.js?v=2026-10-20p"></script>
+<script src="budget.js?v=2026-10-20p"></script>
+<script src="dagbog.js?v=2026-10-20p"></script>
+<script src="opskrifter.js?v=2026-10-20p"></script>
+<script src="push.js?v=2026-10-20p"></script>
+<script src="ai.js?v=2026-10-20p"></script>
 </body>
 </html>
