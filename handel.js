@@ -241,12 +241,20 @@ async function tegnHandleliste(viste) {
   }
   boks.replaceChildren(...dele);
 }
+// En vare, der lige er krydset af, bliver stående (grå) i 1,5 sek., før den flytter ned i kurven –
+// ellers hopper listen, og næste tryk rammer en anden vare. Tryk igen inden da = fortryd.
+const ventKurv = new Map();   // id → timer
 function handleLi(p, k) {
-  const li = el('li', 'handle-vare' + (p.klaret ? ' klaret' : ''));
-  const b = knap('', 'handle-tjek', async () => { await Data.update('indkob', p.id, { klaret: !p.klaret }); tegnAlt(); });
+  const li = el('li', 'handle-vare' + (p.klaret || ventKurv.has(p.id) ? ' klaret' : ''));
+  const b = knap('', 'handle-tjek', async () => {
+    if (p.klaret) { await Data.update('indkob', p.id, { klaret: false }); tegnAlt(); return; }
+    if (ventKurv.has(p.id)) { clearTimeout(ventKurv.get(p.id)); ventKurv.delete(p.id); li.classList.remove('klaret'); b.setAttribute('aria-pressed', false); return; }
+    li.classList.add('klaret'); b.setAttribute('aria-pressed', true);
+    ventKurv.set(p.id, setTimeout(async () => { ventKurv.delete(p.id); await Data.update('indkob', p.id, { klaret: true }); tegnAlt(); }, 1500));
+  });
   // Hold = slet / ret / kategori (fra app.js)
   langtTryk(b, () => punktValg('indkob', p, erBarn() ? [] : [knap('🏷️ Kategori: ' + KAT[k].ikon + ' ' + KAT[k].navn, 'knap sekundaer', () => vaelgKategori(p, k))]));
-  b.setAttribute('aria-pressed', !!p.klaret);
+  b.setAttribute('aria-pressed', !!p.klaret || ventKurv.has(p.id));
   const tjek = el('span', 'tjek'); tjek.innerHTML = IKON_TJEK;
   const tekst = el('span', 'handle-tekst', '');
   if (p.antal) tekst.append(antalTag(p.antal));   // app.js

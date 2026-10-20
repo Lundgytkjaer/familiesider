@@ -3573,7 +3573,8 @@ function visStatus(tekst, fejl = false) {
   s.classList.toggle('fejl-status', fejl);
   s.hidden = false;
   clearTimeout(statusTimer);
-  statusTimer = setTimeout(() => (s.hidden = true), 5000);
+  s.onclick = () => { s.hidden = true; };   // tryk = væk med det samme
+  statusTimer = setTimeout(() => (s.hidden = true), fejl ? 6000 : 3000);   // almindelige beskeder skal ikke hænge og dække listen
 }
 window.addEventListener('unhandledrejection', e => {
   console.error(e.reason);
@@ -3660,7 +3661,8 @@ function redigerFravaer(barn, iso, x) {
       note: note.value.trim(), gentag: '', gentagTil: null
     };
     if (x) await Data.update(kalListe(x), x.id, felter); else await Data.add('kalender', felter);
-    lukArk(); tegnAlt();
+    lukArk(); if (typeof lukZoom === 'function') lukZoom(); tegnAlt();   // tilbage til tavlen, så man ser, at det er gemt
+    visStatus((off ? '🌿' : FRAVAER[gemType].ikon || '✓') + ' ' + barn + ': ' + felter.titel.toLowerCase() + ' ' + kortDag(felter.dato) + ' – gemt');
   });
   const knapper = el('div', 'ark-knapper');
   if (x) knapper.append(knap('Fjern', 'knap fare', async () => { await Data.remove(kalListe(x), x.id); lukArk(); tegnAlt(); }));
@@ -3881,10 +3883,12 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
   dele.push(av);
 
   dele.push(titel('❓ Hjælp'), knap('Sådan virker Familietavlen ›', 'lille-knap', () => { lukArk(); visFane('hjaelp'); window.scrollTo(0, 0); }));
+  // Log ud står for sig selv nederst (lille, to tryk) – ikke ved siden af "Færdig", hvor man rammer den ved et uheld
   const knapper = el('div', 'ark-knapper');
-  knapper.append(bekraeftKnap('Log ud', 'logge ud', 'knap fare', () => Data.logud()), knap('Færdig', 'knap', () => lukArk()));   // to tryk: ingen logger ud ved et uheld
-  aabnArk('Indstillinger', ...dele,
-    el('p', 'hint indst-bund', 'Logget ind som ' + mig + '. Du forbliver logget ind på denne enhed, indtil du logger ud.'), knapper);
+  knapper.append(knap('Færdig', 'knap', () => lukArk()));
+  const logud = el('div', 'indst-logud');
+  logud.append(el('span', 'hint', 'Logget ind som ' + mig + ' på denne enhed.'), bekraeftKnap('Log ud', 'logge ud', 'lille-knap fare', () => Data.logud()));
+  aabnArk('Indstillinger', ...dele, logud, knapper);
 }
 
 // Visning af en aftale for børn (kun læse)
@@ -3901,13 +3905,13 @@ function visAftale(a, forekomst) {
 
 // ---------- Korte "?"-tips pr. skærm (i stedet for den lange hjælpeside) ----------
 const TIPS = {
-  kalender: { voksen: ['Tryk på en dag for at se den – og på en aftale for at rette den.', 'Liste starter altid i dag – "Vis flere dage" nederst. Uge og Måned har ‹ ›.', 'Hvad der vises (helligdage, vejr …), vælges under forbogstav-knappen øverst til højre.', 'En aftale kan gælde én, flere eller Fælles. Fælles = hele familien.', '↻ betyder, at aftalen gentages.'],
+  kalender: { voksen: ['Tryk på en dag for at se den – og på en aftale for at rette den.', 'Liste starter altid i dag – "Vis flere dage" nederst. Uge og Måned har ‹ ›.', 'Hvad der vises (helligdage, vejr …), vælges under forbogstav-knappen øverst til højre.', 'Tryk i et tomt felt i ugen for at lægge en aftale der.', 'En aftale kan gælde én, flere eller Fælles. Fælles = hele familien.', '↻ gentages · 🔒 kun voksne · 👤 kun dig · 😎 ferie/fri.'],
     barn: ['Tryk på en dag for at se, hvad der sker.', 'Din farve viser dine aftaler.'] },
   madplan: { voksen: ['Skriv eller vælg en ret pr. dag. 🎲 vælger en tilfældig.', '⋯ ved en dag: 🎉 Vi er ude, ♻️ rester, 📌 fast hver uge, ⇅ flyt/byt med en anden dag. Skriver du "rester", kan du vælge hvilken ret.', '"✎ Tilpas" under en ret vælger fyld, tilbehør og ekstra.', 'Børnenes ønsker skal I sige ja/nej til på I dag.'],
     barn: ['Tryk på en dag for at ønske mad.', 'Det mor og far har sagt "må vælges", gælder med det samme.'] },
-  indkob: { voksen: ['Skriv en vare og tryk Tilføj.', '🛒 Handle gør listen stor og nem i butikken.', 'Tryk på en vare for at krydse den af.'],
+  indkob: { voksen: ['Skriv en vare og tryk Tilføj. Antal forrest: "2 l mælk".', 'Hold fingeren på en vare for antal, 🖍️ vigtig, ret eller slet – eller skriv "!" foran ("!mælk") for vigtig.', '⋯ ved en vare: butik, kategori, tilbud eller billede.', '🛒 Handle viser listen sorteret efter, hvor tingene står i butikken.', 'Tryk på en vare for at krydse den af.'],
     barn: ['Skriv en vare, så kommer den på listen.'] },
-  todo: { voksen: ['Små opgaver til de voksne. Sæt en person på, så står den på personens I dag.', 'Opgaver til et barn vises på barnets tavle.'],
+  todo: { voksen: ['Små opgaver til de voksne. Sæt en person på, så står den på personens I dag.', 'Vælg "Senest", når noget SKAL være gjort til en bestemt dag – så bliver To do rød i bunden, når dagen er der.', '⋯ ved en opgave: ret tekst, hvem og hvornår. Tryk på prioriteten for at skifte den.', 'Opgaver til et barn vises på barnets tavle.'],
     barn: ['Her står ting, der skal gøres.'] },
   pligter: { voksen: ['Vælg barnet øverst.', 'Ønsker om belønninger, 👍-pligter og ekstra-job godkendes på I dag.', '"Ret pligter og belønninger" ligger nederst. 👍-reglen på en pligt betyder, at I skal godkende, før der gives ★/kr.', 'Ekstra-job: den første der tager jobbet, får det.'],
     barn: ['Sæt flueben, når du har gjort noget.', '⏳ = mor eller far skal give 👍 først.', 'Ekstra-job: tryk "Jeg tager den!" – og "Færdig ✓", når du er færdig.'] },
