@@ -866,13 +866,14 @@ async function alfieKort(barn) {
   if (valg.makker === false) return null;   // slået fra (Indstillinger eller "Skift makker")
   const m = makkerFor(valg);
   const syg = sygDen(d.kalender || [], iso, barn);
+  const off = syg && typeof offDen === 'function' && offDen(d.kalender || [], iso, barn);   // 🌿 off-dag: rolig tekst i stedet for "God bedring"
   const mangler = ialt - klaret;
   const aften = nu.getHours() >= 20;
   // Ingen pligter i dag (fx weekend): makkeren hygger sig bare
   const hvordan = syg ? 'sover' : !ialt ? (aften ? 'sover' : 'glad') : !mangler ? (aften && Date.now() > alfieFestTil ? 'sover' : 'super') : klaret ? 'glad' : 'venter';
   // Efter kl. 21 skælder makkeren ikke ud – i morgen er en ny dag
   const sent = nu.getHours() >= 21;
-  const tekst = syg ? m.syg : !ialt ? (aften ? 'Ingen pligter i dag. Godnat 💤' : 'Ingen pligter i dag – nyd det! 😎')
+  const tekst = off ? m.navn + ' tager en rolig dag sammen med dig 🌿' : syg ? m.syg : !ialt ? (aften ? 'Ingen pligter i dag. Godnat 💤' : 'Ingen pligter i dag – nyd det! 😎')
     : sent && mangler ? 'Godnat! ' + m.navn + ' gemmer resten til i morgen 💤'
     : hvordan === 'venter' ? m.venter(mangler, aften) : hvordan === 'glad' ? m.glad(mangler) : m[hvordan];
 

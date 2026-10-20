@@ -1956,10 +1956,14 @@ const FRAVAER = {
   hjemme: { ikon: '🏠', titel: 'Fri fra skolen', knap: '🏠 Fri fra skolen' },
   tidlig: { ikon: '⏰', titel: 'Tidligere fri', knap: '⏰ Tidligere fri' }
 };
-const friIkon = a => (FRAVAER[a.type]?.ikon || '😎');
+// 🌿 Off-dag (2026-10-20j): gemmes som type 'syg' + off: true, så den virker præcis som en sygedag (bryder ikke dage i træk –
+// også i databasen) – men hedder "Off-dag" med 🌿 og en rolig tekst i stedet for "God bedring 🤒"
+const erOff = a => !!(a && a.type === 'syg' && a.off);
+const friIkon = a => (erOff(a) ? '🌿' : FRAVAER[a.type]?.ikon || '😎');
 const laas = a => (a.fri || a.type === 'tidlig' ? ' ' + friIkon(a) : a.type === 'skoledag' ? ' 🏫' : '') + (a._privat ? ' 👤' : a._voksne ? ' 🔒' : '');   // markering på ferie/fri/fravær og kun-voksne-aftaler
 const fravaerDen = (aftaler, iso, barn) => aftalerDen(aftaler, iso, [barn]).find(a => FRAVAER[a.type]) || null;
 const sygDen = (aftaler, iso, barn) => aftalerDen(aftaler, iso, [barn]).some(a => a.type === 'syg');
+const offDen = (aftaler, iso, barn) => aftalerDen(aftaler, iso, [barn]).some(erOff);
 // Ferie/fri ({fri: true}): skemaet viser "Fri", og i "i dag"-lister vises den kun den dag, den starter
 function friDen(aftaler, iso, person) {
   return aftalerDen(aftaler, iso, [person, 'Fælles']).find(a => a.fri) || null;
@@ -2527,10 +2531,12 @@ async function tegnBoernetavle(barn) {
     skemaKort = kort('Skole', el('p', 'stor fri-dag', 'Fri ' + hellig.ikon), el('p', 'under', hellig.navn));
     skemaKort.tavle = { stor: 'Fri ' + hellig.ikon, lille: hellig.navn, klar: true };
   } else if (friIdag) {
-    skemaKort = friIdag.type === 'syg'
+    skemaKort = erOff(friIdag)
+      ? kort('Skole', el('p', 'stor fri-dag', 'Hjemme 🌿'), el('p', 'under', 'Rolig dag derhjemme' + (friIdag.note ? ' – ' + friIdag.note : '')))
+      : friIdag.type === 'syg'
       ? kort('Skole', el('p', 'stor fri-dag syg-dag', 'Hjemme 🤒'), el('p', 'under', 'God bedring!' + (friIdag.note ? ' ' + friIdag.note : '')))
       : kort('Skole', el('p', 'stor fri-dag', 'Fri ' + friIkon(friIdag)), el('p', 'under', friTekst(friIdag) + (friIdag.note ? ' – ' + friIdag.note : '')));
-    skemaKort.tavle = friIdag.type === 'syg' ? { stor: 'Hjemme 🤒', lille: 'God bedring!' } : { stor: 'Fri ' + friIkon(friIdag), lille: friTekst(friIdag), klar: true };
+    skemaKort.tavle = erOff(friIdag) ? { stor: 'Hjemme 🌿', lille: 'Rolig dag' } : friIdag.type === 'syg' ? { stor: 'Hjemme 🤒', lille: 'God bedring!' } : { stor: 'Fri ' + friIkon(friIdag), lille: friTekst(friIdag), klar: true };
   } else if (await fastFri(barn, dagNr)) {
     skemaKort = kort('Skole', el('p', 'stor fri-dag', 'Fri 🎉'), el('p', 'under', 'Fast fridag'));
     skemaKort.tavle = { stor: 'Fri 🎉', lille: 'Fast fridag', klar: true };
@@ -3615,19 +3621,22 @@ function laasForBoern() {
 
 // Syg / fri fra skolen / tidligere fri – gemmes som en kalenderaftale for barnet
 function redigerFravaer(barn, iso, x) {
-  let type = x?.type || 'syg';
+  let type = erOff(x) ? 'off' : x?.type || 'syg';
   const tid = input('time', 'fravaer-tid', x?.tid || '12:00');
   const til = input('date', 'fravaer-til', x?.tilDato || '');
   const note = input('text', 'fravaer-note', x?.note || '', 'Fx feber, tandlæge, mormor henter');
   const tidFelt = felt('Fri kl.', tid);
   const tilFelt = felt('Til og med (hvis flere dage)', til);
   const vis = () => { tidFelt.hidden = type !== 'tidlig'; tilFelt.hidden = type === 'tidlig'; };
-  const valg = chipValg(Object.keys(FRAVAER), type, v => { type = v; vis(); }, v => FRAVAER[v].knap);
+  // 🌿 Off-dag ligger lige efter Syg (gemmes som syg + off – se erOff)
+  const VALG = ['syg', 'off', 'hjemme', 'tidlig'];
+  const valg = chipValg(VALG, type, v => { type = v; vis(); }, v => (v === 'off' ? '🌿 Off-dag' : FRAVAER[v].knap));
   vis();
   const d = new Date(iso + 'T00:00');
   const gem = knap('Gem', 'knap', async () => {
+    const off = type === 'off', gemType = off ? 'syg' : type;
     const felter = {
-      dato: x?.dato || iso, hvem: barn, titel: FRAVAER[type].titel, type,
+      dato: x?.dato || iso, hvem: barn, titel: off ? 'Off-dag' : FRAVAER[gemType].titel, type: gemType, off,
       fri: type !== 'tidlig',
       tid: type === 'tidlig' ? tid.value : '', slut: '',
       tilDato: type !== 'tidlig' && til.value && til.value > (x?.dato || iso) ? til.value : null,
@@ -3646,7 +3655,7 @@ function redigerFravaer(barn, iso, x) {
   const beskedKnap = x ? '' : knap('✨ Læs en besked fra skolen med AI (Aula, sms, foto)', 'lille-knap sd-vej sd-ai', () => { lukArk(); aabnAI({ opgave: 'skole', boern: [barn] }); });
   aabnArk(barn + ' · ' + DAGE_LANG[(d.getDay() + 6) % 7].toLowerCase() + ' ' + d.getDate() + '/' + (d.getMonth() + 1),
     felt('Hvad', valg), tidFelt, tilFelt, felt('Note (valgfri)', note),
-    el('p', 'hint', 'Står i kalenderen, og skemaet på tavlen viser det. En sygedag bryder ikke streak.'), beskedKnap, saerKnap, knapper);
+    el('p', 'hint', 'Står i kalenderen, og skemaet på tavlen viser det. 🌿 Off-dag = hjemme, men ikke syg – vises roligt på tavlen. Hverken syg eller off-dag bryder dage i træk.'), beskedKnap, saerKnap, knapper);
 }
 
 // "Tilpas": hvad hver person vil se (helligdage, mærkedage, sol, vejr). Børn retter kun deres egne.

@@ -2206,3 +2206,9 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 .fast-pr-dag { margin: 10px 0 6px; }
 .fast-pr-dag > summary { cursor: pointer; font-weight: 700; color: var(--accent); padding: 6px 0; }
 .fast-pr-dag .uge { margin-top: 6px; }
+
+/* Madplan: luft mellem felterne, så felt og "✎ Tilpas" ikke rører hinanden (2026-10-20j) */
+#mad-uge .dag { padding-block: 5px; }
+#mad-uge .dag .fuld-felt { min-height: 44px; }
+#mad-uge .dag .fuld-vis, #mad-uge .dag input[type="text"] { min-height: 44px; }
+#mad-uge .dag .var-chips { margin-top: 4px; padding-bottom: 4px; }
