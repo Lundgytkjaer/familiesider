@@ -1285,7 +1285,7 @@ async function beloenningKort(barn) {
 function oenskeLi(x, egen) {
   const li = el('li', 'beloen oenske');
   const info = el('div', 'beloen-info');
-  info.append(el('span', 'beloen-navn', (egen ? '' : x.barn + ' vil gerne: ') + x.navn), el('span', 'beloen-pris', (egen ? '⏳ Venter på svar · ' : '') + '★ ' + x.stjerner + ' · ' + kortDato(x.dato)));
+  info.append(el('span', 'beloen-navn', (egen ? '' : x.barn + ': 🎁 ') + x.navn), el('span', 'beloen-pris', (egen ? '⏳ Venter på svar · ' : '') + '★ ' + x.stjerner + ' · ' + kortDato(x.dato)));
   const knapper = el('div', 'oenske-knapper');
   if (egen) knapper.append(knap('Fortryd', 'lille-knap', async () => { await Data.remove('indloesninger', x.id); tegnAlt(); }));
   else knapper.append(
@@ -1512,7 +1512,7 @@ async function oenskerIndhold() {
   for (const x of ekstra) {
     const li = el('li', 'beloen oenske');
     const info = el('div', 'beloen-info');
-    info.append(el('span', 'beloen-navn', x.barn + ' har gjort noget ekstra: ' + x.tekst), el('span', 'beloen-pris', '★ ' + x.stjerner + ' · ' + kortDato(x.dato)));
+    info.append(el('span', 'beloen-navn', x.barn + ': ⭐ ' + x.tekst), el('span', 'beloen-pris', '★ ' + x.stjerner + ' · ' + kortDato(x.dato)));
     const kn = el('div', 'oenske-knapper');
     kn.append(bekraeftKnap('Afvis', 'afvise', 'lille-knap', async () => { Data.huskFoer(x.id, 'Afvist: ' + x.tekst); await Data.update('ekstra', x.id, { status: 'afvist', besvaret: isoDato(new Date()) }); tegnAlt(); }),
       knap('Godkend', 'lille-knap godkend', () => givEkstra(x.barn, x)));

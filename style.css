@@ -2258,3 +2258,23 @@ body.barn .visning-knap { min-height: 40px; }
 /* Ingen stiplede "kort" på hverdagssiderne – almindelige, rolige kort (designer, brugertest 2) */
 .ov-indkob-linje { border-style: solid; background: var(--flade); }
 .ret-start { border-style: solid; }
+
+/* Familien: børnenes morgenmad/frokost i morgen under aftensmaden (fra kl. 16) */
+.ov-boern-mad { display: grid; gap: 2px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--linje); }
+.boern-mad-titel { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--daempet); }
+.boern-mad { display: flex; align-items: baseline; gap: 6px; }
+.boern-mad .prik { width: 8px; height: 8px; border-radius: 50%; background: var(--p); flex: none; align-self: center; }
+.ov-fravaer { margin: -8px 0 -4px; padding: 0 6px; }
+.ov-fravaer .link-knap { min-height: 40px; font-size: 14px; color: var(--daempet); }
+
+/* Roligere top (brugertest 2, Timmos valg): ønsker er ikke "alarm" – kun det der haster i dag er rødt.
+   Ønsker-kortet: almindeligt kort med grøn venstrekant og tætte rækker; tallene i bunden er grønne og står stille */
+.oensker-kort, .oensker-kort.venter { border: 1px solid var(--linje); border-left: 4px solid var(--accent); box-shadow: none; }
+.oensker-kort.venter .kort-label { color: var(--fg); }
+.oensker-kort .beloen { padding: 8px 2px; gap: 10px; }
+.oensker-kort .beloen-navn { font-size: 16px; }
+.oensker-kort .lille-knap { min-height: 40px; }
+.venter-badge { animation: none; box-shadow: none; }
+.valg-badge { background: var(--accent); color: var(--paa-accent); animation: none; }
+.seg button[aria-checked="true"] .valg-badge { background: var(--paa-accent); color: var(--accent); }
+#pligter .oensker-kort { margin-bottom: 16px; }

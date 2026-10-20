@@ -2610,7 +2610,7 @@ async function tegnBoernetavle(barn) {
   if (dagNr < 5 && !erBarn()) {
     const fravaer = fravaerDen(await kalenderAftaler(), iso, barn);
     skemaKort.querySelector('.kort-top').append(
-      knap(fravaer ? friIkon(fravaer) + ' Ret fravær' : 'Ændring', 'lille-knap fravaer-knap', () => redigerFravaer(barn, iso, fravaer)));
+      knap(fravaer ? friIkon(fravaer) + ' Ret fravær' : '🤒 Syg / fri', 'lille-knap fravaer-knap', () => redigerFravaer(barn, iso, fravaer)));
   }
 
   // Mad
@@ -3505,11 +3505,29 @@ async function tegnOverblik() {
     ? 'I morgen: ' + (imorgen || 'ikke bestemt') + (morgenAfv.length ? ' (' + morgenAfv.join(', ') + ')' : '')
     : '';
 
+  // Fra kl. 16: børnenes morgenmad og frokost i morgen (Winnie-testen: det var svært at finde) – under aftensmaden
+  let boernMad = document.getElementById('ov-boern-mad');
+  if (!boernMad) { boernMad = el('div', 'under ov-boern-mad'); boernMad.id = 'ov-boern-mad'; document.getElementById('ov-ret-imorgen').after(boernMad); }
+  const madLinjer = [];
+  if (new Date().getHours() >= 16) for (const b of BOERN) {
+    const m = await madFor(imorgenDato, b);
+    const mo = m.visning?.morgen || m.morgen, fr = m.visning?.frokost || m.frokost;
+    if (!mo && !fr) continue;
+    const linje = el('span', 'boern-mad ' + (PK[b] || ''));
+    linje.append(el('span', 'prik'), el('b', null, b + ': '), [mo, fr].map(x => x === INGEN_MAD ? 'ingenting' : x || 'ikke bestemt').join(' · '));
+    madLinjer.push(linje);
+  }
+  boernMad.replaceChildren(...(madLinjer.length ? [el('span', 'boern-mad-titel', 'Morgenmad · frokost i morgen'), ...madLinjer] : []));
+  boernMad.hidden = !madLinjer.length;
+
   // Skole – skifter hen over dagen (skoleOverblik); intet kort, når ingen har skole
   const skoleKort = document.getElementById('ov-skole-kort');
   const so = await skoleOverblik();
   skoleSidst = so ? so.titel + so.linjer.map(l => l.textContent).join('|') : '';
   skoleKort.hidden = !so;
+  // "🤒 Syg eller fri?" – altid lige under skolen (Winnie-testen: det var svært at finde)
+  let fravLink = document.getElementById('ov-fravaer');
+  if (!fravLink) { fravLink = el('div', 'ov-fravaer'); fravLink.id = 'ov-fravaer'; fravLink.append(knap('🤒 Er et barn syg eller fri? ›', 'link-knap', fravaerVaelg)); skoleKort.after(fravLink); }
   if (so) {
     document.getElementById('ov-skole-label').textContent = so.titel;
     document.getElementById('ov-skole').replaceChildren(...so.linjer);
@@ -3635,6 +3653,21 @@ function laasForBoern() {
   Data.remove = async (liste, id) => (barnMaa('slet', liste, null, await find(liste, id)) ? orig.remove(liste, id) : nej());
   const origMange = Data.removeMange;
   Data.removeMange = async (liste, ids) => { for (const id of ids) if (!barnMaa('slet', liste, null, await find(liste, id))) return nej(); return origMange(liste, ids); };
+}
+
+// Fra Familien: "🤒 Syg eller fri?" → vælg barn og dag → samme ark som på barnets tavle
+function fravaerVaelg() {
+  let barn = BOERN[0], dag = new Date().getHours() >= 16 ? 'imorgen' : 'idag';   // om eftermiddagen er det oftest i morgen
+  const iso = () => { const d = new Date(); if (dag === 'imorgen') d.setDate(d.getDate() + 1); return isoDato(d); };
+  const dato = input('date', 'fravaer-dato', isoDato(new Date())); dato.hidden = true;
+  const dagValg = chipValg(['idag', 'imorgen', 'anden'], dag, v => { dag = v; dato.hidden = v !== 'anden'; }, v => ({ idag: 'I dag', imorgen: 'I morgen', anden: '📅 Anden dag' })[v]);
+  const knapper = el('div', 'ark-knapper');
+  knapper.append(knap('Videre ›', 'knap', async () => {
+    const d = dag === 'anden' ? dato.value || isoDato(new Date()) : iso();
+    lukArk();
+    redigerFravaer(barn, d, fravaerDen(await kalenderAftaler(), d, barn));
+  }));
+  aabnArk('🤒 Syg eller fri', felt('Hvem', chipValg(BOERN, barn, v => { barn = v; })), felt('Hvornår', dagValg), dato, knapper);
 }
 
 // Syg / fri fra skolen / tidligere fri – gemmes som en kalenderaftale for barnet
