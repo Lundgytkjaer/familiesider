@@ -24,7 +24,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-10-21c">
+  <link rel="stylesheet" href="style.css?v=2026-10-21d">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -220,6 +220,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h11.5a1.5 1.5 0 0 1 1.5 1.5v14a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19V5A1.5 1.5 0 0 1 6 3.5zM8.5 3.5v17M11.5 8h4.5M11.5 11.5h4.5"/></svg>
           <span class="mere-navn">Dagbog</span><span class="under">Helbred, medicin, skole og det, der sker – kun for voksne</span>
         </button>
+        <button type="button" class="kort mere-kort kun-voksen" data-gaa="medicin">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.5 20.5a5 5 0 0 1-7-7l7-7a5 5 0 0 1 7 7z"/><path d="M7 10l7 7"/></svg>
+          <span class="mere-navn">Medicin og vitaminer</span><span class="under">Hvem tager hvad og hvornår – kun for voksne</span>
+        </button>
         <button type="button" class="kort mere-kort kun-voksen" data-gaa="budget">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h3M16 6V4.5"/></svg>
           <span class="mere-navn">Budget</span><span class="under">Fælles og personligt budget</span>
@@ -335,6 +339,13 @@
       <div id="dagbog-indhold"></div>
     </section>
 
+    <!-- MEDICIN (medicin.js) – kun voksne -->
+    <section id="medicin" class="fane" hidden>
+      <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
+      <div class="sek-hoved"><h2>Medicin</h2></div>
+      <div id="medicin-indhold"></div>
+    </section>
+
     <!-- BUDGET (budget.js) – kun voksne -->
     <section id="budget" class="fane" hidden>
       <button type="button" class="tilbage" data-gaa="mere">‹ Mere</button>
@@ -425,6 +436,7 @@
           <ul>
             <li><b>Rutiner</b> er en guide med billeder (fx tandbørstning og sengetid) – der skal ikke krydses noget af. En rutine kan have et klokkeslæt eller bare en dagsdel (🌅 morgen, ☀️ eftermiddag, 🌙 aften) – fx tandbørstning en weekendmorgen. Så står den på tavlen som "i løbet af morgenen", indtil alle trin er klaret. Under Dage kan man vælge 🎒 Skoledage, 😎 Fridage, ⏰ Før skoledag eller 🎉 Før fridag (fx sengetid) – så følger rutinen selv weekender, ferier og helligdage fra kalenderen.</li>
             <li class="kun-voksen"><b>Dagbog</b> er til små noteringer med dato: hovedpine, mavepine, medicin, kost – fx når lægen beder jer holde øje – men også "tabte en tand" eller "fik 10 i tysk". Hurtigknapperne lærer, hvad I skriver tit. Filtrér på person, slags og periode, og tryk "🖨️ Print / PDF" for en liste til lægen. 🔒 Kun mig = kun du kan se noteringen. Børnene kan aldrig se dagbogen.</li>
+            <li class="kun-voksen"><b>Medicin og vitaminer</b> er en oversigt over, hvem der tager hvad, hvor meget og hvornår på dagen (morgen, middag, aften, sengetid). Ændrer du dosis, gemmes den nye fra i dag, og den gamle bliver i 📜 Historik. "Stoppet" afslutter noget uden at slette det. Tryk "🖨️ Print / PDF" under Historik for en liste til lægen. Børnene kan aldrig se det.</li>
             <li class="kun-voksen"><b>Budget</b> samler familiens faste udgifter: hvad hver post koster, hvilken konto den betales fra, og hvor meget hver af jer skal overføre. "🔄 Gennemgang" tager de poster, der ikke er tjekket i over et år, én ad gangen – passer beløbet stadig, eller skal det rettes? Under Måneder kan I se, hvilke måneder der er dyre. "📌 Gem budget" én gang om året gør det muligt at sammenligne år for år. Under "Mit budget" har hver voksen sit eget budget (indtægter, egne udgifter og andelen af det fælles) – kun man selv kan se det, medmindre man vælger at dele det. Kun voksne kan se budgettet.</li>
             <li class="kun-voksen"><b>Kontakter</b> samler telefon, mail og adresser – familiens står også på personens kort under Familie. Tryk 📞 for at ringe direkte. Kun voksne kan se kontakter.</li>
             <li><b>Retter:</b> retterne har korte navne. En ret kan have <i>fyld/pålæg</i> (fx Pizza: skinke · pepperoni, Rugbrød: leverpostej · æg), <i>tilbehør</i> (ris, nudler, pommes …), <i>sovs</i> (brun sovs, bearnaise …) og <i>ekstra</i> (hvidløgsbrød, flute …), der passer. På madplanen (og i børnenes faste morgen/frokost) trykker man "✎ Tilpas" for at vælge – fx "Pizza med skinke og pepperoni". Rettens faste tilbehør vises nedtonet, fx "Kylling i karry <i>med ris</i>" – vælg "intet" under Tilpas for at droppe det en enkelt dag, eller sæt "Står på tavlen" til "Intet" på retten. Terningen vælger selv ét fyld og et tilbehør (aldrig takeaway). "🛒 Ekstra til ugen" lægger hvidløgsbrød o.l. på indkøbslisten. Under "Vores lister" er aftensmaden ordnet i kategorier – tryk på en ret for at rette navn, kategori, fyld, tilbehør og ekstra. Nederst: "✎ Fyld, tilbehør, sovs og ekstra" (de fælles lister) og "🧹 Ryd op" (læg dubletter sammen, giv retter en kategori). Omdøber I en ret, rettes den også i madplanerne. Børnene kan, som før, vælge mellem retterne eller ønske noget andet (I siger ja/nej). Morgenmad og frokost kan også skrives ind som aftensmad.</li>
@@ -518,26 +530,27 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
-<script src="data.js?v=2026-10-21c"></script>
-<script src="dage.js?v=2026-10-21c"></script>
-<script src="vejr.js?v=2026-10-21c"></script>
-<script src="app.js?v=2026-10-21c"></script>
-<script src="mere.js?v=2026-10-21c"></script>
-<script src="sjov.js?v=2026-10-21c"></script>
-<script src="seddel.js?v=2026-10-21c"></script>
-<script src="familie.js?v=2026-10-21c"></script>
-<script src="handel.js?v=2026-10-21c"></script>
-<script src="retter.js?v=2026-10-21c"></script>
-<script src="aktivitet.js?v=2026-10-21c"></script>
-<script src="kort.js?v=2026-10-21c"></script>
-<script src="pause.js?v=2026-10-21c"></script>
-<script src="skoledag.js?v=2026-10-21c"></script>
-<script src="mappe.js?v=2026-10-21c"></script>
-<script src="bank.js?v=2026-10-21c"></script>
-<script src="budget.js?v=2026-10-21c"></script>
-<script src="dagbog.js?v=2026-10-21c"></script>
-<script src="opskrifter.js?v=2026-10-21c"></script>
-<script src="push.js?v=2026-10-21c"></script>
-<script src="ai.js?v=2026-10-21c"></script>
+<script src="data.js?v=2026-10-21d"></script>
+<script src="dage.js?v=2026-10-21d"></script>
+<script src="vejr.js?v=2026-10-21d"></script>
+<script src="app.js?v=2026-10-21d"></script>
+<script src="mere.js?v=2026-10-21d"></script>
+<script src="sjov.js?v=2026-10-21d"></script>
+<script src="seddel.js?v=2026-10-21d"></script>
+<script src="familie.js?v=2026-10-21d"></script>
+<script src="handel.js?v=2026-10-21d"></script>
+<script src="retter.js?v=2026-10-21d"></script>
+<script src="aktivitet.js?v=2026-10-21d"></script>
+<script src="kort.js?v=2026-10-21d"></script>
+<script src="pause.js?v=2026-10-21d"></script>
+<script src="skoledag.js?v=2026-10-21d"></script>
+<script src="mappe.js?v=2026-10-21d"></script>
+<script src="bank.js?v=2026-10-21d"></script>
+<script src="budget.js?v=2026-10-21d"></script>
+<script src="dagbog.js?v=2026-10-21d"></script>
+<script src="medicin.js?v=2026-10-21d"></script>
+<script src="opskrifter.js?v=2026-10-21d"></script>
+<script src="push.js?v=2026-10-21d"></script>
+<script src="ai.js?v=2026-10-21d"></script>
 </body>
 </html>
