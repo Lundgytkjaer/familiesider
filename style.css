@@ -2324,3 +2324,7 @@ body.barn .fyld-ugen { display: none; }
 @keyframes ai-glimt { 50% { transform: scale(1.3) rotate(20deg); } }
 @media (prefers-reduced-motion: reduce) { .ai-knap .ai-stjerne { animation: none !important; } }
 .ai-knap + .bruger-knap { margin-left: 14px; }
+/* Flere retter til ét måltid (redigerMaaltid) */
+.flere-knap { display: block; min-height: 40px; margin: 4px 0; color: var(--accent); font-weight: 700; }
+.forslag.flere-tilstand button:not(.valgt) .plus { opacity: .5; }
+.flere-gem { width: 100%; margin: 4px 0 10px; }

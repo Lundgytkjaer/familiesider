@@ -190,7 +190,21 @@ function findRet(favs, felt, tekst) {
   return null;
 }
 // Teksten der vises: med det valgte tilbehør, ellers rettens standardtilbehør (+ evt. ekstra)
+// To (eller flere) retter til samme måltid: "Toast og Chicken nuggets" / "Toast + Nuggets" (Timmos ønske, 21/10).
+// Kun når hele teksten IKKE er én ret (så "Pizza med skinke og pepperoni" stadig er pizza med fyld), og hver del er en kendt ret.
+// Svarer [{tekst, fund}] eller null. Gemmes som almindelig tekst – der oprettes ingen ny "ret" for kombinationen.
+const RET_DELER = /\s*\+\s*|\s*&\s*|\s+og\s+|\s*,\s*/i;
+function delRetter(favs, felt, tekst) {
+  if (!tekst || findRet(favs, felt, tekst)) return null;
+  const dele = tekst.split(RET_DELER).map(x => x.trim()).filter(Boolean);
+  if (dele.length < 2) return null;
+  const fund = dele.map(d => ({ tekst: d, fund: findRet(favs, felt, d) }));
+  if (fund.some(x => !x.fund) || new Set(fund.map(x => x.fund.fav.id)).size < fund.length) return null;
+  return fund;
+}
 function retVisning(favs, felt, tekst) {
+  const flere = delRetter(favs, felt, tekst);
+  if (flere) return flere.map((x, i) => { const v = retVisning(favs, felt, x.tekst); return i ? v[0].toLowerCase() + v.slice(1) : v; }).join(' og ');
   const fund = findRet(favs, felt, tekst);
   return fund ? komponer(fund.fav, fund.variant, fund.side || (fund.udenSide ? null : fund.fav.side), fund.ekstra, fund.fyld,
     fund.sovs || (fund.udenSovs ? null : fund.fav.sovs)) : tekst;

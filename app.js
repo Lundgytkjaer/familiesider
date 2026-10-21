@@ -945,6 +945,8 @@ function tegnLideValg() {
 async function gemFavorit(type, tekst) {
   if (erBarn()) return;   // børn tæller ikke hurtigvalg op
   const favs = await Data.list('favoritter');
+  // To retter til ét måltid ("Toast og nuggets"): hver ret tælles op – kombinationen bliver ikke en ny ret på listerne
+  if (type in MAALTIDER) { const flere = delRetter(favs, type, tekst); if (flere) { for (const x of flere) await gemFavorit(type, x.tekst); return; } }
   // En variant ("Burger med flæskesteg") tæller på selve retten; morgenmad som aftensmad bliver ikke en ny aftensret
   const fund = type in MAALTIDER ? findRet(favs, type, tekst) : null;
   const f = fund ? fund.fav : favs.find(x => x.type === type && x.tekst.toLowerCase() === tekst.toLowerCase());
@@ -3063,13 +3065,30 @@ async function redigerMaaltid(barn, dato, felt) {
   const alleFavs = await Data.list('favoritter');
   const favs = alleFavs.filter(f => passerTil(f, felt)).map(f => f.tekst).sort((a, b) => a.localeCompare(b, 'da'));
   const chips = el('div', 'forslag');
+  // "＋ Vælg flere": to retter til samme måltid (fx toast og nuggets) – tryk på dem, og gem samlet
+  const nuDele = delRetter(alleFavs, felt, plan[felt] || '');
+  let flere = nuDele ? new Set(nuDele.map(x => favs.find(v => v.toLowerCase() === x.tekst.toLowerCase())).filter(Boolean)) : null;
+  const flereGem = knap('', 'knap flere-gem', () => { if (flere?.size) vaelg([...flere].join(' og ')); });
+  const flereKnap = knap('', 'link-knap flere-knap', () => { flere = flere ? null : new Set(); opdaterFlere(); });
   const kandidater = favs.map(v => {
-    const k = knap('', null, () => vaelg(v));
+    const k = knap('', null, () => {
+      if (!flere) return vaelg(v);
+      if (flere.has(v)) flere.delete(v); else flere.add(v);
+      opdaterFlere();
+    });
     k.append(el('span', 'plus', '+'), v);
-    if (v === plan[felt]) k.classList.add('valgt');
+    k.dataset.ret = v;
     chips.append(k);
     return [v.toLowerCase(), k];
   });
+  const opdaterFlere = () => {
+    for (const [, k] of kandidater) k.classList.toggle('valgt', flere ? flere.has(k.dataset.ret) : k.dataset.ret === plan[felt]);
+    chips.classList.toggle('flere-tilstand', !!flere);
+    flereKnap.textContent = flere ? '✕ Kun én ret' : '＋ Vælg flere (fx toast og nuggets)';
+    flereGem.hidden = !flere || !flere.size;
+    flereGem.textContent = 'Gem: ' + [...(flere || [])].join(' og ');
+  };
+  opdaterFlere();
   // Skriver man i feltet, vises kun de retter der passer (lang liste)
   inp.addEventListener('input', () => {
     const q = inp.value.trim().toLowerCase();
@@ -3095,7 +3114,7 @@ async function redigerMaaltid(barn, dato, felt) {
     ? (standard ? 'Familiens madplan: ' + standard : 'Der står ikke noget i familiens madplan.')
     : (standard ? 'Fast hver ' + DAGE_LANG[dag].toLowerCase() + ': ' + standard : 'Der er ikke noget fast for ' + DAGE_LANG[dag].toLowerCase() + '.');
   aabnArk(NAVN[felt] + ' til ' + barn + ' · ' + DAGE_LANG[dag].toLowerCase(),
-    el('p', 'hint', forklaring), andre.length ? ogsaaLabel : '', form, chips, kanGoereFast ? fastLabel : '', knapper);
+    el('p', 'hint', forklaring), andre.length ? ogsaaLabel : '', form, flereKnap, chips, flereGem, kanGoereFast ? fastLabel : '', knapper);
 }
 
 // ---------- Madønsker fra børnene ----------
