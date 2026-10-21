@@ -228,6 +228,19 @@ function bekraeft(knap, handling) {
   knap._timer = setTimeout(tilbage, 3000);
 }
 
+// ---------- Tastatur: arket følger den synlige del af skærmen ----------
+// På telefonen dækker tastaturet bunden af skærmen; uden dette kunne et felt i et ark gemme sig bag tastaturet.
+if (window.visualViewport) {
+  const vv = window.visualViewport;
+  const tilpas = () => {
+    document.documentElement.style.setProperty('--vv-h', vv.height + 'px');
+    document.documentElement.style.setProperty('--vv-top', vv.offsetTop + 'px');
+    const a = document.activeElement;
+    if (a && a.closest && a.closest('.ark') && a.matches('input, textarea')) setTimeout(() => a.scrollIntoView({ block: 'nearest' }), 50);
+  };
+  vv.addEventListener('resize', tilpas); vv.addEventListener('scroll', tilpas); tilpas();
+}
+
 // ---------- Ark (bundpanel) ----------
 const arkEl = document.getElementById('ark');
 function aabnArk(titel, ...indhold) {
@@ -3049,72 +3062,92 @@ async function redigerMaaltid(barn, dato, felt) {
     lukArk(); tegnAlt();
   };
 
-  const inp = input('text', 'maaltid-felt', plan.eget[felt] ? plan[felt] : '', 'Skriv selv');
-  inp.setAttribute('list', DATALISTE[felt]);
-  inp.enterKeyHint = 'done';
-  const form = el('form', 'tilfoj');
-  form.append(inp, el('button', 'knap', 'Vælg'));
-  form.addEventListener('submit', async e => {
-    e.preventDefault();
-    const v = inp.value.trim();
-    if (!v) return;
-    if (!ER_RESTER.test(v)) await gemFavorit(felt, v);   // rester bliver aldrig en ret på listerne
-    vaelg(v);
-  });
-
+  // Ny opbygning (Timmo 21/10: det var svært at finde retten, Gem gemte sig, og feltet forsvandt bag tastaturet):
+  // øverst det valgte (en eller flere retter), så søgefeltet, så de mest brugte retter – og Gem altid synlig i bunden.
+  // Tryk på en ret = den kommer op i "Valgt"; to retter = "Toast og Chicken nuggets".
   const alleFavs = await Data.list('favoritter');
-  const favs = alleFavs.filter(f => passerTil(f, felt)).map(f => f.tekst).sort((a, b) => a.localeCompare(b, 'da'));
-  const chips = el('div', 'forslag');
-  // "＋ Vælg flere": to retter til samme måltid (fx toast og nuggets) – tryk på dem, og gem samlet
-  const nuDele = delRetter(alleFavs, felt, plan[felt] || '');
-  let flere = nuDele ? new Set(nuDele.map(x => favs.find(v => v.toLowerCase() === x.tekst.toLowerCase())).filter(Boolean)) : null;
-  const flereGem = knap('', 'knap flere-gem', () => { if (flere?.size) vaelg([...flere].join(' og ')); });
-  const flereKnap = knap('', 'link-knap flere-knap', () => { flere = flere ? null : new Set(); opdaterFlere(); });
-  const kandidater = favs.map(v => {
-    const k = knap('', null, () => {
-      if (!flere) return vaelg(v);
-      if (flere.has(v)) flere.delete(v); else flere.add(v);
-      opdaterFlere();
-    });
-    k.append(el('span', 'plus', '+'), v);
-    k.dataset.ret = v;
-    chips.append(k);
-    return [v.toLowerCase(), k];
-  });
-  const opdaterFlere = () => {
-    for (const [, k] of kandidater) k.classList.toggle('valgt', flere ? flere.has(k.dataset.ret) : k.dataset.ret === plan[felt]);
-    chips.classList.toggle('flere-tilstand', !!flere);
-    flereKnap.textContent = flere ? '✕ Kun én ret' : '＋ Vælg flere (fx toast og nuggets)';
-    flereGem.hidden = !flere || !flere.size;
-    flereGem.textContent = 'Gem: ' + [...(flere || [])].join(' og ');
-  };
-  opdaterFlere();
-  // Skriver man i feltet, vises kun de retter der passer (lang liste)
-  inp.addEventListener('input', () => {
-    const q = inp.value.trim().toLowerCase();
-    for (const [t, k] of kandidater) k.hidden = !!q && !t.includes(q);
+  const passer = alleFavs.filter(f => passerTil(f, felt));
+  const favs = [...new Set(passer.map(f => f.tekst))];
+  const brugt = new Map(passer.map(f => [f.tekst, f.brugt || 0]));
+  const valgt = [];   // i den rækkefølge, man trykker
+  // Forvalgt kun når dagen allerede har sit eget valg – den faste plan står i teksten øverst og skal bare erstattes
+  const nu = (plan.eget[felt] || plan.oenske?.[felt]) && plan[felt] && plan[felt] !== INGEN_MAD ? plan[felt] : '';
+  if (nu && !ER_RESTER.test(nu)) {
+    const dele = delRetter(alleFavs, felt, nu);
+    valgt.push(...(dele ? dele.map(x => favs.find(v => v.toLowerCase() === x.tekst.toLowerCase()) || x.tekst) : [nu]));
+  }
+  const MEST = 12;
+  let visAlle = false;
+
+  const valgtBoks = el('div', 'maaltid-valgt');
+  const soeg = input('text', 'maaltid-felt', '', 'Find eller skriv en ret');
+  soeg.enterKeyHint = 'done'; soeg.autocomplete = 'off';
+  const soegForm = el('form', 'maaltid-soeg');
+  soegForm.append(soeg);
+  const chips = el('div', 'forslag maaltid-chips');
+  const gem = knap('', 'knap maaltid-gem', async () => {
+    if (!valgt.length) return;
+    for (const v of valgt) if (!ER_RESTER.test(v)) await gemFavorit(felt, v);   // hver ret tælles op (kombinationen bliver ikke en ny ret)
+    vaelg(valgt.join(' og '));
   });
 
-  const knapper = el('div', 'ark-knapper');
-  const terning = knap('', 'knap terning-knap', () => {
+  const stort = t => t ? t[0].toUpperCase() + t.slice(1) : t;
+  const tilfoej = v => { v = stort(v.trim()); if (!v) return; const i = valgt.findIndex(x => x.toLowerCase() === v.toLowerCase()); if (i >= 0) valgt.splice(i, 1); else valgt.push(v); soeg.value = ''; tegn(); };
+  soegForm.addEventListener('submit', e => { e.preventDefault(); const v = soeg.value.trim(); if (!v) return;
+    tilfoej(favs.find(x => x.toLowerCase() === v.toLowerCase()) || v); soeg.blur(); });
+  soeg.addEventListener('input', () => tegnChips());
+
+  function tegnChips() {
+    const q = soeg.value.trim().toLowerCase();
+    let liste = q ? favs.filter(v => v.toLowerCase().includes(q)).sort((a, b) => a.localeCompare(b, 'da'))
+      : [...favs].sort((a, b) => (brugt.get(b) - brugt.get(a)) || a.localeCompare(b, 'da'));
+    const skjult = !q && !visAlle ? Math.max(0, liste.length - MEST) : 0;
+    if (skjult) liste = liste.slice(0, MEST);
+    const dele = [];
+    if (q && !favs.some(v => v.toLowerCase() === q)) dele.push(knap('＋ Tilføj "' + stort(soeg.value.trim()) + '"', 'ny-ret-chip', () => { tilfoej(soeg.value); soeg.blur(); }));
+    for (const v of liste) {
+      const k = knap('', valgt.some(x => x.toLowerCase() === v.toLowerCase()) ? 'valgt' : null, () => tilfoej(v));
+      k.append(el('span', 'plus', valgt.some(x => x.toLowerCase() === v.toLowerCase()) ? '✓' : '+'), v);
+      dele.push(k);
+    }
+    if (skjult) dele.push(knap('Vis alle (' + favs.length + ') ▾', 'styr', () => { visAlle = true; tegnChips(); }));
+    if (q && !liste.length) dele.push(el('span', 'hint', 'Ingen retter passer – tryk "Tilføj" eller Enter for at bruge teksten.'));
+    chips.replaceChildren(...dele);
+  }
+  function tegn() {
+    valgtBoks.replaceChildren(el('span', 'maaltid-valgt-titel', valgt.length > 1 ? 'Valgt (' + valgt.length + ')' : 'Valgt'),
+      ...(valgt.length ? valgt.map(v => { const p = knap('', 'valgt-pille', () => tilfoej(v)); p.append(v, el('span', 'valgt-x', '✕')); p.setAttribute('aria-label', 'Fjern ' + v); return p; })
+        : [el('span', 'hint', 'Tryk på en ret nedenfor – du kan vælge flere')]));
+    gem.disabled = !valgt.length;
+    gem.textContent = valgt.length ? 'Gem: ' + valgt.join(' og ') : 'Vælg en ret';
+    tegnChips();
+  }
+  tegn();
+
+  // Hurtige valg, der gemmes med det samme
+  const smaa = el('div', 'maaltid-smaa');
+  const terning = knap('', 'lille-knap terning-knap', () => {
     const mulige = autoRetter(alleFavs, felt).map(r => r.tekst).filter(v => v !== plan[felt]);   // retter.js: ikke takeaway
     if (mulige.length) vaelg(mulige[Math.floor(Math.random() * mulige.length)]);
   });
-  terning.innerHTML = IKON_TERNING + '<span>Slå med terningen</span>';
-  knapper.append(terning);
-  if (voksen && plan[felt] !== INGEN_MAD) knapper.append(knap('🚫 Ingenting', 'knap sekundaer-knap', () => vaelg(INGEN_MAD)));
-  if (voksen && !plan.ikkeBestemt?.[felt]) knapper.append(knap('❔ Ikke bestemt', 'knap sekundaer-knap', () => vaelg(IKKE_BESTEMT)));
+  terning.innerHTML = IKON_TERNING + '<span>Terning</span>';
+  smaa.append(terning);
+  if (voksen && plan[felt] !== INGEN_MAD) smaa.append(knap('🚫 Ingenting', 'lille-knap', () => vaelg(INGEN_MAD)));
+  if (voksen && !plan.ikkeBestemt?.[felt]) smaa.append(knap('❔ Ikke bestemt', 'lille-knap', () => vaelg(IKKE_BESTEMT)));
   const standard = felt === 'ret' ? plan.faelles.ret : plan.fast[felt];
-  if (plan.eget[felt]) {
-    knapper.append(knap(felt === 'ret' ? 'Brug familiens' : 'Brug den faste', 'knap sekundaer-knap',
-      async () => { for (const b of hvem()) await gemMad(dag, felt, '', ugeIso, b); lukArk(); tegnAlt(); }));
-  }
+  if (plan.eget[felt]) smaa.append(knap(felt === 'ret' ? '↺ Familiens' : '↺ Den faste', 'lille-knap',
+    async () => { for (const b of hvem()) await gemMad(dag, felt, '', ugeIso, b); lukArk(); tegnAlt(); }));
+  const knapper = el('div', 'ark-knapper maaltid-knapper');
+  knapper.append(gem, smaa);
 
   const forklaring = felt === 'ret'
     ? (standard ? 'Familiens madplan: ' + standard : 'Der står ikke noget i familiens madplan.')
     : (standard ? 'Fast hver ' + DAGE_LANG[dag].toLowerCase() + ': ' + standard : 'Der er ikke noget fast for ' + DAGE_LANG[dag].toLowerCase() + '.');
+  const valg = el('div', 'maaltid-tjek');
+  if (andre.length) valg.append(ogsaaLabel);
+  if (kanGoereFast) valg.append(fastLabel);
   aabnArk(NAVN[felt] + ' til ' + barn + ' · ' + DAGE_LANG[dag].toLowerCase(),
-    el('p', 'hint', forklaring), andre.length ? ogsaaLabel : '', form, flereKnap, chips, flereGem, kanGoereFast ? fastLabel : '', knapper);
+    el('p', 'hint', forklaring), valgtBoks, soegForm, chips, valg, knapper);
 }
 
 // ---------- Madønsker fra børnene ----------
