@@ -2246,8 +2246,8 @@ button.sd-maerke { cursor: pointer; min-height: 36px; }
 .mangler-tag { font-size: 13px; font-weight: 700; color: var(--daempet); white-space: nowrap; }
 
 /* Brugertest 2 (designer): små knapper får en usynlig trykflade på mindst 44 px – udseendet er det samme (roligt) */
-.tips-knap, .bruger-knap, .makker-skift, .visning-knap, .terning.lille, .maal-knap, .tilpas-chip, .ai-top-knap { position: relative; }
-.tips-knap::after, .bruger-knap::after, .makker-skift::after, .visning-knap::after, .terning.lille::after, .maal-knap::after, .tilpas-chip::after {
+.tips-knap, .bruger-knap, .makker-skift, .visning-knap, .terning.lille, .maal-knap, .ai-top-knap { position: relative; }
+.tips-knap::after, .bruger-knap::after, .makker-skift::after, .visning-knap::after, .terning.lille::after, .maal-knap::after {
   content: ''; position: absolute; left: 50%; top: 50%; width: max(100%, 44px); height: max(100%, 44px); transform: translate(-50%, -50%);
 }
 /* Børnenes knapper på tavlen lidt større */
@@ -2350,3 +2350,9 @@ body.barn .fyld-ugen { display: none; }
 /* Tastaturet på telefonen må ikke dække arket: arket følger den synlige del af skærmen (visualViewport, app.js) */
 .ark-baggrund { top: var(--vv-top, 0px); bottom: auto; height: var(--vv-h, 100%); }
 .ark { max-height: calc(var(--vv-h, 100vh) * .94); }
+
+/* Madplan: "✎ Tilpas" overlappede feltet (2026-10-21c). Den usynlige trykflade (::after) stak ud af chip-rækken, som kan rulle
+   vandret – så kunne rækken også rulle lodret et par pixels (især Android), og Tilpas gled op over feltet til næste genindlæsning.
+   Nu: ingen ::after på chips i rullende rækker, rækken kan aldrig rulle lodret, og Tilpas er selv høj nok at trykke på. */
+.var-chips { overflow-y: hidden; overscroll-behavior-x: contain; }
+.var-chip.tilpas-chip { min-height: 36px; padding: 0 12px; }
