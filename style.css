@@ -2384,3 +2384,12 @@ body.barn .fyld-ugen { display: none; }
 .med-noter-knap { display: block; margin-top: 8px; min-height: 40px; color: var(--accent); font-weight: 700; text-align: left; }
 .med-forhaand { font-weight: 600; color: var(--fg); }
 #familie-overblik > #ov-medicin { grid-column: auto; }
+/* Medicin-kortet kompakt (2026-10-21f): én linje pr. tidspunkt, kun det der mangler i dag, hele kortet = notér */
+.med-kort { cursor: pointer; padding-block: 12px; }
+.med-linjer { display: grid; gap: 4px; margin: 4px 0 0; }
+.med-linje { display: flex; gap: 8px; align-items: baseline; font-size: 15px; }
+.med-linje:not(.nu):not(.med-notelinje) { color: var(--daempet); }
+.med-linje-tid { flex: none; width: 22px; text-align: center; }
+.med-linje-tekst { min-width: 0; }
+.med-p { color: var(--p); font-weight: 700; }
+.med-notelinje { font-size: 13.5px; color: var(--daempet); }

@@ -238,45 +238,48 @@ function medIDag(x, iso = medIdag()) {
 async function medicinKort() {
   const mig = Data.bruger();
   if (!mig || mig.rolle !== 'voksen') return null;
-  if ((await valgFor(mig.navn)).medicin === false) return null;
+  const valg = await valgFor(mig.navn);
+  if (valg.medicin === false) return null;
+  // Kun børnenes (og evt. ens egen – Indstillinger) – de voksne ved godt, hvad de selv skal have (Timmo 21/10)
+  const hvem = new Set([...BOERN, 'Alfie', ...(valg.medicinEgen ? [mig.navn] : [])]);
   const idag = medIdag();
-  const dagens = medAlle().filter(x => medIDag(x, idag));
-  const noter = Data.listNu('dagbog').filter(x => x.kat === 'medicin' && x.dato === idag)
+  const dagens = medAlle().filter(x => hvem.has(x.hvem) && medIDag(x, idag));
+  const noter = Data.listNu('dagbog').filter(x => x.kat === 'medicin' && x.dato === idag && hvem.has(x.hvem))
     .sort((a, b) => (a.tid || '').localeCompare(b.tid || ''));
-  if (!dagens.length && !noter.length) return null;
-  const k = el('div', 'kort med-kort');
-  const top = el('div', 'kort-top');
-  top.append(el('span', 'kort-label', '💊 Medicin i dag'), knap('Alle ›', 'kort-pil link-knap', () => { visFane('medicin'); window.scrollTo(0, 0); }));
-  k.append(top);
-  const nu = medDelNu();
-  const ul = el('ul', 'mini med-dag');
-  for (const [del, ikon, navn] of MED_TIDER) {
+  // Kun det, der mangler i dag (det nuværende tidspunkt og frem) – det der er gået, fylder ikke
+  const nuI = MED_TIDER.findIndex(t => t[0] === medDelNu());
+  const linjer = [];
+  for (const [i, [del, ikon]] of MED_TIDER.entries()) {
+    if (i < nuI) continue;
     const her = dagens.filter(x => (x.tider || []).includes(del) || (!(x.tider || []).length && del === 'morgen'));
     if (!her.length) continue;
-    const li = el('li', 'med-dag-del' + (del === nu ? ' nu' : '') + (MED_TIDER.findIndex(t => t[0] === del) < MED_TIDER.findIndex(t => t[0] === nu) ? ' forbi' : ''));
-    li.append(el('span', 'med-dag-tid', ikon + ' ' + navn));
-    const hvem = el('span', 'med-dag-hvem');
-    for (const p of medPersoner()) {
+    const li = el('li', 'med-linje' + (i === nuI ? ' nu' : ''));
+    li.append(el('span', 'med-linje-tid', ikon));
+    const tekst = el('span', 'med-linje-tekst');
+    [...hvem].forEach(p => {
       const ting = her.filter(x => x.hvem === p);
-      if (!ting.length) continue;
-      const s = el('span', 'med-dag-p ' + (PK[p] || ''));
-      s.append(el('span', 'prik'), el('b', null, p + ': '), ting.map(x => x.navn + (x.dosis ? ' ' + x.dosis : '') + (x.tidKl ? ' (kl. ' + visTid(x.tidKl) + ')' : '')).join(', '));
-      hvem.append(s);
-    }
-    li.append(hvem);
-    ul.append(li);
+      if (!ting.length) return;
+      if (tekst.childNodes.length) tekst.append(' · ');
+      tekst.append(el('b', 'med-p ' + (PK[p] || ''), p), ' ' + ting.map(x => x.navn + (x.tidKl ? ' kl. ' + visTid(x.tidKl) : '')).join(', '));
+    });
+    li.append(tekst);
+    linjer.push(li);
   }
-  if (ul.children.length) k.append(ul);
-  if (noter.length) {
-    const nl = el('ul', 'mini med-noter');
-    for (const x of noter) {
-      const li = el('li', PK[x.hvem] || '');
-      li.append(el('span', 'prik'), el('span', null, '📝 ' + (x.tid ? visTid(x.tid) + ' · ' : '') + x.hvem + ': ' + x.tekst + (x.note ? ' – ' + x.note : '')));
-      nl.append(li);
-    }
-    k.append(nl);
+  for (const x of noter) {
+    const li = el('li', 'med-linje med-notelinje');
+    li.append(el('span', 'med-linje-tid', '📝'), el('span', 'med-linje-tekst', (x.tid ? visTid(x.tid) + ' ' : '') + x.hvem + ': ' + x.tekst));
+    linjer.push(li);
   }
-  k.append(knap('📝 Notér noget (fx givet ekstra eller glemt)', 'link-knap med-noter-knap', () => medNoter()));
+  if (!linjer.length) return null;
+  // Hele kortet kan trykkes på = notér (fx dobbelt dosis); "Alle ›" = siden
+  const k = el('div', 'kort med-kort');
+  k.setAttribute('role', 'button'); k.tabIndex = 0;
+  k.setAttribute('aria-label', 'Medicin i dag. Tryk for at notere noget');
+  k.addEventListener('click', e => { if (!e.target.closest('.kort-pil')) medNoter(); });
+  const top = el('div', 'kort-top');
+  top.append(el('span', 'kort-label', '💊 Medicin'), knap('Alle ›', 'kort-pil link-knap', () => { visFane('medicin'); window.scrollTo(0, 0); }));
+  const ul = el('ul', 'mini med-linjer'); ul.append(...linjer);
+  k.append(top, ul);
   return k;
 }
 

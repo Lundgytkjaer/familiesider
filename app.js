@@ -3945,7 +3945,8 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     kontakt('🎃 Mærkedage', valg.maerkedage, saet('maerkedage'), 'Halloween, mors dag, sommertid …'),
     kontakt('🌦️ Vejret', valg.vejr, saet('vejr')),
     kontakt('🌅 Solopgang og solnedgang', valg.sol, saet('sol')),
-    ...(voksen && !forBarn ? [kontakt('💊 Medicin og vitaminer', valg.medicin !== false, saet('medicin'), 'Dagens medicin på Familien')] : []));
+    ...(voksen && !forBarn ? [kontakt('💊 Børnenes medicin', valg.medicin !== false, saet('medicin'), 'Det, der mangler i dag, på Familien'),
+      kontakt('💊 Også min egen', !!valg.medicinEgen, saet('medicinEgen'))] : []));
   if (forBarn && voksen) avanceret.push(el('label', 'felt-label', 'Vis i kalenderen og på tavlen'), visListe);
   else dele.push(titel(forBarn ? '📅 Vis på min tavle' : '📅 Vis i kalenderen og på I dag'), visListe);
 
