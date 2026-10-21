@@ -36,7 +36,7 @@ function tegnMedicin() {
   dele.push(chipValg(['', ...medPersoner()], medHvem, v => { medHvem = v; tegnMedicin(); }, v => v || 'Alle'));
   dele.push(chipValg(['nu', 'historik'], medVis, v => { medVis = v; tegnMedicin(); }, v => (v === 'nu' ? '💊 Tager nu' : '📜 Historik')));
   const knapper = el('div', 'db-knapper');
-  knapper.append(knap('+ Tilføj', 'knap', () => medRediger({ hvem: medHvem })));
+  knapper.append(knap('+ Tilføj', 'knap', () => medRediger({ hvem: medHvem })), knap('📝 Notér', 'lille-knap', () => medNoter(medHvem)));
   const alle = medAlle().filter(x => !medHvem || x.hvem === medHvem);
   if (medVis === 'historik' && alle.length) knapper.append(knap('🖨️ Print / PDF', 'lille-knap', () => medPrint(alle)));
   dele.push(knapper);
@@ -224,4 +224,98 @@ function medPrint(alle) {
   const w = window.open('', '_blank');
   if (!w) { visStatus('Tillad pop-up-vinduer for at printe', true); return; }
   w.document.open(); w.document.write(html); w.document.close();
+}
+
+// ---------- På Familien (I dag): dagens medicin + hurtig notering ----------
+// Vises for den voksne, der har slået det til (Indstillinger → "💊 Medicin og vitaminer" – standard til).
+// Ingen flueben (Timmos valg). "📝 Notér" = en hurtig notering i Dagbogen (fx "Movicol – dobbelt dosis"), så der er en log.
+const medDelNu = () => { const t = new Date().getHours(); return t < 11 ? 'morgen' : t < 15 ? 'middag' : t < 20 ? 'aften' : 'sengetid'; };
+function medIDag(x, iso = medIdag()) {
+  if (!medAktiv(x, iso) || x.hyppighed === 'behov') return false;
+  if (x.hyppighed === 'ugedage') return (x.ugedage || []).includes((new Date(iso + 'T00:00').getDay() + 6) % 7);
+  return true;
+}
+async function medicinKort() {
+  const mig = Data.bruger();
+  if (!mig || mig.rolle !== 'voksen') return null;
+  if ((await valgFor(mig.navn)).medicin === false) return null;
+  const idag = medIdag();
+  const dagens = medAlle().filter(x => medIDag(x, idag));
+  const noter = Data.listNu('dagbog').filter(x => x.kat === 'medicin' && x.dato === idag)
+    .sort((a, b) => (a.tid || '').localeCompare(b.tid || ''));
+  if (!dagens.length && !noter.length) return null;
+  const k = el('div', 'kort med-kort');
+  const top = el('div', 'kort-top');
+  top.append(el('span', 'kort-label', '💊 Medicin i dag'), knap('Alle ›', 'kort-pil link-knap', () => { visFane('medicin'); window.scrollTo(0, 0); }));
+  k.append(top);
+  const nu = medDelNu();
+  const ul = el('ul', 'mini med-dag');
+  for (const [del, ikon, navn] of MED_TIDER) {
+    const her = dagens.filter(x => (x.tider || []).includes(del) || (!(x.tider || []).length && del === 'morgen'));
+    if (!her.length) continue;
+    const li = el('li', 'med-dag-del' + (del === nu ? ' nu' : '') + (MED_TIDER.findIndex(t => t[0] === del) < MED_TIDER.findIndex(t => t[0] === nu) ? ' forbi' : ''));
+    li.append(el('span', 'med-dag-tid', ikon + ' ' + navn));
+    const hvem = el('span', 'med-dag-hvem');
+    for (const p of medPersoner()) {
+      const ting = her.filter(x => x.hvem === p);
+      if (!ting.length) continue;
+      const s = el('span', 'med-dag-p ' + (PK[p] || ''));
+      s.append(el('span', 'prik'), el('b', null, p + ': '), ting.map(x => x.navn + (x.dosis ? ' ' + x.dosis : '') + (x.tidKl ? ' (kl. ' + visTid(x.tidKl) + ')' : '')).join(', '));
+      hvem.append(s);
+    }
+    li.append(hvem);
+    ul.append(li);
+  }
+  if (ul.children.length) k.append(ul);
+  if (noter.length) {
+    const nl = el('ul', 'mini med-noter');
+    for (const x of noter) {
+      const li = el('li', PK[x.hvem] || '');
+      li.append(el('span', 'prik'), el('span', null, '📝 ' + (x.tid ? visTid(x.tid) + ' · ' : '') + x.hvem + ': ' + x.tekst + (x.note ? ' – ' + x.note : '')));
+      nl.append(li);
+    }
+    k.append(nl);
+  }
+  k.append(knap('📝 Notér noget (fx givet ekstra eller glemt)', 'link-knap med-noter-knap', () => medNoter()));
+  return k;
+}
+
+// Hurtig notering → Dagbogen (kat 'medicin', begge voksne kan se den)
+const MED_SKETE = ['Givet', 'Ekstra dosis', 'Dobbelt dosis', 'Glemt', 'Halv dosis', 'Bivirkning'];
+function medNoter(hvem = '') {
+  const s = { hvem, hvad: '', skete: '', note: '' };
+  const n = new Date();
+  const tid = input('time', 'medn-tid', String(n.getHours()).padStart(2, '0') + ':' + String(n.getMinutes()).padStart(2, '0'));
+  const hvad = input('text', 'medn-hvad', '', 'Fx Movicol');
+  hvad.maxLength = 60;
+  hvad.addEventListener('input', () => { s.hvad = hvad.value; tegnForhaand(); });
+  const hvadChips = el('div', 'seg wrap');
+  const tegnHvad = () => {
+    const egne = [...new Set(medAlle().filter(x => (!s.hvem || x.hvem === s.hvem) && (medAktiv(x) || x.hyppighed === 'behov')).map(x => x.navn))];
+    const brugt = [...new Set(Data.listNu('dagbog').filter(x => x.kat === 'medicin' && (!s.hvem || x.hvem === s.hvem)).map(x => (x.tekst || '').split(' – ')[0]).filter(Boolean))];
+    const alle = [...new Set([...egne, ...brugt])].slice(0, 10);
+    hvadChips.replaceChildren(...alle.map(t => { const b = knap(t, null, () => { hvad.value = s.hvad = t; tegnHvad(); tegnForhaand(); }); b.setAttribute('aria-checked', s.hvad === t); b.setAttribute('role', 'radio'); return b; }));
+    hvadChips.hidden = !alle.length;
+  };
+  const hvemValg = chipValg(medPersoner(), s.hvem, v => { s.hvem = v; fejl.hidden = true; tegnHvad(); tegnForhaand(); });
+  const sketeValg = chipValg(['', ...MED_SKETE], s.skete, v => { s.skete = v; tegnForhaand(); }, v => v || 'Bare notér');
+  sketeValg.classList.add('wrap');
+  const note = input('text', 'medn-note', '', 'Fx "fik 2 breve i stedet for 1"');
+  note.maxLength = 200;
+  note.addEventListener('input', () => { s.note = note.value; });
+  const forhaand = el('p', 'hint med-forhaand');
+  const tekst = () => [s.hvad.trim(), s.skete ? s.skete.toLowerCase() : ''].filter(Boolean).join(' – ');
+  function tegnForhaand() { forhaand.textContent = tekst() ? 'I dagbogen: ' + (s.hvem ? s.hvem + ': ' : '') + tekst() : ''; }
+  tegnHvad();
+  const fejl = el('p', 'fejl'); fejl.hidden = true;
+  const gem = knap('Gem i dagbogen', 'knap', async () => {
+    if (!s.hvem) { fejl.textContent = 'Vælg hvem'; fejl.hidden = false; return; }
+    if (!s.hvad.trim()) { fejl.textContent = 'Skriv hvad (fx Movicol)'; fejl.hidden = false; hvad.focus(); return; }
+    await Data.add('dagbog', { hvem: s.hvem, dato: medIdag(), tid: tid.value || undefined, kat: 'medicin', tekst: tekst(), ...(s.note.trim() ? { note: s.note.trim() } : {}) });
+    lukArk(); visStatus('📝 Noteret: ' + s.hvem + ' – ' + tekst()); tegnAlt();
+  });
+  const knapper = el('div', 'ark-knapper'); knapper.append(gem);
+  aabnArk('📝 Notér medicin', felt('Hvem?', hvemValg), felt('Hvad?', hvad), hvadChips, el('label', 'felt-label', 'Hvad skete der?'), sketeValg,
+    felt('Kl.', tid), felt('Note (valgfri)', note), forhaand, fejl,
+    el('p', 'hint', 'Gemmes i 📓 Dagbog (slags Medicin), så I kan se og printe det senere. Kun voksne kan se det.'), knapper);
 }

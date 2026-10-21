@@ -3621,6 +3621,11 @@ async function tegnOverblik() {
     return li;
   }));
   document.getElementById('ov-todo-kort').hidden = !haster.length;
+  // 💊 Dagens medicin og vitaminer (medicin.js) – kan slås fra pr. voksen i Indstillinger
+  let ovMed = document.getElementById('ov-medicin');
+  if (!ovMed) { ovMed = el('div'); ovMed.id = 'ov-medicin'; document.getElementById('ov-todo-kort').after(ovMed); }
+  const medK = typeof medicinKort === 'function' ? await medicinKort() : null;
+  ovMed.replaceChildren(...(medK ? [medK] : [])); ovMed.hidden = !medK;
   document.getElementById('ov-todo-antal').textContent = haster.length > 5 ? '+' + (haster.length - 5) + ' mere ›' : 'To do ›';
 
   // Indkøb: én lille linje (tallet står også i bundmenuen)
@@ -3939,7 +3944,8 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     kontakt('🎄 Helligdage', valg.helligdage, saet('helligdage')),
     kontakt('🎃 Mærkedage', valg.maerkedage, saet('maerkedage'), 'Halloween, mors dag, sommertid …'),
     kontakt('🌦️ Vejret', valg.vejr, saet('vejr')),
-    kontakt('🌅 Solopgang og solnedgang', valg.sol, saet('sol')));
+    kontakt('🌅 Solopgang og solnedgang', valg.sol, saet('sol')),
+    ...(voksen && !forBarn ? [kontakt('💊 Medicin og vitaminer', valg.medicin !== false, saet('medicin'), 'Dagens medicin på Familien')] : []));
   if (forBarn && voksen) avanceret.push(el('label', 'felt-label', 'Vis i kalenderen og på tavlen'), visListe);
   else dele.push(titel(forBarn ? '📅 Vis på min tavle' : '📅 Vis i kalenderen og på I dag'), visListe);
 

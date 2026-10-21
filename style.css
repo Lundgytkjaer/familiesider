@@ -2369,3 +2369,18 @@ body.barn .fyld-ugen { display: none; }
 .med-tid { color: var(--fg); font-weight: 600; }
 .med-note { flex-basis: 100%; }
 .med-aktiv { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); background: var(--accent-blod); padding: 2px 8px; border-radius: 999px; }
+
+/* 💊 Medicin i dag på Familien (2026-10-21e) */
+.med-dag { display: grid; gap: 6px; margin: 6px 0 2px; }
+.med-dag-del { display: grid; grid-template-columns: 92px 1fr; gap: 8px; align-items: start; }
+.med-dag-del.forbi { opacity: .55; }
+.med-dag-del.nu .med-dag-tid { color: var(--accent); }
+.med-dag-tid { font-weight: 700; font-size: 14px; white-space: nowrap; }
+.med-dag-hvem { display: grid; gap: 2px; }
+.med-dag-p { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.med-dag-p .prik, .med-noter .prik { width: 8px; height: 8px; border-radius: 50%; background: var(--p); flex: none; align-self: center; }
+.med-noter { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--linje); color: var(--daempet); }
+.med-noter li { display: flex; gap: 6px; align-items: baseline; }
+.med-noter-knap { display: block; margin-top: 8px; min-height: 40px; color: var(--accent); font-weight: 700; text-align: left; }
+.med-forhaand { font-weight: 600; color: var(--fg); }
+#familie-overblik > #ov-medicin { grid-column: auto; }
