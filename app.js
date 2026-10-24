@@ -882,6 +882,11 @@ document.querySelectorAll('form.tilfoj[data-liste]').forEach(form => {
 
 // Står det allerede på listen, tilføjes det ikke igen. Er det krydset af, kommer det bare tilbage på listen.
 async function tilfoejUdenDublet(liste, felter) {
+  // Indkøb uden butik får den butik, varen plejer at købes i (huskes på hurtigvalget, når man sætter butik på en vare)
+  if (liste === 'indkob' && !felter.butik && !erBarn()) {
+    const f = Data.listNu('favoritter').find(x => x.type === 'indkob' && x.tekst.toLowerCase() === felter.tekst.trim().toLowerCase());
+    if (f?.butik) felter = { ...felter, butik: f.butik };
+  }
   const findes = (await Data.list(liste)).find(p => p.tekst.trim().toLowerCase() === felter.tekst.trim().toLowerCase());
   if (findes && !findes.klaret) {
     if (felter.antal && felter.antal !== findes.antal && !erBarn()) { await Data.update(liste, findes.id, { antal: felter.antal }); visStatus(findes.tekst + ' stod der allerede – antal sat til ' + felter.antal); return false; }
