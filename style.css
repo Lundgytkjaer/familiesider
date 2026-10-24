@@ -2392,3 +2392,9 @@ body.barn .fyld-ugen { display: none; }
 .med-linje-tekst { min-width: 0; }
 .med-p { color: var(--p); font-weight: 700; }
 .med-notelinje { font-size: 13.5px; color: var(--daempet); }
+/* 🧊 Frost / ikke frost denne gang (2026-10-24b) */
+.frost-tag { display: inline-block; padding: 0 7px; border-radius: 999px; font-size: 12px; font-weight: 700; background: color-mix(in srgb, #5aa9e6 18%, transparent); color: #2b7bbf; }
+.frost-tag.ikke { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
+.handle-ekstra .frost-tag { margin-right: 6px; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .frost-tag:not(.ikke) { color: #8cc8f5; } }
+:root[data-theme="dark"] .frost-tag:not(.ikke) { color: #8cc8f5; }

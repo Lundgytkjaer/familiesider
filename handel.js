@@ -83,22 +83,45 @@ function passer(t, o) {
   }
   return t.includes(' ' + o) || t.includes(o + ' ');
 }
-function autoKategori(vare) {
+function autoKategori(vare, udenFrost = false) {
   const t = norm(vare);
-  for (const [kat, liste] of FOERST) if (liste.some(o => passer(t, o))) return kat;
+  for (const [kat, liste] of FOERST) if (!(udenFrost && kat === 'frost') && liste.some(o => passer(t, o))) return kat;
   let bedst = null, laengde = 0;
   for (const [kat, liste] of Object.entries(ORD)) {
+    if (udenFrost && kat === 'frost') continue;
     for (const o of liste) if (o.length > laengde && passer(t, o)) { bedst = kat; laengde = o.length; }
   }
   return bedst || 'andet';
 }
-// Varens kategori: sat på varen > husket på favoritten > automatisk
-function varensKategori(p, favoritter) {
+// Varens faste kategori: sat på varen > husket på favoritten > automatisk
+function grundKategori(p, favoritter) {
   if (p.kategori && KAT[p.kategori]) return p.kategori;
   const f = favoritter.find(x => x.type === 'indkob' && x.tekst.toLowerCase() === (p.tekst || '').toLowerCase());
   if (f?.kategori && KAT[f.kategori]) return f.kategori;
   return autoKategori(p.tekst);
 }
+// …men "🧊 Frost denne gang" / "Ikke frost denne gang" (indkob.frost: true/false) gælder kun den ene gang (Timmo 24/10:
+// jordbær er næsten altid frost – en sjælden gang friske). Ikke frost = den kategori, varen ville have uden frost.
+function varensKategori(p, favoritter) {
+  const grund = grundKategori(p, favoritter);
+  if (p.frost === true) return 'frost';
+  if (p.frost === false && grund === 'frost') return autoKategori(p.tekst, true);
+  return grund;
+}
+// Knap til "hold fingeren"-vinduet: skifter frost/ikke frost for denne gang (huskes ikke på varen til næste gang)
+function frostKnap(p, favoritter) {
+  const grundFrost = grundKategori(p, favoritter) === 'frost';
+  const nu = varensKategori(p, favoritter) === 'frost';
+  const tekst = grundFrost ? (nu ? '🌿 Ikke frost denne gang' : '🧊 Frost igen') : (nu ? '↩ Ikke frost alligevel' : '🧊 Frost denne gang');
+  return knap(tekst, 'knap sekundaer-knap', async () => {
+    const ny = nu ? (grundFrost ? false : null) : (grundFrost ? null : true);
+    await Data.update('indkob', p.id, { frost: ny });
+    lukArk(); tegnAlt();
+    visStatus(p.tekst + (ny === true ? ': 🧊 frost denne gang' : ny === false ? ': ikke frost denne gang' : ': som normalt'));
+  });
+}
+// Lille mærke på varen, når den afviger denne gang
+const frostTag = p => p.frost === true ? el('span', 'frost-tag', '❄️ frost') : p.frost === false ? el('span', 'frost-tag ikke', 'ikke frost') : null;
 // Sæt kategori på en vare – og husk den til næste gang (voksne; børn kan ikke rette varer)
 async function saetKategori(p, kat) {
   await Data.update('indkob', p.id, { kategori: kat });
@@ -267,8 +290,9 @@ function handleLi(p, k) {
   // Butikken står altid på varen – også når man har valgt en butik (så man kan se, hvad der SKAL købes her,
   // og hvad der bare mangler og kan købes hvor som helst)
   const ekstra = [p.tilbud ? 'Tilbud' : '', p.note || ''].filter(Boolean);
-  if (ekstra.length || p.butik) {
+  if (ekstra.length || p.butik || frostTag(p)) {
     const linje = el('span', 'handle-ekstra' + (p.tilbud ? ' tilbud' : ''));
+    if (frostTag(p)) linje.append(frostTag(p));
     if (p.butik) linje.append(el('span', 'handle-butik' + (p.butik === butikFilter ? ' her' : ''), '📍 ' + p.butik));
     if (ekstra.length) linje.append(el('span', null, ekstra.join(' · ')));
     b.append(linje);

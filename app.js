@@ -635,8 +635,10 @@ async function tegnListe(navn) {
     if (p.antal) tekstEl.append(antalTag(p.antal));
     tekstEl.append(p.tekst);
     tekstBoks.append(tekstEl);
-    if (p.butik || p.tilbud || p.note || p.af || p.hvem || p.frist) {
+    const fTag = navn === 'indkob' && typeof frostTag === 'function' ? frostTag(p) : null;
+    if (p.butik || p.tilbud || p.note || p.af || p.hvem || p.frist || fTag) {
       const tags = el('span', 'tags');
+      if (fTag) tags.append(fTag);
       if (p.hvem) tags.append(el('span', 'hvem-tag ' + (PK[p.hvem] || ''), p.hvem));
       if (p.frist) { const f = fristTekst(p.frist, p.klaret); tags.append(el('span', f.klasse, f.tekst)); }
       if (p.af) tags.append(el('span', 'hvem-tag ' + (PK[p.af] || ''), 'Ønsket af ' + p.af));
@@ -748,7 +750,8 @@ function punktValg(liste, p, ekstra = []) {
   if (!maaSlette) return;
   // Indkøb: markér som vigtig (som med en overstregningstusch på en papirseddel)
   const foerst = liste === 'indkob' && !erBarn() && !p.klaret
-    ? [antalValg(p), knap(p.vigtig ? '✖ Fjern markering' : '🖍️ Markér som vigtig', 'knap marker-knap', async () => { await Data.update('indkob', p.id, { vigtig: !p.vigtig }); lukArk(); tegnAlt(); })]
+    ? [antalValg(p), knap(p.vigtig ? '✖ Fjern markering' : '🖍️ Markér som vigtig', 'knap marker-knap', async () => { await Data.update('indkob', p.id, { vigtig: !p.vigtig }); lukArk(); tegnAlt(); }),
+      ...(typeof frostKnap === 'function' ? [frostKnap(p, Data.listNu('favoritter'))] : [])]   // 🧊 frost / ikke frost denne gang (handel.js)
     : [];
   holdValg(p.tekst, {
     foerst,
@@ -885,7 +888,7 @@ async function tilfoejUdenDublet(liste, felter) {
     visStatus(findes.tekst + ' står allerede på listen'); return false;
   }
   if (erBarn()) { await Data.add(liste, { ...felter, af: Data.bruger().navn }); return true; }   // børn: hvem ønskede det
-  if (findes) { await Data.update(liste, findes.id, { klaret: false, antal: felter.antal || '', ...(felter.note ? { note: felter.note } : {}), ...(felter.butik ? { butik: felter.butik } : {}), ...(felter.prio ? { prio: felter.prio } : {}), ...(felter.frist ? { frist: felter.frist } : {}), ...(felter.vigtig ? { vigtig: true } : {}) }); return true; }
+  if (findes) { await Data.update(liste, findes.id, { klaret: false, ...(liste === 'indkob' ? { frost: null } : {}), antal: felter.antal || '', ...(felter.note ? { note: felter.note } : {}), ...(felter.butik ? { butik: felter.butik } : {}), ...(felter.prio ? { prio: felter.prio } : {}), ...(felter.frist ? { frist: felter.frist } : {}), ...(felter.vigtig ? { vigtig: true } : {}) }); return true; }
   await Data.add(liste, felter);
   return true;
 }
