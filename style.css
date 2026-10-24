@@ -1238,10 +1238,9 @@ html.flag-skrift { --font: "Twemoji Country Flags", "Hanken Grotesk", system-ui,
 .orden-knap { width: 44px; height: 44px; border: 0; border-radius: 12px; background: var(--flade); font-size: 15px; }
 .orden-knap:disabled { opacity: .25; }
 
-/* Handletilstand, kompakt: 2 kolonner med mindre tekst (1 kolonne på meget smalle skærme) */
-.handle-ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; background: none; border-radius: 0; overflow: visible; }
-@media (max-width: 340px) { .handle-ul { grid-template-columns: 1fr; } }
-@media (min-width: 640px) { .handle-ul { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* Handletilstand: 1 kolonne på telefonen, 2 på tablet */
+.handle-ul { display: grid; grid-template-columns: 1fr; gap: 6px; background: none; border-radius: 0; overflow: visible; }   /* 1 kolonne på telefonen (Timmo 24/10: mere tekst/info) */
+@media (min-width: 640px) { .handle-ul { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .handle-vare { background: var(--flade); border-radius: 12px; min-width: 0; box-shadow: 0 1px 2px rgb(0 0 0 / .05); }
 .handle-vare + .handle-vare { border-top: 0; }
 .handle-tjek { min-height: 42px; padding: 5px 8px; gap: 1px 8px; flex-wrap: wrap; }
