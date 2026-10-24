@@ -298,6 +298,11 @@ function handleLi(p, k) {
     b.append(linje);
   }
   li.append(b);
+  // Hold fingeren på en vare i handletilstand = frost/ikke frost denne gang eller skift kategori (Timmo 24/10)
+  if (!erBarn() && !p.klaret) langtTryk(b, () => holdValg(p.tekst, { foerst: [
+    frostKnap(p, Data.listNu('favoritter')),
+    knap('🏷️ Skift kategori', 'knap sekundaer-knap', () => { lukArk(); vaelgKategori(p, k); })
+  ] }));
   // Kun varer uden kategori har en knap – ellers ændres kategorien ved at holde fingeren på varen
   if (!erBarn() && !p.klaret && k === 'andet') {
     const kat = knap('❔', 'handle-kat ukendt', () => vaelgKategori(p, k));
