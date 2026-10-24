@@ -634,7 +634,6 @@ async function aiUdfoer(h) {
         const note = [v.pris ? 'Tilbud ' + v.pris : '', v.note].filter(Boolean).join(' · ');
         if (await tilfoejUdenDublet('indkob', { tekst: v.tekst, klaret: false, ...(v.antal ? { antal: v.antal } : {}), ...(h.butik ? { butik: h.butik } : {}),
           ...(v.vigtig ? { vigtig: true } : {}), ...(v.pris ? { tilbud: true } : {}), ...(note ? { note } : {}) })) await gemFavorit('indkob', v.tekst);   // kommer i hurtigvalget som når man skriver selv
-        if (h.butik) await saetFavFelter('indkob', v.tekst, { butik: h.butik });   // sedlen lærer appen, hvor varen købes
       }
       return;
     case 'todo_ny':

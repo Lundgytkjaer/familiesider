@@ -504,7 +504,7 @@ async function redigerVare(p) {
   if (p.butik && !butikker.includes(p.butik)) butikker.push(p.butik);
   let butik = p.butik || '';
   const muligheder = ['', ...butikker];
-  const lavButikValg = () => chipValg(muligheder, butik, b => { butik = b; gemSnart(); }, b => b || 'Ingen',
+  const lavButikValg = () => chipValg(muligheder, butik, b => { butik = b; gemSnart(); opdFast(); }, b => b || 'Ingen',
     b => butikValgHold(b, () => redigerVare(Data.listNu('indkob').find(x => x.id === p.id) || p)));   // hold = omdøb/slet butikken
   let butikValg = lavButikValg();
 
@@ -520,10 +520,24 @@ async function redigerVare(p) {
     const ny = lavButikValg();
     butikValg.replaceWith(ny);
     butikValg = ny;
-    gemSnart();
+    gemSnart(); opdFast();
   };
   nyButik.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); tilfoejButik(); } });
   nyButik.addEventListener('change', tilfoejButik);
+
+  // 📌 Køb altid her: kun når man aktivt vælger det, huskes butikken på hurtigvalget og sættes på varen næste gang
+  // (Timmo 24/10: en vare står ofte under en butik, fordi den er på tilbud dér – det må ikke huskes)
+  const favNu = () => Data.listNu('favoritter').find(f => f.type === 'indkob' && f.tekst.toLowerCase() === (navn.value.trim() || p.tekst).toLowerCase());
+  const fastLabel = el('label', 'check');
+  const fast = el('input'); fast.type = 'checkbox'; fast.id = 'vare-fast';
+  fastLabel.append(fast, '📌 Køb altid her');
+  const opdFast = () => { const f = favNu(); fastLabel.hidden = !butik; fast.checked = !!(butik && f?.fastButik && f.butik === butik); };
+  opdFast();
+  fast.addEventListener('change', async () => {
+    const tekst = navn.value.trim() || p.tekst;
+    if (fast.checked) { await gemFavorit('indkob', tekst); await saetFavFelter('indkob', tekst, { butik, fastButik: true }); visStatus(tekst + ' købes altid i ' + butik); }
+    else { await saetFavFelter('indkob', tekst, { fastButik: false }); visStatus(tekst + ': ingen fast butik'); }
+  });
 
   const tilbudLabel = el('label', 'check');
   const tilbud = el('input'); tilbud.type = 'checkbox'; tilbud.id = 'vare-tilbud'; tilbud.checked = !!p.tilbud;
@@ -577,7 +591,6 @@ async function redigerVare(p) {
       gemtTekst.textContent = 'Gemt';
       if (butik && butik !== sidsteButik) await gemFavorit('butik', butik);
       sidsteButik = butik;
-      await saetFavFelter('indkob', tekst, { butik });
       tegnAlt();
     } catch {
       gemtTekst.textContent = '';
@@ -599,7 +612,7 @@ async function redigerVare(p) {
   const fav = await Data.list('favoritter');
   const katValg = chipValg(KATEGORIER.map(k => k[0]), varensKategori(p, fav), async k => { await saetKategori(p, k); tegnAlt(); },
     k => KAT[k].ikon + ' ' + KAT[k].navn);
-  aabnArk('Vare', felt('Vare', navn), felt('Antal', antal), felt('Butik', butikValg), nyButik, vigtigLabel, tilbudLabel,
+  aabnArk('Vare', felt('Vare', navn), felt('Antal', antal), felt('Butik', butikValg), nyButik, fastLabel, vigtigLabel, tilbudLabel,
     felt('Note', note), felt('Billede', billedBoks), felt('Kategori (i handletilstand)', katValg), fejl, gemtTekst, knapper);
 }
 
@@ -882,10 +895,10 @@ document.querySelectorAll('form.tilfoj[data-liste]').forEach(form => {
 
 // Står det allerede på listen, tilføjes det ikke igen. Er det krydset af, kommer det bare tilbage på listen.
 async function tilfoejUdenDublet(liste, felter) {
-  // Indkøb uden butik får den butik, varen plejer at købes i (huskes på hurtigvalget, når man sætter butik på en vare)
+  // Indkøb uden butik får varens faste butik (📌 Køb altid her under Ret vare) – en butik sat én gang huskes ikke
   if (liste === 'indkob' && !felter.butik && !erBarn()) {
     const f = Data.listNu('favoritter').find(x => x.type === 'indkob' && x.tekst.toLowerCase() === felter.tekst.trim().toLowerCase());
-    if (f?.butik) felter = { ...felter, butik: f.butik };
+    if (f?.butik && f.fastButik) felter = { ...felter, butik: f.butik };
   }
   const findes = (await Data.list(liste)).find(p => p.tekst.trim().toLowerCase() === felter.tekst.trim().toLowerCase());
   if (findes && !findes.klaret) {
@@ -1095,7 +1108,7 @@ async function tegnForslag(type) {
       } else {
         const felter = { tekst: f.tekst, klaret: false };
         if (type === 'todo') felter.prio = nyPrio;
-        if (type === 'indkob' && f.butik) felter.butik = f.butik;
+        if (type === 'indkob' && f.butik && f.fastButik) felter.butik = f.butik;   // kun en fast butik (📌 Køb altid her)
         if (await tilfoejUdenDublet(type, felter)) await gemFavorit(type, f.tekst);
         document.getElementById('ny-' + type).value = '';
       }
