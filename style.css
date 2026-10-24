@@ -2398,3 +2398,6 @@ body.barn .fyld-ugen { display: none; }
 .handle-ekstra .frost-tag { margin-right: 6px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .frost-tag:not(.ikke) { color: #8cc8f5; } }
 :root[data-theme="dark"] .frost-tag:not(.ikke) { color: #8cc8f5; }
+/* Antal: feltet fylder, OK er kun så bred som sin tekst (knapperne i hold-vinduet er ellers 100 % brede) */
+.antal-valg .oenske-form input[type="text"] { flex: 1; min-width: 0; width: auto; }
+.antal-valg .oenske-form .knap { width: auto; flex: none; padding-inline: 22px; }
