@@ -514,7 +514,7 @@ function retChips(favs, felt, tekst, vaelg) {
   return boks;
 }
 
-function tilpasRet(favs, felt, tekst, vaelg) {
+function tilpasRet(favs, felt, tekst, vaelg, tilbage = null) {   // tilbage: åbn det forrige ark igen (fra måltids-arket på børnetavlen)
   const fund = findRet(favs, felt, tekst);
   const f = fund.fav;
   const vs = aktiveVarianter(f), sider = passerSider(f), ekstra = passerEkstra(f), sovse = passerSovse(f);
@@ -592,9 +592,9 @@ function tilpasRet(favs, felt, tekst, vaelg) {
     tegn(); await vaelg(tekstNu());
   });
   const knapper = el('div', 'ark-knapper');
-  knapper.append(knap('Færdig', 'knap', lukArk));
+  knapper.append(knap(tilbage ? '✓ Tilbage' : 'Færdig', 'knap', tilbage || lukArk));
   aabnArk('Tilpas: ' + f.tekst, vis, indhold, fyldForm,
-    el('p', 'hint', 'Gemmes med det samme. Hvad der passer, rettes under "Vores lister" → tryk på retten.'), knapper);
+    el('p', 'hint', (tilbage ? 'Gemmes, når du trykker Gem.' : 'Gemmes med det samme.') + ' Hvad der passer, rettes under "Vores lister" → tryk på retten.'), knapper);
 }
 
 // ---------- De fælles lister over tilbehør og ekstra (voksne) ----------

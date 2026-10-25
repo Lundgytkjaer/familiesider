@@ -3109,12 +3109,14 @@ async function redigerMaaltid(barn, dato, felt) {
   const chips = el('div', 'forslag maaltid-chips');
   const gem = knap('', 'knap maaltid-gem', async () => {
     if (!valgt.length) return;
-    for (const v of valgt) if (!ER_RESTER.test(v)) await gemFavorit(felt, v);   // hver ret tælles op (kombinationen bliver ikke en ny ret)
+    for (const v of valgt) if (!ER_RESTER.test(v)) await gemFavorit(felt, findRet(alleFavs, felt, v)?.fav.tekst || v);   // hver ret tælles op (kombinationen/tilpasningen bliver ikke en ny ret)
     vaelg(valgt.join(' og '));
   });
 
   const stort = t => t ? t[0].toUpperCase() + t.slice(1) : t;
-  const tilfoej = v => { v = stort(v.trim()); if (!v) return; const i = valgt.findIndex(x => x.toLowerCase() === v.toLowerCase()); if (i >= 0) valgt.splice(i, 1); else valgt.push(v); soeg.value = ''; tegn(); };
+  // Samme ret, også når den er tilpasset ("Boller med ost" = Boller)
+  const grund = x => (findRet(alleFavs, felt, x)?.fav.tekst || x).toLowerCase();
+  const tilfoej = v => { v = stort(v.trim()); if (!v) return; const i = valgt.findIndex(x => x.toLowerCase() === v.toLowerCase() || grund(x) === v.toLowerCase()); if (i >= 0) valgt.splice(i, 1); else valgt.push(v); soeg.value = ''; tegn(); };
   soegForm.addEventListener('submit', e => { e.preventDefault(); const v = soeg.value.trim(); if (!v) return;
     tilfoej(favs.find(x => x.toLowerCase() === v.toLowerCase()) || v); soeg.blur(); });
   soeg.addEventListener('input', () => tegnChips());
@@ -3128,8 +3130,9 @@ async function redigerMaaltid(barn, dato, felt) {
     const dele = [];
     if (q && !favs.some(v => v.toLowerCase() === q)) dele.push(knap('＋ Tilføj "' + stort(soeg.value.trim()) + '"', 'ny-ret-chip', () => { tilfoej(soeg.value); soeg.blur(); }));
     for (const v of liste) {
-      const k = knap('', valgt.some(x => x.toLowerCase() === v.toLowerCase()) ? 'valgt' : null, () => tilfoej(v));
-      k.append(el('span', 'plus', valgt.some(x => x.toLowerCase() === v.toLowerCase()) ? '✓' : '+'), v);
+      const erValgt = valgt.some(x => x.toLowerCase() === v.toLowerCase() || grund(x) === v.toLowerCase());
+      const k = knap('', erValgt ? 'valgt' : null, () => tilfoej(v));
+      k.append(el('span', 'plus', erValgt ? '✓' : '+'), v);
       dele.push(k);
     }
     if (skjult) dele.push(knap('Vis alle (' + favs.length + ') ▾', 'styr', () => { visAlle = true; tegnChips(); }));
@@ -3138,7 +3141,14 @@ async function redigerMaaltid(barn, dato, felt) {
   }
   function tegn() {
     valgtBoks.replaceChildren(el('span', 'maaltid-valgt-titel', valgt.length > 1 ? 'Valgt (' + valgt.length + ')' : 'Valgt'),
-      ...(valgt.length ? valgt.map(v => { const p = knap('', 'valgt-pille', () => tilfoej(v)); p.append(v, el('span', 'valgt-x', '✕')); p.setAttribute('aria-label', 'Fjern ' + v); return p; })
+      ...(valgt.length ? valgt.flatMap((v, i) => {
+        const p = knap('', 'valgt-pille', () => tilfoej(v)); p.append(v, el('span', 'valgt-x', '✕')); p.setAttribute('aria-label', 'Fjern ' + v);
+        // ✎ Tilpas (pålæg, tilbehør …) som i madplanen – fx Boller med ost og syltetøj (Timmo 25/10). Gemmes først med Gem.
+        if (!voksen || ER_RESTER.test(v) || !retChips(alleFavs, felt, v, () => {})) return [p];
+        const t = knap('✎ Tilpas', 'var-chip tilpas-chip', () => tilpasRet(alleFavs, felt, v, async ny => { valgt[i] = ny; }, () => { visArk(); tegn(); }));
+        t.setAttribute('aria-label', 'Tilpas ' + v);
+        return [p, t];
+      })
         : [el('span', 'hint', 'Tryk på en ret nedenfor – du kan vælge flere')]));
     gem.disabled = !valgt.length;
     gem.textContent = valgt.length ? 'Gem: ' + valgt.join(' og ') : 'Vælg en ret';
@@ -3168,8 +3178,9 @@ async function redigerMaaltid(barn, dato, felt) {
   const valg = el('div', 'maaltid-tjek');
   if (andre.length) valg.append(ogsaaLabel);
   if (kanGoereFast) valg.append(fastLabel);
-  aabnArk(NAVN[felt] + ' til ' + barn + ' · ' + DAGE_LANG[dag].toLowerCase(),
+  const visArk = () => aabnArk(NAVN[felt] + ' til ' + barn + ' · ' + DAGE_LANG[dag].toLowerCase(),
     el('p', 'hint', forklaring), valgtBoks, soegForm, chips, valg, knapper);
+  visArk();
 }
 
 // ---------- Madønsker fra børnene ----------
