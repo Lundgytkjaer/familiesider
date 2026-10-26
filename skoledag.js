@@ -3,7 +3,8 @@
 //   {dato, hvem: barn | [børn], titel, type: 'skoledag', fri: false, tid: '', slut: '',
 //    program?: [{tid: '09.00-10.00', tekst}],   – programmet for dagen (fx brætspilsdag). Fælles for alle børn i aftalen
 //    moede?: 'HH:MM', friKl?: 'HH:MM',           – ændrede tider ("alle møder 9", "alle har fri 12")
-//    noter?: [{fag, tekst}],                     – note til et fag den dag (fx "Idræt: løb ude, husk løbesko")
+//    noter?: [{fag, tekst, kl?}],                – note til et fag den dag (fx "Idræt: løb ude, husk løbesko");
+//                                                  kl = noten hører til timen på det klokkeslæt (fx Matematik 9.00, ikke alle matematiktimer)
 //    note?}
 // Hvert barn beholder sine egne tider: programmet vises kun inden for barnets mødetid–fri-tid,
 // og resten af dagen fyldes ud med barnets normale fag (`fletSkoledag`).
@@ -72,6 +73,12 @@ function fletSkoledag(alle, s) {
   const passer = (fag, navn) => { const f = (fag || '').trim().toLowerCase(); return !!f && (f === navn || f.includes(navn) || navn.includes(f)); };
   for (const n of (s.noter || []).filter(n => n.tekst)) {
     const navn = (n.fag || '').trim().toLowerCase();
+    // Med klokkeslæt: kun den time, der er i gang på det tidspunkt
+    const kl = tidSomMin(visTid(n.kl))[0];
+    if (kl != null) {
+      const r = raekker.find(r => { const [f, e] = tidSomMin(r.tid); return f != null && e != null && kl >= f && kl < e; });
+      if (r) { (r.noter ||= []).push(n.tekst); continue; }
+    }
     if (!navn) { resten.push(n); continue; }
     const ramt = raekker.filter(r => !r.saerlig && passer(r.fag, navn));
     // Dobbelttime (samme fag lige efter hinanden): noten står kun ved den første
@@ -114,7 +121,7 @@ function redigerSkoledag(barn, iso, x = null, opts = {}) {
   const valgte = new Set(x ? personerI(x).filter(p => BOERN.includes(p)) : [barn]);
   const hvemSeg = el('div', 'seg wrap');
   const tegnHvem = () => hvemSeg.replaceChildren(...BOERN.map(b => {
-    const k = knap(b, null, () => { valgte.has(b) ? valgte.delete(b) : valgte.add(b); tegnHvem(); visEksempel(); });
+    const k = knap(b, null, () => { valgte.has(b) ? valgte.delete(b) : valgte.add(b); tegnHvem(); tegnNoter(); visEksempel(); });
     k.setAttribute('role', 'checkbox'); k.setAttribute('aria-checked', valgte.has(b));
     return k;
   }));
@@ -172,7 +179,26 @@ function redigerSkoledag(barn, iso, x = null, opts = {}) {
       const slet = knap('', 'slet', () => { noter.splice(i, 1); tegnNoter(); visEksempel(); });
       slet.innerHTML = IKON_SLET; slet.setAttribute('aria-label', 'Fjern noten');
       r.append(fag, tekst, slet);
-      return r;
+      // Vælg timen direkte (fx "9.00 Matematik") – så står noten præcis ved den time
+      const timer = el('div', 'seg wrap sd-note-timer');
+      (async () => {
+        const b = BOERN.find(b => valgte.has(b)), dagNr = (new Date(dato.value + 'T00:00').getDay() + 6) % 7;
+        if (!b || !dato.value || dagNr > 4) return;
+        const liste = (await dagensTimer(b, dagNr)).filter(t => t.fag && tidSomMin(t.tid)[0] != null);
+        timer.replaceChildren(...liste.map(t => {
+          const start = tilKl(tidSomMin(t.tid)[0]);
+          const valgt = n.kl === start;
+          const k = knap(visTid(start).replace(/^0/, '') + ' ' + t.fag, null, () => {
+            if (valgt) delete n.kl; else { n.kl = start; n.fag = t.fag; }
+            tegnNoter(); visEksempel();
+          });
+          k.setAttribute('role', 'checkbox'); k.setAttribute('aria-checked', valgt);
+          return k;
+        }));
+      })();
+      const boks = el('div', 'sd-note-boks');
+      boks.append(r, timer);
+      return boks;
     }));
   };
   tegnNoter();
@@ -206,7 +232,7 @@ function redigerSkoledag(barn, iso, x = null, opts = {}) {
       eksempel.replaceChildren(...(dele.length ? [el('h3', 'lille-titel', 'Sådan ser dagen ud'), ...dele] : []));
     }, 250);
   }
-  dato.addEventListener('change', visEksempel);
+  dato.addEventListener('change', () => { tegnNoter(); visEksempel(); });
 
   function samlet() {
     const program = prog.filter(p => (p.tekst || '').trim() || (p.tid || '').trim())
@@ -215,7 +241,7 @@ function redigerSkoledag(barn, iso, x = null, opts = {}) {
       dato: dato.value, hvem: valgte.size === 1 ? [...valgte][0] : BOERN.filter(b => valgte.has(b)),
       titel: titel.value.trim(), type: SKOLEDAG, fri: false, tid: '', slut: '', tilDato: null, gentag: '', gentagTil: null,
       program, moede: moede.value || '', friKl: friKl.value || '',
-      noter: noter.map(n => ({ fag: (n.fag || '').trim(), tekst: (n.tekst || '').trim() })).filter(n => n.tekst),
+      noter: noter.map(n => ({ fag: (n.fag || '').trim(), tekst: (n.tekst || '').trim(), ...(n.kl ? { kl: n.kl } : {}) })).filter(n => n.tekst),
       note: note.value.trim()
     };
   }

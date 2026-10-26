@@ -2401,3 +2401,8 @@ body.barn .fyld-ugen { display: none; }
 /* Antal: feltet fylder, OK er kun så bred som sin tekst (knapperne i hold-vinduet er ellers 100 % brede) */
 .antal-valg .oenske-form input[type="text"] { flex: 1; min-width: 0; width: auto; }
 .antal-valg .oenske-form .knap { width: auto; flex: none; padding-inline: 22px; }
+/* Noter fra en ændring i skolen: voksne kan trykke for at rette/slette */
+.lektion-note.kan-rettes { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.sd-note-boks { display: grid; gap: 6px; }
+.sd-note-timer:empty { display: none; }
+.sd-note-timer button { min-height: 34px; padding: 0 10px; font-size: 14px; }

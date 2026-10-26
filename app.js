@@ -2633,6 +2633,14 @@ async function tegnBoernetavle(barn) {
       const noteEl = noteListe.length ? el('div', 'sd-noter') : '';
       for (const n of noteListe) noteEl.append(el('p', 'lektion-note', '📝 ' + n));
       skemaKort = kort('Skole', ...saerDele, tider, ol, noteEl, forklaring(farver, new Set(timer.map(t => t.farve))));
+      // Noter fra en ændring i skolen kan altid rettes/slettes af voksne – også når der ikke er noget mærke øverst (kun noter)
+      if (!erBarn() && sd.saerlig) for (const n of skemaKort.querySelectorAll('.lektion-note')) {
+        const t = n.textContent.replace(/^📝\s*/, '');
+        const hvilken = (sd.saerlig._alle || [sd.saerlig]).find(a => (a.noter || []).some(x => t.endsWith(x.tekst)) || (a.note && t.includes(a.note))) || sd.saerlig._rediger || sd.saerlig;
+        n.classList.add('kan-rettes'); n.setAttribute('role', 'button'); n.tabIndex = 0;
+        n.title = 'Ret eller slet noten';
+        n.addEventListener('click', e => { e.stopPropagation(); lukZoom?.(); redigerSkoledag(barn, iso, hvilken); });
+      }
       // Opsummering til tavle-visningen: hvad sker der nu / næste
       let friTid = tidlig ? tidlig.tid : slut;
       const nuTime = iso === idagIso ? timer.find(t => { const [fra, til] = tidSomMin(t.tid); return fra != null && til != null && nuMin >= fra && nuMin < til; }) : null;
