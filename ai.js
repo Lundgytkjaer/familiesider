@@ -169,8 +169,48 @@ function aiVare(v) {
   if (o.oeko && !/^øko/i.test(t)) t = 'Øko ' + t[0].toLowerCase() + t.slice(1);
   const tekst = aiKendteVarer().find(k => lavt(k) === lavt(t)) || t[0].toUpperCase() + t.slice(1);
   const pris = aiT(o.pris, 20);
-  return { tekst, antal: aiT(o.antal, 12) || aiT(m?.[2], 12), vigtig: !!o.vigtig, pris: pris && !/kr/i.test(pris) ? pris + ' kr' : pris,
-    note: aiT(o.note, 80), usikker: aiT(o.usikker, 60) };
+  // Parentes i navnet: en mængde ("2", "500 g") = antal – alt andet ("lille pakke", "2% neutral") = note
+  const paren = aiT(m?.[2], 60), parenAntal = /^\d+([.,]\d+)?\s*(stk|x|l|dl|cl|g|kg|pk|ps|bakker?|poser?|pakker?)?\.?$/i.test(paren);
+  return { tekst, antal: aiT(o.antal, 12) || (parenAntal ? paren.slice(0, 12) : ''), vigtig: !!o.vigtig, pris: pris && !/kr/i.test(pris) ? pris + ' kr' : pris,
+    note: [aiT(o.note, 80), parenAntal ? '' : paren].filter(Boolean).join(' · ').slice(0, 80), usikker: aiT(o.usikker, 60) };
+}
+// En indsat vareliste (sms) læses direkte – uden AI, så reglerne altid holder (Timmo 29/10: AI'en byttede om på pris og antal).
+// Linjer der ender med ":" er overskrifter: et butiksnavn = butikken for varerne under, alt andet ("Vil du handle på vej hjem:", "Diverse:") = ingen butik.
+// Pr. vare: "Ø"/"øko" foran eller et løst "o"/"ø" = øko · (…) og ", lille" = note · "29 x 3" = pris 29 kr + antal 3 · "x 2"/"2x" = antal ·
+// et tal til sidst uden x = tilbudspris · "!" eller "*" = vigtig · "2 l mælk" = antal forrest.
+function aiLaesTekstSeddel(tekst) {
+  const butikker = [...new Set(Data.listNu('favoritter').filter(f => f.type === 'butik').map(f => f.tekst))];
+  const findButik = h => {
+    const t = lavt(h).replace(/[^a-zæøå0-9 ]/g, ' ').trim();
+    if (!t) return '';
+    return butikker.find(b => lavt(b) === t) || butikker.find(b => lavt(b).split(/\s+/).includes(t) || t.split(/\s+/).includes(lavt(b))) || butikker.find(b => lavt(b).includes(t) || t.includes(lavt(b))) || '';
+  };
+  const grupper = new Map();   // butik → varer
+  let butik = '';
+  for (let linje of tekst.split(/\n/)) {
+    linje = linje.replace(/^\s*[-•*–]\s+/, '').trim();
+    if (!linje) continue;
+    const h = linje.match(/^([^:]{1,40}):\s*(\(.*\))?$/);
+    if (h) { butik = findButik(h[1]); continue; }
+    let navn = linje, note = [], pris = '', antal = '', oeko = false, vigtig = false;
+    if (/^[!*]|[!*]$/.test(navn)) { vigtig = true; navn = navn.replace(/^[!*]+\s*|\s*[!*]+$/g, ''); }
+    navn = navn.replace(/\(([^)]*)\)/g, (_, x) => { if (x.trim()) note.push(x.trim().replace(/[“”]/g, '"')); return ' '; });
+    navn = navn.replace(/,\s*([^,]+)$/, (_, x) => { note.push(x.trim()); return ''; });
+    if (/^(ø|øko|økologisk|øko\.)\s+/i.test(navn)) { oeko = true; navn = navn.replace(/^(ø|øko|økologisk|øko\.)\s+/i, ''); }
+    navn = navn.replace(/\s+[oø](?=\s|$)/i, () => { oeko = true; return ' '; }).replace(/\s+/g, ' ').trim();
+    let m;
+    if ((m = navn.match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)\s*(?:kr\.?)?\s*[x×]\s*(\d+)$/i))) { navn = m[1]; pris = m[2]; antal = m[3]; }
+    else if ((m = navn.match(/^(.*\S)\s+[x×]\s*(\d+)$/i)) || (m = navn.match(/^(.*\S)\s+(\d+)\s*[x×]$/i))) { navn = m[1]; antal = m[2]; }
+    else if ((m = navn.match(/^(\d+)\s*[x×]\s+(.+)$/i))) { navn = m[2]; antal = m[1]; }
+    else if ((m = navn.match(/^(.*\S)\s+(\d+(?:[.,]\d+)?)\s*(?:kr\.?|,-)?$/i))) { navn = m[1]; pris = m[2]; }
+    if (!antal && typeof delAntal === 'function') { const d = delAntal(navn); if (d.antal) { antal = d.antal; navn = d.tekst; } }   // "2 l mælk" (app.js)
+    navn = navn.trim();
+    if (!navn) continue;
+    if (!grupper.has(butik)) grupper.set(butik, []);
+    grupper.get(butik).push({ navn, ...(antal ? { antal } : {}), ...(pris ? { pris: pris + ' kr' } : {}), ...(oeko ? { oeko: true } : {}), ...(vigtig ? { vigtig: true } : {}), ...(note.length ? { note: note.join(' · ') } : {}) });
+  }
+  const handlinger = [...grupper].map(([b, varer]) => ({ type: 'indkob_ny', ...(b ? { butik: b } : {}), varer }));
+  return { svar: handlinger.length ? 'Læst direkte fra teksten – ret til, hvis noget står forkert.' : 'Jeg fandt ingen varer i teksten.', handlinger };
 }
 const aiVareTekst = v => (v.vigtig ? '★ ' : '') + (v.antal ? v.antal + ' ' : '') + v.tekst + (v.pris ? ' (tilbud ' + v.pris + ')' : '') + (v.note ? ' – ' + v.note : '') + (v.usikker ? ' ❓' : '');
 // Det AI'en får at vide – kun det, opgaven skal bruge
@@ -1053,7 +1093,8 @@ function aabnAI(opts = {}) {
     let res;
     try {
       const bil = bilag(billede);
-      res = await Data.ai(tekst || (billede ? 'Se billedet.' : ''), await aiKontekst(opgave, uge, { boern: aiSkoleBoern }), hist, bil, opgave);
+      res = tekstSeddel && foerste ? aiLaesTekstSeddel(skrevet)   // indsat liste: læses direkte (ingen AI)
+        : await Data.ai(tekst || (billede ? 'Se billedet.' : ''), await aiKontekst(opgave, uge, { boern: aiSkoleBoern }), hist, bil, opgave);
     } catch (e) {
       samtale.pop(); felt.value = skrevet; vedhaeftet = sendtBillede || billede; tegnFoto();
       tegn();
