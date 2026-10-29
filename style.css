@@ -2406,3 +2406,5 @@ body.barn .fyld-ugen { display: none; }
 .sd-note-boks { display: grid; gap: 6px; }
 .sd-note-timer:empty { display: none; }
 .sd-note-timer button { min-height: 34px; padding: 0 10px; font-size: 14px; }
+/* Ryd hele indkøbslisten – under "Ryd det købte", lidt mere forsigtig farve */
+.ryd.ryd-alt { margin-top: 8px; color: var(--fare); background: transparent; }

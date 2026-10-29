@@ -724,6 +724,7 @@ async function tegnListe(navn) {
   if (navn === 'todo') badge.title = aabne.some(p => p.frist && p.frist <= idagIso) ? 'Noget skal være gjort i dag' : '';
   document.querySelector(`[data-taeller="${navn}"]`).textContent = aabne.length ? aabne.length + (navn === 'indkob' ? ' mangler' : ' åbne') : '';
   document.querySelector(`.ryd[data-liste="${navn}"]`).hidden = !punkter.some(p => p.klaret);
+  if (navn === 'indkob') document.getElementById('ryd-alt-indkob').hidden = erBarn() || punkter.filter(p => !p.klaret).length < 2;
 }
 
 // Hold fingeren på et punkt (ca. ½ sekund) → slet eller ret. Det almindelige tryk (afkrydsning) sker så ikke.
@@ -1170,6 +1171,12 @@ document.querySelectorAll('.ryd[data-liste]').forEach(knap => {
     tegnAlt();
   }));
 });
+
+// Ryd hele indkøbslisten (fx når en sms-liste skal erstatte den gamle) – to tryk, kan fortrydes i bjælken nederst
+document.getElementById('ryd-alt-indkob').addEventListener('click', e => bekraeft(e.currentTarget, async () => {
+  await Data.removeMange('indkob', (await Data.list('indkob')).map(p => p.id));
+  tegnAlt();
+}));
 
 // ---------- Madplan ----------
 // Hver række hører til en uge: {uge: mandagens dato 'ÅÅÅÅ-MM-DD', dag: 0-6, ret, morgen, frokost}
