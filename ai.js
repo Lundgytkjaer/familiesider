@@ -729,10 +729,12 @@ function aiHvorErJeg() {
   const barn = side === 'idag' && BOERN.includes(tavleVisning) ? tavleVisning : side === 'skema' && BOERN.includes(skemaBarn) ? skemaBarn : '';
   return { side, barn };
 }
+// En indsat liste med varer (fx fra en sms): mindst 3 linjer – læses som en indkøbsseddel (samme regler: Ø = øko, tal = pris, x = antal, butiksoverskrifter)
+const aiErVareListe = t => (t || '').split(/\n/).filter(l => l.trim()).length >= 3;
 // Emne → opgave, når det kan afgøres uden AI (ellers null = spørg omstillingen)
 function aiEmneOpgave(emne, skrevet, billede) {
   if (emne === 'skole') return 'skole';
-  if (emne === 'indkob') return billede ? 'seddel' : 'fri';
+  if (emne === 'indkob') return billede || aiErVareListe(skrevet) ? 'seddel' : 'fri';
   if (emne === 'kalender') return billede ? 'ugeseddel' : 'fri';
   if (emne === 'todo') return 'fri';
   if (emne === 'invitation' || emne === 'opskrift') return emne;
@@ -987,7 +989,7 @@ function aabnAI(opts = {}) {
     const o = res?.omstil;
     if (!o) throw new Error('✨ skal opdateres i Supabase (Edge Function "ai")');
     let ny = AI_OPGAVER[o.opgave] ? o.opgave : '';
-    if ((ny === 'seddel' || ny === 'ugeseddel') && !billede) ny = 'fri';   // de to læser kun billeder
+    if ((ny === 'seddel' && !aiErVareListe(skrevet) || ny === 'ugeseddel') && !billede) ny = 'fri';   // ugeseddel læser kun billeder; seddel også en indsat liste
     if (!ny) return { spoergsmaal: o.spoergsmaal || 'Hvad vil du gerne have hjælp til?' };
     if (ny === 'invitation' && !billede && !skrevet) ny = 'fri';
     if (ny === 'skole') saetBoern(o.boern?.length ? o.boern : hvor.barn ? [hvor.barn] : null);
@@ -1025,19 +1027,21 @@ function aabnAI(opts = {}) {
       samtale = [];   // omstillingen er klaret – opgaven starter rent med det, der er skrevet
       saetOpgave(valg);
       skrevet = alleTekster; billede = foto;
-      if (def.foto === 'kun' && !billede) { tegn(); visStatus('Tag et billede eller vælg en fil'); return; }
+      if (def.foto === 'kun' && !billede && !(valg === 'seddel' && aiErVareListe(skrevet))) { tegn(); visStatus('Tag et billede eller vælg en fil'); return; }
     }
     await koer(skrevet, billede);
   }
 
   async function koer(skrevet, billede) {
     const foerste = !samtale.length;
-    if (def.foto === 'kun' && foerste && !billede) { visStatus('Tag et billede eller vælg en fil først'); return; }
+    const tekstSeddel = opgave === 'seddel' && !billede && aiErVareListe(skrevet);   // indsat liste (sms) i stedet for et billede
+    if (def.foto === 'kun' && foerste && !billede && !tekstSeddel) { visStatus('Tag et billede eller vælg en fil først'); return; }
     if (!skrevet && !billede && !(foerste && def.tekst)) { felt.focus(); return; }
     if (erSkole() && !boernValgt.size) { visStatus('Vælg hvilke børn beskeden gælder'); return; }
     if (erSkole()) aiSkoleBoern = BOERN.filter(b => boernValgt.has(b));
     // Første besked i en fast opgave: opgavens tekst (+ evt. ønsker); ellers det der er skrevet
-    const tekst = foerste && def.tekst ? def.tekst + (skrevet ? (billede ? ' Min kommentar til billedet: ' : ' Ønsker: ') + skrevet : '') : skrevet;
+    const tekst = tekstSeddel && foerste ? 'Læg varerne fra sedlen på indkøbslisten. Sedlen er indsat som tekst (fx fra en sms):\n' + skrevet
+      : foerste && def.tekst ? def.tekst + (skrevet ? (billede ? ' Min kommentar til billedet: ' : ' Ønsker: ') + skrevet : '') : skrevet;
     const hist = historik();
     samtale.push({ rolle: 'user', tekst, vis: skrevet || (billede ? '' : def.tekst), ...(billede ? { foto: billede } : {}) });
     felt.value = '';
