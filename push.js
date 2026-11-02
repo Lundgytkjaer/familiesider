@@ -94,7 +94,7 @@ function pushIndstilling() {
 
 // Hvad skal give besked til en person (gemmes i personvalg, så det gælder alle personens telefoner).
 // Voksne kan også rette det for børnene. Standard: alt relevant er slået til.
-const PUSH_VALG_VOKSEN = [['pushVenter', '🎁 Når et barn venter på jer'], ['pushSedler', '✉️ Når der kommer en seddel']];
+const PUSH_VALG_VOKSEN = [['pushVenter', '🎁 Når et barn venter på jer'], ['pushSedler', '✉️ Når der kommer en seddel'], ['pushPaamind', '🔔 Påmindelser om aftaler']];
 const PUSH_VALG_BARN = [['pushSedler', '✉️ Når der kommer en seddel'], ['pushSvar', '👍 Svar på mine ønsker']];
 function pushValg(hvem) {
   const boks = el('div', 'seg wrap tilpas-valg');

@@ -2023,7 +2023,7 @@ const FRAVAER = {
 // også i databasen) – men hedder "Off-dag" med 🌿 og en rolig tekst i stedet for "God bedring 🤒"
 const erOff = a => !!(a && a.type === 'syg' && a.off);
 const friIkon = a => (erOff(a) ? '🌿' : FRAVAER[a.type]?.ikon || '😎');
-const laas = a => (a.fri || a.type === 'tidlig' ? ' ' + friIkon(a) : a.type === 'skoledag' ? ' 🏫' : '') + (a._privat ? ' 👤' : a._voksne ? ' 🔒' : '');   // markering på ferie/fri/fravær og kun-voksne-aftaler
+const laas = a => (a.fri || a.type === 'tidlig' ? ' ' + friIkon(a) : a.type === 'skoledag' ? ' 🏫' : '') + (a._privat ? ' 👤' : a._voksne ? ' 🔒' : '') + (a.paamind ? ' 🔔' : '');   // markering på ferie/fri/fravær og kun-voksne-aftaler
 const fravaerDen = (aftaler, iso, barn) => aftalerDen(aftaler, iso, [barn]).find(a => FRAVAER[a.type]) || null;
 const sygDen = (aftaler, iso, barn) => aftalerDen(aftaler, iso, [barn]).some(a => a.type === 'syg');
 const offDen = (aftaler, iso, barn) => aftalerDen(aftaler, iso, [barn]).some(erOff);
@@ -2390,7 +2390,18 @@ function redigerAftale(a, forekomst) {
   const caBoks = el('div', 'seg wrap');
   caBoks.append(caKnap);
   caBoks.hidden = !tid.value;
-  tid.addEventListener('input', () => { caBoks.hidden = !tid.value; });
+
+  // 🔔 Påmind (push til de voksne i aftalen – Fælles/børn = begge voksne; Kun mig = kun mig). Sendes af Supabase (push-funktionen, hvert 5. min)
+  let paamind = a.paamind || '';
+  const PAAMIND_NAVN = { '': 'Nej', '15': '15 min før', '60': '1 time før', '120': '2 timer før', morgen: 'Samme morgen kl. 7', aften: 'Aftenen før kl. 19' };
+  const paamindBoks = el('div');
+  const tegnPaamind = () => {
+    const muligt = tid.value ? ['', '15', '60', '120', 'morgen', 'aften'] : ['', 'morgen', 'aften'];   // uden klokkeslæt: kun morgen/aften
+    if (!muligt.includes(paamind)) paamind = '';
+    paamindBoks.replaceChildren(chipValg(muligt, paamind, v => { paamind = v; }, v => PAAMIND_NAVN[v]));
+  };
+  tegnPaamind();
+  tid.addEventListener('input', () => { caBoks.hidden = !tid.value; tegnPaamind(); });
 
   // Samler felterne – eller null hvis noget mangler
   function felter() {
@@ -2411,7 +2422,8 @@ function redigerAftale(a, forekomst) {
       note: note.value.trim(),
       gentag,
       gentagTil: gentag ? gentagTil.value || null : null,
-      fri
+      fri,
+      paamind: fri ? '' : paamind
     };
   }
   const faerdig = () => { lukArk(); tegnAlt(); };
@@ -2458,7 +2470,7 @@ function redigerAftale(a, forekomst) {
   }
 
   aabnArk(ny ? 'Ny aftale' : 'Ret aftale', felt('Hvad', titel), felt('Hvem', hvemValg), datoRaekke, tidRaekke, caBoks,
-    felt('Gentages', gentagValg), gentagTilFelt, voksneBoks, friHint, felt('Note', note),
+    felt('Gentages', gentagValg), gentagTilFelt, felt('🔔 Påmind', paamindBoks), voksneBoks, friHint, felt('Note', note),
     erVoksenNu ? felt('Hvem kan se den', synligValg) : '', erVoksenNu ? synligHint : '', fejl, knapper);
   if (ny) setTimeout(() => titel.focus(), 50);
 }
