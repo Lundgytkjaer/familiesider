@@ -3685,6 +3685,10 @@ async function tegnOverblik() {
   if (!ovMed) { ovMed = el('div'); ovMed.id = 'ov-medicin'; document.getElementById('ov-todo-kort').after(ovMed); }
   const medK = typeof medicinKort === 'function' ? await medicinKort() : null;
   ovMed.replaceChildren(...(medK ? [medK] : [])); ovMed.hidden = !medK;
+  // 💭 Dagens huskeord (huskeord.js) – kun den voksne selv; kan skjules på en fælles skærm
+  let ovHusk = document.getElementById('ov-huskeord');
+  if (!ovHusk) { ovHusk = el('div'); ovHusk.id = 'ov-huskeord'; document.getElementById('ov-oensker').after(ovHusk); }   // højt oppe – den skal ses
+  if (typeof opdaterHuskKort === 'function') opdaterHuskKort();
   document.getElementById('ov-todo-antal').textContent = haster.length > 5 ? '+' + (haster.length - 5) + ' mere ›' : 'To do ›';
 
   // Indkøb: én lille linje (tallet står også i bundmenuen)

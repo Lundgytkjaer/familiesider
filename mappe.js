@@ -86,7 +86,7 @@ function noteBlokke(n) {
 }
 function alleNoter() {
   const res = [];
-  for (const [syn, liste] of Object.entries(NOTE_LISTER)) for (const n of Data.listNu(liste)) res.push({ ...n, _syn: syn, _liste: liste });
+  for (const [syn, liste] of Object.entries(NOTE_LISTER)) for (const n of Data.listNu(liste)) if (!n.huskeord) res.push({ ...n, _syn: syn, _liste: liste });
   return res;
 }
 function brugteMapper(noter) {
