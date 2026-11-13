@@ -24,7 +24,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-11-13i">
+  <link rel="stylesheet" href="style.css?v=2026-11-13j">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -490,6 +490,15 @@
   </main>
 </div>
 
+<!-- 🖥️ Familietabletten "Tavlen" (tavle.js) – vises kun, når Tavlen er logget ind -->
+<section class="tavlen" id="tavlen" hidden>
+  <header class="tv-top">
+    <div class="tv-ur-boks"><span class="tv-ur" id="tv-ur"></span><span class="tv-dagtekst" id="tv-dato"></span></div>
+    <div class="tv-hoejre"><span class="tv-net" id="tv-net" hidden></span><span class="tv-vejr" id="tv-vejr"></span></div>
+  </header>
+  <div class="tv-gitter" id="tv-gitter"></div>
+</section>
+
 <nav class="bundmenu" aria-label="Sider">
   <div class="bundmenu-indre" role="tablist">
     <button role="tab" class="fane-knap" data-fane="idag">
@@ -544,29 +553,30 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
-<script src="data.js?v=2026-11-13i"></script>
-<script src="dage.js?v=2026-11-13i"></script>
-<script src="vejr.js?v=2026-11-13i"></script>
-<script src="app.js?v=2026-11-13i"></script>
-<script src="mere.js?v=2026-11-13i"></script>
-<script src="sjov.js?v=2026-11-13i"></script>
-<script src="seddel.js?v=2026-11-13i"></script>
-<script src="familie.js?v=2026-11-13i"></script>
-<script src="handel.js?v=2026-11-13i"></script>
-<script src="retter.js?v=2026-11-13i"></script>
-<script src="aktivitet.js?v=2026-11-13i"></script>
-<script src="kort.js?v=2026-11-13i"></script>
-<script src="pause.js?v=2026-11-13i"></script>
-<script src="skoledag.js?v=2026-11-13i"></script>
-<script src="mappe.js?v=2026-11-13i"></script>
-<script src="bank.js?v=2026-11-13i"></script>
-<script src="budget.js?v=2026-11-13i"></script>
-<script src="dagbog.js?v=2026-11-13i"></script>
-<script src="medicin.js?v=2026-11-13i"></script>
-<script src="huskeord.js?v=2026-11-13i"></script>
-<script src="opskrifter.js?v=2026-11-13i"></script>
-<script src="push.js?v=2026-11-13i"></script>
-<script src="kalenderlink.js?v=2026-11-13i"></script>
-<script src="ai.js?v=2026-11-13i"></script>
+<script src="data.js?v=2026-11-13j"></script>
+<script src="dage.js?v=2026-11-13j"></script>
+<script src="vejr.js?v=2026-11-13j"></script>
+<script src="app.js?v=2026-11-13j"></script>
+<script src="mere.js?v=2026-11-13j"></script>
+<script src="sjov.js?v=2026-11-13j"></script>
+<script src="seddel.js?v=2026-11-13j"></script>
+<script src="familie.js?v=2026-11-13j"></script>
+<script src="handel.js?v=2026-11-13j"></script>
+<script src="retter.js?v=2026-11-13j"></script>
+<script src="aktivitet.js?v=2026-11-13j"></script>
+<script src="kort.js?v=2026-11-13j"></script>
+<script src="pause.js?v=2026-11-13j"></script>
+<script src="skoledag.js?v=2026-11-13j"></script>
+<script src="mappe.js?v=2026-11-13j"></script>
+<script src="bank.js?v=2026-11-13j"></script>
+<script src="budget.js?v=2026-11-13j"></script>
+<script src="dagbog.js?v=2026-11-13j"></script>
+<script src="medicin.js?v=2026-11-13j"></script>
+<script src="huskeord.js?v=2026-11-13j"></script>
+<script src="opskrifter.js?v=2026-11-13j"></script>
+<script src="push.js?v=2026-11-13j"></script>
+<script src="kalenderlink.js?v=2026-11-13j"></script>
+<script src="ai.js?v=2026-11-13j"></script>
+<script src="tavle.js?v=2026-11-13j"></script>
 </body>
 </html>

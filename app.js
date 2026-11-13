@@ -3593,6 +3593,7 @@ setInterval(async () => {
 }, 300000);
 
 async function tegnOverblik() {
+  if (typeof erTavlen === 'function' && erTavlen()) return;   // 🖥️ tavle.js
   tegnTavleValg();
   const erBoernetavle = tavleVisning !== 'familie';
   document.getElementById('familie-overblik').hidden = erBoernetavle;
@@ -3845,6 +3846,13 @@ window.addEventListener('unhandledrejection', e => {
 const erBarn = () => Data.bruger()?.rolle === 'barn';
 function barnMaa(handling, liste, felter, gammel) {
   const navn = Data.bruger()?.navn;
+  // 🖥️ Tavlen (familietabletten) må kun to ting: drengenes flueben (+ dage-i-træk-bonus) og afkrydsning på indkøb (opdatering-tavlen.sql)
+  if (typeof erTavlen === 'function' && erTavlen()) {
+    if (handling === 'ny') return (liste === 'flueben' || liste === 'streakbonus') && BOERN.includes(felter.barn) && felter.dato === isoDato(new Date()) && !felter.glemt;
+    if (!gammel) return false;
+    if (handling === 'ret') return liste === 'indkob' && Object.keys(felter).every(k => k === 'klaret');
+    return (liste === 'flueben' || liste === 'streakbonus') && BOERN.includes(gammel.barn);
+  }
   if (handling === 'ny') {
     if (liste === 'flueben') return felter.barn === navn;
     if (liste === 'streakbonus' || liste === 'streakjoker') return felter.barn === navn;
@@ -4223,8 +4231,8 @@ function visLogin() {
   const login = document.getElementById('login');
   login.hidden = false;
   const navne = document.getElementById('login-navne');
-  const tegn = () => navne.replaceChildren(...LOGIN_NAVNE.map(n => {
-    const k = knap(n, null, () => { loginNavn = n; tegn(); document.getElementById('login-kode').focus(); });
+  const tegn = () => navne.replaceChildren(...[...LOGIN_NAVNE, 'Tavlen'].map(n => {
+    const k = knap(n === 'Tavlen' ? '🖥️ Tavlen' : n, n === 'Tavlen' ? 'login-tavlen' : null, () => { loginNavn = n; tegn(); document.getElementById('login-kode').focus(); });
     k.setAttribute('role', 'radio');
     k.setAttribute('aria-checked', n === loginNavn);
     return k;
@@ -4360,6 +4368,7 @@ async function opdaterVenter() {
 }
 
 function tegnAlt() {
+  if (typeof erTavlen === 'function' && erTavlen()) { tvTegnSnart(); return; }   // 🖥️ familietabletten viser kun sin egen side (tavle.js)
   tegnListe('indkob'); tegnListe('todo'); tegnMadplan(); tegnFastPlan(); tegnSkema(); tegnKalender(); tegnOverblik();
   tegnForslag('indkob'); tegnForslag('todo'); tegnForslag('ret'); tegnForslag('morgen'); tegnForslag('frokost');
   tegnFoedselsdage();
@@ -4390,6 +4399,7 @@ function nulstilTilStart() {
   tavleValgt = null;
 }
 function gaaHjemEfterPause() {
+  if (typeof erTavlen === 'function' && erTavlen()) return;
   if (document.body.dataset.tilstand !== 'klar' || !laengeSiden()) return;
   if (typeof handler !== 'undefined' && handler && aktivFane === 'indkob') return;
   if (!arkEl.hidden) return;
@@ -4414,6 +4424,13 @@ async function startTavle() {
   logUd.className = 'bruger-knap ' + (PK[profil.navn] || 'c-faelles');
   logUd.setAttribute('aria-label', 'Indstillinger – logget ind som ' + profil.navn);
   logUd.hidden = false;
+  // 🖥️ Familietabletten i køkkenet: kun tavle-siden (tavle.js) – med børnelåsen og Tavlens egne regler (barnMaa)
+  if (typeof erTavlen === 'function' && erTavlen()) {
+    laasForBoern();
+    visNet(); Data.onChange(visNet);
+    await startTavlen();
+    return;
+  }
   if (erBarn()) {
     laasForBoern();
   } else {
