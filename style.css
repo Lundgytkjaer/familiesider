@@ -2459,7 +2459,8 @@ body.tv-nat .tavlen { filter: brightness(.65); }
 .tv-dagtekst { font-size: 1.2em; font-weight: 700; color: var(--daempet); white-space: nowrap; }
 .tv-hoejre { display: flex; align-items: baseline; gap: 1em; font-size: 1.05em; color: var(--daempet); white-space: nowrap; overflow: hidden; }
 .tv-net { color: var(--fare); font-weight: 700; }
-.tv-gitter { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .8vw; }
+.tv-gitter { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.1fr 1fr 1.15fr 1.15fr; gap: .8vw; }
+.tv-gitter > * { min-width: 0; }
 .tv-kol { display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: var(--flade); border-radius: var(--radius); border-top: .32em solid var(--p); }
 .tv-kol.tv-taet { font-size: .88em; }
 .tv-navn { margin: 0; padding: .3em .55em .1em; font-family: var(--font-titel); font-weight: 800; font-size: 1.35em; line-height: 1.15; color: var(--p); }
@@ -2495,3 +2496,25 @@ body.tv-nat .tavlen { filter: brightness(.65); }
 .tv-tag { margin-left: auto; }
 .tv-vare.tv-vigtig:not(.klaret) .tv-tekst { font-weight: 800; }
 .login-tavlen { font-size: .85em; opacity: .75; }
+
+/* Tavlen v2 (13m): Winnie + Timmo i én kolonne, navne man kan trykke på, madbånd nederst, profilkort */
+.tv-voksne { position: relative; border-top: 0; padding-top: .32em; --p: var(--c-faelles); }
+.tv-voksne::before { content: ''; position: absolute; inset: 0 0 auto 0; height: .32em; background: linear-gradient(90deg, var(--c-winnie) 50%, var(--c-timmo) 50%); }
+.tv-navn-knap { margin: 0; padding: 0; border: 0; background: none; font: inherit; color: var(--p); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.tv-navn-knap::after { content: ' ›'; opacity: .45; font-weight: 700; }
+.tv-og { margin: 0 .35em; color: var(--daempet); font-weight: 400; }
+.tv-mad-baand { flex: none; display: flex; align-items: baseline; gap: .35em 1em; padding: .35em .8em; overflow: hidden; white-space: nowrap;
+  background: var(--flade); border-radius: var(--radius); border-left: .32em solid var(--c-faelles); }
+.tv-mad-baand:empty { display: none; }
+.tv-mad-baand .tv-lille { width: auto; }
+.tv-mad-baand .tv-stor { font-size: 1.3em; }
+.tv-mad-afvig strong { color: var(--p); }
+.tv-mad-imorgen { margin-left: auto; color: var(--daempet); font-size: .9em; }
+body.tavlen #ark.tv-profil-ark .ark { width: min(1150px, 96vw); max-width: none; }
+.tv-profil { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.2rem 1.8rem; font-size: 1.3rem; padding-bottom: .5rem; }
+.tv-profil .tv-stor { margin: 0 0 .2em; }
+.tv-profil .tv-lille, .tv-profil .tv-husk { margin: 0 0 .4em; }
+.tv-profil .tv-linje.nu { font-weight: 800; color: var(--p); }
+.tv-profil .tv-linje.nu .tv-tid::before { content: '▶ '; }
+.tv-profil .tv-linje.klaret { opacity: .55; }
+.tv-voksne .tv-navn { white-space: nowrap; overflow: hidden; font-size: 1.22em; }

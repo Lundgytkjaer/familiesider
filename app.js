@@ -3848,7 +3848,7 @@ function barnMaa(handling, liste, felter, gammel) {
   const navn = Data.bruger()?.navn;
   // 🖥️ Tavlen (familietabletten) må kun to ting: drengenes flueben (+ dage-i-træk-bonus) og afkrydsning på indkøb (opdatering-tavlen.sql)
   if (typeof erTavlen === 'function' && erTavlen()) {
-    const pligtNavne = TV_KOLONNER.filter(n => n !== 'Fælles');   // drengene og de voksne (opdatering-tavlen-2.sql)
+    const pligtNavne = TV_PERSONER;   // drengene og de voksne (opdatering-tavlen-2.sql)
     if (handling === 'ny') return (liste === 'flueben' || liste === 'streakbonus') && pligtNavne.includes(felter.barn) && felter.dato === isoDato(new Date()) && !felter.glemt;
     if (!gammel) return false;
     if (handling === 'ret') return liste === 'indkob' && Object.keys(felter).every(k => k === 'klaret');
