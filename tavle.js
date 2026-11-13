@@ -17,6 +17,11 @@ const tvNyligKoebt = new Map();         // indkøb krydset af på tavlen → tid
 let tvGen = 0, tvTimer = null;
 
 // ---------- Små hjælpere ----------
+// Om aftenen (fra kl. 19.30 – SKIFT_KL i app.js, samme som drengenes tavle) viser tavlen i morgen: skole, aftaler, mad.
+// Dagens pligter og rutiner (sengetid) bliver stående, indtil de er klaret.
+const tvIdag = () => isoDato(new Date());
+const tvVisIso = () => isoDato(tavleAutoDato());
+const tvDagTitel = iso => (iso === tvIdag() ? 'I dag' : iso === plusDage(tvIdag(), 1) ? 'I morgen' : tvKortDag(iso));
 const tvMin = () => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); };
 const tvKl = () => { const n = new Date(); return String(n.getHours()).padStart(2, '0') + '.' + String(n.getMinutes()).padStart(2, '0'); };
 const tvKortDag = iso => { const d = tilDag(iso); return DAGE[(d.getDay() + 6) % 7] + ' ' + d.getDate() + '/' + (d.getMonth() + 1); };
@@ -44,9 +49,8 @@ function tvAftaleLi(a, iso, { dato = false } = {}) {
 }
 // De næste aftaler (efter i dag) for nogen – højst n
 // En gentagen aftale (fx fodbold hver uge) står kun én gang: næste gang – og slet ikke, hvis den også er i dag
-function tvKommer(alle, hvem, n = 6) {
+function tvKommer(alle, hvem, n = 6, idag = tvVisIso()) {
   const res = [];
-  const idag = isoDato(new Date());
   const set = new Set(iDagsListe(alle, idag, hvem).filter(a => a.gentag).map(a => a.id));
   for (let k = 1; k <= TV_KOMMER_DAGE && res.length < n; k++) {
     const iso = plusDage(idag, k);
@@ -77,13 +81,13 @@ async function tvSkole(barn, iso, alle) {
   const tidlig = aftalerDen(alle, iso, [barn]).find(a => a.type === 'tidlig' && a.tid);
   const slut = tidlig ? tidlig.tid : sd.slut;
   const slutMin = slut ? tidSomMin(slut)[0] : null;
-  if (slutMin != null && tvMin() >= slutMin) return { stor: 'Fri fra skole ✓', lille: tidlig ? '⏰ Tidligere fri i dag' : '', klar: true };
+  if (iso === tvIdag() && slutMin != null && tvMin() >= slutMin) return { stor: 'Fri fra skole ✓', lille: tidlig ? '⏰ Tidligere fri i dag' : '', klar: true };
   const fra = sd.start ? visTid(sd.start) : '';
   return { stor: '🎒 ' + (fra && slut ? fra + '–' + visTid(slut) : fra ? 'Møder ' + fra : 'Skole'), lille: tidlig ? '⏰ Tidligere fri i dag' : (sd.saerlig && skoledagMaerke(sd.saerlig) ? '🏫 ' + skoledagTitel(sd.saerlig) : '') };
 }
 
 // ---------- Pligter (det ene tryk) ----------
-async function tvPligter(barn, iso, overskrift = 'Pligter') {
+async function tvPligter(barn, iso, overskrift = 'Pligter', { skjulKlaret = false } = {}) {
   const pause = typeof pausePligter === 'function' ? pausePligter(barn, iso) : null;
   if (pause) return tvDel(overskrift, [tvLi('tv-tom', '⏸ Pause')], { prio: 0 });
   const d = await pligtData(barn);
@@ -92,6 +96,7 @@ async function tvPligter(barn, iso, overskrift = 'Pligter') {
   if (!liste.length && !BOERN.includes(barn)) return null;   // en voksen uden pligter i dag: ingen tom overskrift
   const pligt = skalKlares(liste);
   const klaret = pligt.filter(r => r.f).length;
+  if (skjulKlaret && klaret === pligt.length && liste.every(r => r.f || r.o.frivillig)) return null;   // om aftenen: alt klaret → væk (plads til i morgen)
   const linjer = liste.map(r => {
     const li = el('li', 'tv-linje tv-pligt' + (r.f ? ' klaret' : '') + (r.f?.venter ? ' venter' : ''));
     const b = el('button', 'tv-tryk');
@@ -157,6 +162,7 @@ async function tvKolonne(navn, alle, iso) {
   const kol = el('div', 'tv-kol ' + PK[navn]);
   const h = el('h2', 'tv-navn');
   h.append(navn === 'Fælles' ? navn : tvNavnKnap(navn));
+  const aften = iso !== tvIdag();
   kol.append(h);
   const indre = el('div', 'tv-indre');
   const dele = [];
@@ -164,7 +170,7 @@ async function tvKolonne(navn, alle, iso) {
   if (barn) {
     const s = await tvSkole(navn, iso, alle);
     const husk = infoDen(await Data.list('info'), navn, iso).map(x => tvLi('tv-husk', el('span', 'tv-tekst', '📝 ' + (x.tekst || 'Se billedet på telefonen'))));
-    dele.push(tvDel(null, [tvLi('tv-skole' + (s.klar ? ' klar' : ''), el('span', 'tv-stor', s.stor), s.lille ? el('span', 'tv-lille', s.lille) : ''), ...husk], { prio: 3, min: 1 }));
+    dele.push(tvDel(aften ? tvDagTitel(iso) : null, [tvLi('tv-skole' + (s.klar ? ' klar' : ''), el('span', 'tv-stor', s.stor), s.lille ? el('span', 'tv-lille', s.lille) : ''), ...husk], { prio: 3, min: 1 }));
   }
   if (navn === 'Fælles') {
     let foed = [];
@@ -174,15 +180,15 @@ async function tvKolonne(navn, alle, iso) {
   }
   // I dag: aftaler for personen (Fælles-aftaler står kun i Fælles)
   const iDag = tvIDag(alle, iso, [navn]);
-  if (iDag.length || !barn) dele.push(tvDel('I dag', iDag.map(a => tvAftaleLi(a, iso)), { prio: 4, min: 1, tom: barn ? '' : 'Intet i kalenderen' }));
+  if (iDag.length || !barn) dele.push(tvDel(barn && aften ? null : tvDagTitel(iso), iDag.map(a => tvAftaleLi(a, iso)), { prio: 4, min: 1, tom: barn ? '' : 'Intet i kalenderen' }));
   if (barn) {
-    const p = await tvPligter(navn, iso);
+    const p = await tvPligter(navn, tvIdag(), aften ? 'Pligter i dag' : 'Pligter', { skjulKlaret: aften });
     if (p) dele.push(p);
     const rk = await rutineKort(navn, new Date());
-    if (rk?.tavle && !rk.tavle.klar) dele.push(tvDel(null, [tvLi('tv-rutine', el('span', 'tv-tekst', '🪥 ' + rk.tavle.stor), rk.tavle.lille ? el('span', 'tv-lille', rk.tavle.lille) : '')], { prio: 5, min: 0 }));
+    if (rk?.tavle && !rk.tavle.klar) dele.push(tvDel(null, [tvLi('tv-rutine', el('span', 'tv-tekst', '🪥 ' + rk.tavle.stor), rk.tavle.lille ? el('span', 'tv-lille', rk.tavle.lille.replace(/\s*–\s*tryk.*$/, '')) : '')], { prio: 5, min: 0 }));
   }
   if (navn === 'Fælles') dele.push(await tvIndkob());
-  const kommer = tvKommer(alle, [navn]);
+  const kommer = tvKommer(alle, [navn], 6, iso);
   if (kommer.length) dele.push(tvDel('Kommer', kommer, { prio: 9, min: 0, klasse: 'tv-kommer' }));
   indre.append(...dele.filter(Boolean));
   kol.append(indre);
@@ -198,12 +204,13 @@ async function tvVoksenKolonne(alle, iso) {
   const indre = el('div', 'tv-indre');
   const dele = [];
   const iDag = tvIDag(alle, iso, TV_VOKSNE);
-  dele.push(tvDel('I dag', iDag.map(a => tvAftaleLi(a, iso)), { prio: 4, min: 1, tom: 'Intet i kalenderen' }));
+  const aften = iso !== tvIdag();
+  dele.push(tvDel(tvDagTitel(iso), iDag.map(a => tvAftaleLi(a, iso)), { prio: 4, min: 1, tom: 'Intet i kalenderen' }));
   for (const n of TV_VOKSNE) {
-    const p = await tvPligter(n, iso, 'Pligter · ' + n);
+    const p = await tvPligter(n, tvIdag(), 'Pligter · ' + n, { skjulKlaret: aften });
     if (p) { p.classList.add(PK[n]); dele.push(p); }
   }
-  const kommer = tvKommer(alle, TV_VOKSNE);
+  const kommer = tvKommer(alle, TV_VOKSNE, 6, iso);
   if (kommer.length) dele.push(tvDel('Kommer', kommer, { prio: 9, min: 0, klasse: 'tv-kommer' }));
   indre.append(...dele);
   kol.append(indre);
@@ -225,9 +232,10 @@ async function tvMad(iso) {
       if (egen) afvig.push({ barn: b, tekst: tvRet(p.visning[f] || p[f]) + (f === 'ret' ? '' : ' ' + TV_MAALTID[f]) });
     }
   }
-  const imorgen = await madFor(tilDag(plusDage(iso, 1)));
+  const erIdag = iso === tvIdag();
+  const imorgen = erIdag ? await madFor(tilDag(plusDage(iso, 1))) : {};
   const baand = document.getElementById('tv-mad');
-  baand.replaceChildren(el('span', 'tv-mad-ikon', '🍽️'), el('span', 'tv-lille', 'Aftensmad'), el('span', 'tv-stor', aften),
+  baand.replaceChildren(el('span', 'tv-mad-ikon', '🍽️'), el('span', 'tv-lille', erIdag ? 'Aftensmad' : 'Aftensmad ' + tvDagTitel(iso).toLowerCase()), el('span', 'tv-stor', aften),
     ...afvig.map(x => { const s = el('span', 'tv-mad-afvig ' + PK[x.barn]); s.append(el('strong', null, x.barn + ': '), x.tekst); return s; }),
     imorgen.ret ? el('span', 'tv-mad-imorgen', 'I morgen: ' + tvRet(imorgen.visning.ret || imorgen.ret)) : '');
 }
@@ -235,7 +243,7 @@ async function tvMad(iso) {
 // ---------- Profilkort: tryk på et navn → dagens skema, aftaler, mad og pligter (kun til at kigge på) ----------
 let tvProfilTimer = null;
 async function tvProfil(navn) {
-  const iso = isoDato(new Date());
+  const iso = tvVisIso();   // om aftenen: morgendagens skema og mad
   const alle = await Data.list('kalender');
   const barn = BOERN.includes(navn);
   const boks = el('div', 'tv-profil ' + PK[navn]);
@@ -252,20 +260,20 @@ async function tvProfil(navn) {
         el('span', 'tv-tid', visTider(t.tid)), el('span', 'tv-tekst', t.fag)); })),
       ...infoDen(await Data.list('info'), navn, iso).map(x => el('p', 'tv-husk', '📝 ' + (x.tekst || '')))));
     const m = await madFor(tilDag(iso), navn);
-    boks.append(del('Mad i dag', liste([['morgen', 'Morgen'], ['frokost', 'Frokost'], ['ret', 'Aften']].map(([f, t]) =>
+    boks.append(del('Mad ' + tvDagTitel(iso).toLowerCase(), liste([['morgen', 'Morgen'], ['frokost', 'Frokost'], ['ret', 'Aften']].map(([f, t]) =>
       tvLi('', el('span', 'tv-tid', t), el('span', 'tv-tekst', tvRet(m.visning[f] || m[f]) || 'Ikke bestemt'))))));
   }
   const iDag = tvIDag(alle, iso, [navn, 'Fælles']);
-  boks.append(del('I dag', liste(iDag.length ? iDag.map(a => tvAftaleLi(a, iso)) : [tvLi('tv-tom', 'Intet i kalenderen')])));
+  boks.append(del(tvDagTitel(iso), liste(iDag.length ? iDag.map(a => tvAftaleLi(a, iso)) : [tvLi('tv-tom', 'Intet i kalenderen')])));
   // Pligter (dagens + ugens) – kun at se; der krydses af i kolonnen
   const d = await pligtData(navn);
   if (d.opgaver.length) {
     const rk = dagensOpgaver(d).filter(r => !r.sprunget);
-    boks.append(del('Pligter', liste(rk.length ? rk.map(r => tvLi(r.f ? 'klaret' : '', el('span', 'tv-tekst', (r.f ? '✓ ' : '◯ ') + r.o.navn + (r.o.gentag === 'uge' ? ' (denne uge)' : '')))) : [tvLi('tv-tom', 'Ingen i dag')])));
+    boks.append(del('Pligter i dag', liste(rk.length ? rk.map(r => tvLi(r.f ? 'klaret' : '', el('span', 'tv-tekst', (r.f ? '✓ ' : '◯ ') + r.o.navn + (r.o.gentag === 'uge' ? ' (denne uge)' : '')))) : [tvLi('tv-tom', 'Ingen i dag')])));
   }
-  const kommer = tvKommer(alle, [navn], 8);
+  const kommer = tvKommer(alle, [navn], 8, iso);
   if (kommer.length) boks.append(del('Kommer', liste(kommer)));
-  aabnArk(navn, boks);
+  aabnArk(navn + (iso === tvIdag() ? '' : ' – ' + tvDagTitel(iso).toLowerCase()), boks);
   document.getElementById('ark').classList.add('tv-profil-ark');
   clearTimeout(tvProfilTimer);
   tvProfilTimer = setTimeout(() => { if (!arkEl.hidden && document.querySelector('#ark-indhold .tv-profil')) lukArk(); }, TV_PROFIL_SEK * 1000);
@@ -301,7 +309,7 @@ async function tegnTavlen() {
   const boks = document.getElementById('tavlen');
   if (!boks) return;
   tvTema();
-  const iso = isoDato(new Date());
+  const iso = tvVisIso();   // i dag – eller i morgen fra kl. 19.30
   const alle = await Data.list('kalender');   // KUN den fælles kalender – kalender_voksne/kalender_privat hentes aldrig her
   const kolonner = [];
   for (const n of ['Fælles', 'voksne', ...BOERN]) {
@@ -323,7 +331,9 @@ let tvVejr = '', tvVejrTid = 0;
 function tvHoved() {
   const d = new Date();
   document.getElementById('tv-ur').textContent = tvKl();
-  document.getElementById('tv-dato').textContent = DAGE_LANG[(d.getDay() + 6) % 7] + ' ' + d.getDate() + '. ' + MDR_LANG[d.getMonth()] + ' · uge ' + ugenummer(d);
+  const vis = tvVisIso();
+  document.getElementById('tv-dato').textContent = DAGE_LANG[(d.getDay() + 6) % 7] + ' ' + d.getDate() + '. ' + MDR_LANG[d.getMonth()] + ' · uge ' + ugenummer(d)
+    + (vis !== tvIdag() ? ' · 🌙 viser ' + DAGE_LANG[(tilDag(vis).getDay() + 6) % 7].toLowerCase() : '');
   const net = document.getElementById('tv-net');
   const uden = Data.udenNet() || !navigator.onLine;
   const n = Data.venter();

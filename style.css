@@ -2450,7 +2450,7 @@ body.enkel [data-badge="indkob"] { display: none !important; }
 body.tavlen { overflow: hidden; }
 body.tavlen .indhold, body.tavlen .bundmenu, body.tavlen #uden-net, body.tavlen #log-ud { display: none !important; }
 .tavlen { position: fixed; inset: 0; display: flex; flex-direction: column; gap: 1.1vh; padding: 1.2vh 1vw;
-  font-size: clamp(14px, 2.55vh, 30px); background: var(--bg); color: var(--fg); user-select: none; -webkit-user-select: none; overflow: hidden; }
+  font-size: clamp(13px, 2.2vh, 26px); background: var(--bg); color: var(--fg); user-select: none; -webkit-user-select: none; overflow: hidden; }
 .tavlen[hidden] { display: none; }
 body.tv-nat .tavlen { filter: brightness(.65); }
 .tv-top { flex: none; display: flex; align-items: baseline; justify-content: space-between; gap: 1em; padding: 0 .3em; }
@@ -2459,7 +2459,7 @@ body.tv-nat .tavlen { filter: brightness(.65); }
 .tv-dagtekst { font-size: 1.2em; font-weight: 700; color: var(--daempet); white-space: nowrap; }
 .tv-hoejre { display: flex; align-items: baseline; gap: 1em; font-size: 1.05em; color: var(--daempet); white-space: nowrap; overflow: hidden; }
 .tv-net { color: var(--fare); font-weight: 700; }
-.tv-gitter { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.1fr 1fr 1.15fr 1.15fr; gap: .8vw; }
+.tv-gitter { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8vw; }
 .tv-gitter > * { min-width: 0; }
 .tv-kol { display: flex; flex-direction: column; min-height: 0; overflow: hidden; background: var(--flade); border-radius: var(--radius); border-top: .32em solid var(--p); }
 .tv-kol.tv-taet { font-size: .88em; }
@@ -2470,7 +2470,7 @@ body.tv-nat .tavlen { filter: brightness(.65); }
   font-size: .78em; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--daempet); }
 .tv-tal { text-transform: none; letter-spacing: 0; font-size: 1.15em; color: var(--fg); }
 .tv-tal.alle { color: var(--accent); }
-.tv-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .3em; }
+.tv-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: .25em; }
 .tv-linje { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .4em; line-height: 1.2; overflow-wrap: anywhere; }
 .tv-liste > .tv-linje[class*="c-"] { border-left: .22em solid var(--p); padding-left: .4em; }
 .tv-linje.forbi { opacity: .45; }
@@ -2483,12 +2483,12 @@ body.tv-nat .tavlen { filter: brightness(.65); }
 .tv-tom, .tv-mere { color: var(--daempet); }
 .tv-mere { font-size: .85em; font-weight: 700; }
 .tv-kommer .tv-linje, .tv-mad-imorgen { font-size: .85em; }
-.tv-tryk { display: flex; align-items: center; gap: .45em; width: 100%; min-height: max(2.25em, 44px); padding: .2em .45em; margin: 0;
+.tv-tryk { display: flex; align-items: center; gap: .45em; width: 100%; min-height: max(1.85em, 40px); padding: .15em .45em; margin: 0;
   border: 0; border-radius: 12px; background: color-mix(in srgb, var(--p) 11%, transparent); color: inherit; font: inherit; text-align: left; cursor: pointer;
   -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
 .tv-tryk:active { transform: scale(.98); }
 .tv-indkob .tv-tryk { min-height: 1.95em; padding-block: .1em; }
-.tv-tjek { flex: none; display: grid; place-items: center; width: 1.45em; height: 1.45em; border-radius: 50%; border: .13em solid var(--p); color: transparent; }
+.tv-tjek { flex: none; display: grid; place-items: center; width: 1.25em; height: 1.25em; border-radius: 50%; border: .13em solid var(--p); color: transparent; }
 .tv-tjek svg { width: 1em; height: 1em; }
 .tv-linje.klaret .tv-tjek { background: var(--p); color: var(--flade); }
 .tv-linje.klaret .tv-tekst { text-decoration: line-through; opacity: .55; }
