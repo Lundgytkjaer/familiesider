@@ -231,15 +231,70 @@ function bekraeft(knap, handling) {
 
 // ---------- Tastatur: arket følger den synlige del af skærmen ----------
 // På telefonen dækker tastaturet bunden af skærmen; uden dette kunne et felt i et ark gemme sig bag tastaturet.
-if (window.visualViewport) {
+// 2026-11-13a: feltet, man skriver i, rulles fri af BÅDE tastaturet og det, der klæber i arket (titel øverst, Gem nederst) –
+// før kunne det ligge gemt bag Gem-knapperne. Gælder også felter uden for ark, og når man hopper fra felt til felt.
+const SKRIVEFELT = 'input:not([type=checkbox]):not([type=radio]):not([type=button]):not([type=submit]):not([type=file]):not([type=range]):not([type=color]), textarea, select, [contenteditable=""], [contenteditable="true"]';
+function rulleBoks(n) {
+  for (let p = n.parentElement; p && p !== document.body && p !== document.documentElement; p = p.parentElement) {
+    const o = getComputedStyle(p).overflowY;
+    if ((o === 'auto' || o === 'scroll') && p.scrollHeight > p.clientHeight + 1) return p;
+  }
+  return null;
+}
+function visFelt(a) {
+  if (!a || !a.isConnected || !a.matches || !a.matches(SKRIVEFELT)) return;
   const vv = window.visualViewport;
-  const tilpas = () => {
-    document.documentElement.style.setProperty('--vv-h', vv.height + 'px');
-    document.documentElement.style.setProperty('--vv-top', vv.offsetTop + 'px');
-    const a = document.activeElement;
-    if (a && a.closest && a.closest('.ark') && a.matches('input, textarea')) setTimeout(() => a.scrollIntoView({ block: 'nearest' }), 50);
+  let top = vv ? vv.offsetTop : 0;
+  let bund = top + (vv ? vv.height : window.innerHeight);
+  const boks = rulleBoks(a);
+  const rod = boks || document;
+  if (boks) { const b = boks.getBoundingClientRect(); top = Math.max(top, b.top); bund = Math.min(bund, b.bottom); }
+  // Det, der klæber øverst/nederst, dækker også for feltet
+  const foer = x => !x.contains(a) && (x.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const efter = x => !x.contains(a) && (x.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_PRECEDING);
+  for (const x of rod.querySelectorAll('.ark-top, .maaltid-soeg, .ret-baand')) {
+    if (!x.offsetParent || !foer(x) || getComputedStyle(x).position !== 'sticky') continue;
+    top = Math.max(top, x.getBoundingClientRect().bottom);
+  }
+  for (const x of rod.querySelectorAll('.ark-knapper')) {
+    if (!x.offsetParent || !efter(x) || getComputedStyle(x).position !== 'sticky') continue;
+    bund = Math.min(bund, x.getBoundingClientRect().top);
+  }
+  if (!boks) { // på selve siden: bundmenuen, hvis den er synlig over tastaturet
+    const m = document.querySelector('.bundmenu');
+    if (m && m.offsetParent !== null) { const t = m.getBoundingClientRect().top; if (t < bund && t > top) bund = t; }
+  }
+  const luft = 10, r = a.getBoundingClientRect();
+  if (bund - top < 60) return;
+  let flyt = 0;
+  if (r.height > bund - top - 2 * luft || r.bottom > bund - luft) flyt = r.bottom - (bund - luft);
+  else if (r.top < top + luft) flyt = r.top - (top + luft);
+  if (Math.abs(flyt) < 2) return;
+  if (boks) boks.scrollTop += flyt; else window.scrollBy(0, flyt);
+}
+{
+  let visTimer = [];
+  const visAktivt = (...ms) => {
+    visTimer.forEach(clearTimeout);
+    visTimer = ms.map(t => setTimeout(() => visFelt(document.activeElement), t));
   };
-  vv.addEventListener('resize', tilpas); vv.addEventListener('scroll', tilpas); tilpas();
+  const vv = window.visualViewport;
+  if (vv) {
+    let stor = 0, bredde = 0;
+    const maal = () => {
+      document.documentElement.style.setProperty('--vv-h', vv.height + 'px');
+      document.documentElement.style.setProperty('--vv-top', vv.offsetTop + 'px');
+      if (Math.abs(vv.width - bredde) > 1) { bredde = vv.width; stor = 0; }   // telefonen er vendt
+      stor = Math.max(stor, vv.height);
+      document.documentElement.classList.toggle('tastatur', vv.height < stor - 150);   // tastaturet er fremme
+    };
+    vv.addEventListener('resize', () => { maal(); visAktivt(60, 300); });
+    vv.addEventListener('scroll', maal);
+    maal();
+  }
+  document.addEventListener('focusin', e => { if (e.target.matches && e.target.matches(SKRIVEFELT)) visAktivt(120, 400); });
+  // Et tekstfelt, der vokser mens man skriver, må heller ikke glide ned bag tastaturet
+  document.addEventListener('input', e => { if (e.target.matches && e.target.matches('textarea, [contenteditable=""], [contenteditable="true"]')) visAktivt(0); });
 }
 
 // ---------- Ark (bundpanel) ----------

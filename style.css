@@ -2419,3 +2419,10 @@ body.barn .fyld-ugen { display: none; }
 .husk-li.i-dag .husk-punkt { border-color: var(--p); }
 .husk-li.udloebet .husk-punkt { opacity: .55; }
 .husk-punkt-tekst { font-size: 16px; }
+
+/* Tastaturet er fremme (2026-11-13a, html.tastatur sættes i app.js): giv listen plads – de små genveje i måltids-arket skjules,
+   og et åbnet kort (zoom) holder sig i den synlige del af skærmen ligesom arkene */
+html.tastatur .ark .maaltid-smaa { display: none; }
+.zoom-baggrund { top: var(--vv-top, 0px); bottom: auto; height: var(--vv-h, 100%); }
+/* … og siden får luft forneden, så også det nederste felt på en side kan rulles op over tastaturet */
+html.tastatur .indhold { padding-bottom: calc(100vh - var(--vv-h, 100vh) + 24px); }
