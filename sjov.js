@@ -76,7 +76,9 @@ const MILEPAELE = { 7: 3, 14: 5, 21: 5, 30: 10, 50: 10, 75: 15, 100: 20 };
 const milepaelStjerner = n => MILEPAELE[n] || (n > 100 && n % 50 === 0 ? 20 : 0);
 const naesteMilepael = n => { for (let m = n + 1; m < n + 60; m++) if (milepaelStjerner(m)) return m; return null; };
 const bonusStjerner = d => (d.regel.stjerner ? Math.max(0, Math.round(tal(d.regel.streakBonus ?? 1))) : 0);
-const jokerTil = d => d.regel.joker !== false;
+// 2026-11-13c: jokeren og milepælene er taget ud (Timmo: for mange lag, der belønner det samme). Der gives ingen nye –
+// men jokere, der allerede er brugt, og medaljer, der er vundet, tæller stadig (dage i træk og stjerner ændres ikke bagud).
+const jokerTil = d => false;
 
 const oprettetIso = o => (o.oprettet ? isoDato(new Date(o.oprettet)) : '0000-00-00');
 const dagligePligter = d => d.opgaver.filter(o => !o.frivillig && !['uge', 'engang', 'interval'].includes(o.gentag));
@@ -204,7 +206,7 @@ function bonusStatus(d) {
     n, givet, joker, klaretIdag,
     mulig: n > 0 && !givet && klaretIdag === false && (holdt || !!joker),
     starter: n > 0 && !givet && klaretIdag !== null && !holdt && !joker,   // første dag i en ny række
-    milepael: klaretIdag === false ? milepaelStjerner(naeste) : 0, naeste,
+    milepael: 0, naeste,
     jokerBrugt: (d.jokere || []).some(j => j.maaned === iso.slice(0, 7))
   };
 }
@@ -229,9 +231,17 @@ async function opdaterStreakBonus(barn) {
     const fortjent = n > 0 && klaret && forrigeDag(d, iso).holdt;
     if (fortjent && !givet) {
       const dage = streak(d);
-      const ekstra = milepaelStjerner(dage);
-      await Data.add('streakbonus', { barn, dato: iso, stjerner: n + ekstra, dage, ...(ekstra ? { milepael: dage } : {}) });
-      return { n, ekstra, dage, jokerBrugt };
+      // Ingen milepæls-stjerner længere. Indtil opdatering-milepael.sql er kørt, kræver databasen stadig det gamle beløb
+      // på en milepælsdag – afvises den almindelige bonus dér, prøves det gamle beløb, så barnet ikke mister dagens bonus.
+      try {
+        await Data.add('streakbonus', { barn, dato: iso, stjerner: n, dage });
+        return { n, ekstra: 0, dage, jokerBrugt };
+      } catch (e) {
+        const ekstra = milepaelStjerner(dage);
+        if (!ekstra) throw e;
+        await Data.add('streakbonus', { barn, dato: iso, stjerner: n + ekstra, dage, milepael: dage });
+        return { n, ekstra, dage, jokerBrugt };
+      }
     }
     if (!fortjent && givet) await Data.stille(() => Data.remove('streakbonus', givet.id));
   } catch (e) { console.warn('Streak-bonus:', e); }
