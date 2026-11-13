@@ -41,12 +41,18 @@ function tvAftaleLi(a, iso, { dato = false } = {}) {
     el('span', 'tv-tekst', a.fri ? friTekst(a) : a.titel));
 }
 // De næste aftaler (efter i dag) for nogen – højst n
+// En gentagen aftale (fx fodbold hver uge) står kun én gang: næste gang – og slet ikke, hvis den også er i dag
 function tvKommer(alle, hvem, n = 6) {
   const res = [];
   const idag = isoDato(new Date());
+  const set = new Set(iDagsListe(alle, idag, hvem).filter(a => a.gentag).map(a => a.id));
   for (let k = 1; k <= TV_KOMMER_DAGE && res.length < n; k++) {
     const iso = plusDage(idag, k);
-    for (const a of iDagsListe(alle, iso, hvem)) if (res.length < n) res.push(tvAftaleLi(a, iso, { dato: true }));
+    for (const a of iDagsListe(alle, iso, hvem)) {
+      if (res.length >= n || (a.gentag && set.has(a.id))) continue;
+      if (a.gentag) set.add(a.id);
+      res.push(tvAftaleLi(a, iso, { dato: true }));
+    }
   }
   return res;
 }
@@ -81,6 +87,7 @@ async function tvPligter(barn, iso) {
   const d = await pligtData(barn);
   if (!d.opgaver.length) return null;
   const liste = dagensOpgaver(d).filter(r => !r.sprunget);
+  if (!liste.length && !BOERN.includes(barn)) return null;   // en voksen uden pligter i dag: ingen tom overskrift
   const pligt = skalKlares(liste);
   const klaret = pligt.filter(r => r.f).length;
   const linjer = liste.map(r => {
@@ -162,9 +169,11 @@ async function tvKolonne(navn, alle, iso) {
   const iDag = iDagsListe(alle, iso, [navn]).filter(a => !a.type || !FRAVAER[a.type]);
   const iDagDel = tvDel(barn || navn === 'Fælles' ? 'I dag' : null, iDag.map(a => tvAftaleLi(a, iso)), { prio: 4, min: 1, tom: barn || navn === 'Fælles' ? '' : 'Intet i kalenderen' });
   if (iDag.length || !barn) dele.push(iDagDel);
-  if (barn) {
+  if (navn !== 'Fælles') {   // pligter: drengenes og de voksnes egne faste pligter (står kun, hvis personen har nogen)
     const p = await tvPligter(navn, iso);
     if (p) dele.push(p);
+  }
+  if (barn) {
     const rk = await rutineKort(navn, new Date());
     if (rk?.tavle && !rk.tavle.klar) dele.push(tvDel(null, [tvLi('tv-rutine', el('span', 'tv-tekst', '🪥 ' + rk.tavle.stor), rk.tavle.lille ? el('span', 'tv-lille', rk.tavle.lille) : '')], { prio: 5, min: 0 }));
   }
@@ -277,12 +286,22 @@ function tvNatGenstart() {
   location.reload();
 }
 
+const tvFuldTil = () => lokal.get('tavle-fuld') !== 'nej';
+function tvFuldSkaerm() {
+  if (!tvFuldTil() || document.fullscreenElement || !document.documentElement.requestFullscreen) return;
+  document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+}
+
 // Hold fingeren på uret i 3 sekunder → Opdatér / Log ud (så ingen kommer til det ved et uheld)
 function tvMenu() {
   const opdater = knap('🔄 Opdatér nu', 'knap', () => location.reload());
   const ud = bekraeftKnap('Log Tavlen ud', 'logge Tavlen ud', 'lille-knap fare', () => Data.logud());
   const tema = chipValg(Object.keys(TV_TEMA_NAVN), tvTemaValg(), v => { lokal.set('tavle-tema', v); tvTema(); }, v => TV_TEMA_NAVN[v]);
-  aabnArk('Tavlen', felt('Udseende', tema), el('p', 'hint', 'Efter klokken = lys kl. 06–20, mørk om aftenen og dæmpet om natten. Alt andet laves på telefonerne.'), opdater, ud);
+  const fuld = chipValg(['ja', 'nej'], tvFuldTil() ? 'ja' : 'nej', v => {
+    lokal.set('tavle-fuld', v);
+    if (v === 'ja') tvFuldSkaerm(); else if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  }, v => (v === 'ja' ? '⛶ Til' : 'Fra'));
+  aabnArk('Tavlen', felt('Udseende', tema), felt('Fuld skærm', fuld), el('p', 'hint', 'Efter klokken = lys kl. 06–20, mørk om aftenen og dæmpet om natten. Alt andet laves på telefonerne.'), opdater, ud);
 }
 
 async function startTavlen() {
@@ -294,6 +313,9 @@ async function startTavlen() {
   ur.addEventListener('pointerdown', () => { clearTimeout(holdT); holdT = setTimeout(tvMenu, 3000); });
   ['pointerup', 'pointerleave', 'pointercancel'].forEach(t => ur.addEventListener(t, () => clearTimeout(holdT)));
   ur.addEventListener('contextmenu', e => e.preventDefault());
+  // Fuld skærm (uden Androids statuslinje og knapper): kræver et tryk – så det første tryk på tavlen slår det til igen,
+  // fx efter genindlæsningen om natten. Fra/til i menuen (hold på uret); gemmes på tabletten (lokal 'tavle-fuld').
+  document.addEventListener('pointerdown', tvFuldSkaerm, true);
   Data.onChange(() => tvTegnSnart(400));
   window.addEventListener('online', () => { tvHoved(); tvTegnSnart(); });
   window.addEventListener('offline', tvHoved);
