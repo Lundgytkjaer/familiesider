@@ -4478,6 +4478,22 @@ async function gaaTil(tag) {
 }
 navigator.serviceWorker?.addEventListener('message', e => { if (e.data?.gaa) gaaTil(e.data.gaa); });
 
+// Appen gemmes på telefonen (sw.js), så den kan åbnes uden net. Når siden er hentet, får sw.js listen over filerne,
+// så kopien er hel (også første gang, hvor sw.js ikke var med fra start) og gamle versioner ryddes væk.
+if ('serviceWorker' in navigator) {
+  const gemAppen = async () => {
+    try {
+      await navigator.serviceWorker.register('sw.js');
+      const reg = await navigator.serviceWorker.ready;
+      if (!navigator.onLine) return;
+      const filer = [location.origin + location.pathname, ...performance.getEntriesByType('resource').map(x => x.name)];
+      reg.active?.postMessage({ gemApp: [...new Set(filer)] });
+    } catch (e) { console.warn(e); }
+  };
+  const snart = () => setTimeout(gemAppen, 2500);
+  if (document.readyState === 'complete') snart(); else window.addEventListener('load', snart);
+}
+
 document.documentElement.lang = 'da'; // giver dansk orddeling i kalenderen
 const visDato = () => { const d = new Date(); document.getElementById('dato').textContent = d.toLocaleDateString('da-DK', { weekday: 'long', day: 'numeric', month: 'long' }) + ' · uge ' + ugenummer(mandagFor(d)); };
 visDato();
