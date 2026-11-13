@@ -3823,6 +3823,8 @@ function visNet() {
   if (!e) return;
   clearTimeout(netTimer);
   const uden = !!Data.bruger() && (Data.udenNet() || !navigator.onLine);
+  const n = Data.venter();
+  e.textContent = 'Uden net – ' + (n ? n + (n === 1 ? ' ændring venter' : ' ændringer venter') : 'viser det sidste');
   if (uden && navigator.onLine && e.hidden) { netTimer = setTimeout(() => { e.hidden = !Data.udenNet(); }, 3000); return; }
   e.hidden = !uden;
 }

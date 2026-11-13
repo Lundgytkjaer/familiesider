@@ -103,7 +103,9 @@ const Data = (() => {
     return {
       async hent() { try { const k = await med(false, s => s.get('alt')); return k && k.profil && Array.isArray(k.raekker) ? k : null; } catch (e) { return null; } },
       async gem(k) { try { await med(true, s => s.put(k, 'alt')); } catch (e) { console.warn('Kunne ikke gemme kopien:', e); } },
-      async slet() { try { await med(true, s => s.delete('alt')); } catch (e) { /* ingen kopi */ } }
+      async hentKoe() { try { const k = await med(false, s => s.get('koe')); return Array.isArray(k) ? k : []; } catch (e) { return []; } },
+      async gemKoe(k) { try { await med(true, s => s.put(k, 'koe')); } catch (e) { console.warn('Kunne ikke gemme køen:', e); } },
+      async slet() { try { await med(true, s => { s.delete('alt'); return s.delete('koe'); }); } catch (e) { /* ingen kopi */ } }
     };
   })();
   let kopiTimer, kopiStop = false;   // kopiStop: der logges ud – gem ikke mere
@@ -116,6 +118,76 @@ const Data = (() => {
   const erNetfejl = e => !navigator.onLine || e?.name === 'AuthRetryableFetchError' || e?.status === 0
     || /failed to fetch|load failed|networkerror|network request failed|fetch failed/i.test(e?.message || '');
 
+  // ---------- Kø på telefonen: Indkøb (og hurtigvalget) virker uden net ----------
+  // Ændringer i KOE_LISTER vises med det samme, gemmes i telefonens kø (overlever at appen lukkes) og sendes én ad
+  // gangen i den rækkefølge, de blev lavet. Intet net → de bliver liggende og sendes, når nettet er tilbage (ingen
+  // tilbagerulning, ingen rød besked). Nye rækker får deres id her på telefonen.
+  // En rettelse sender kun de felter, der blev rørt (lægges oven på det, der står i databasen lige nu).
+  // Er rækken slettet af en anden imens, droppes rettelsen. Siger databasen nej (fx børnelåsen), droppes ændringen.
+  const KOE_LISTER = new Set(['indkob', 'favoritter']);
+  let koeListe = [];   // [{type: 'add'|'update'|'remove'|'upsert', liste, id, ids, data, felter, raekker}]
+  let koeSkriv = Promise.resolve(), sender = null, netNede = false;
+  const klon = x => JSON.parse(JSON.stringify(x));
+  const nytId = () => crypto.randomUUID ? crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
+  function gemKoe() { const k = klon(koeListe); koeSkriv = koeSkriv.then(() => kopiStop ? null : Kopi.gemKoe(k)); return koeSkriv; }
+  function laegIKoe(op) { koeListe.push(klon(op)); gemKoe(); fortaelLyttere(); sendKoe(); }
+  const koeHar = id => koeListe.some(o => o.id === id || (o.ids || []).includes(id) || (o.raekker || []).some(r => r.id === id));
+  // Læg de ventende ændringer oven på rækkerne (efter hver hentning, så de ikke forsvinder fra skærmen)
+  function anvendKoe() {
+    for (const o of koeListe) {
+      if (o.type === 'add') { if (!raekker.some(x => x.id === o.id)) raekker.push({ id: o.id, liste: o.liste, data: klon(o.data), oprettet: o.oprettet, oprettet_af: o.af }); }
+      else if (o.type === 'update') { const r = raekker.find(x => x.id === o.id); if (r) gemLokalt({ ...r, data: { ...r.data, ...klon(o.felter) } }); }
+      else if (o.type === 'remove') { const s = new Set(o.ids); raekker = raekker.filter(x => !s.has(x.id)); }
+      else if (o.type === 'upsert') o.raekker.forEach(r => gemLokalt(klon(r)));
+    }
+  }
+  async function sendEn(o) {
+    if (o.type === 'add') {
+      const { error } = await db.from('punkter').insert({ id: o.id, liste: o.liste, data: o.data });
+      if (error && error.code !== '23505') throw error;   // 23505 = findes allerede (sendt før, men svaret gik tabt)
+      pushOm(o.liste, o.id);
+    } else if (o.type === 'update') {
+      const { data: nu, error: f1 } = await db.from('punkter').select('data').eq('id', o.id).maybeSingle();
+      if (f1) throw f1;
+      if (!nu) return;   // slettet imens – rettelsen droppes
+      const { error } = await db.from('punkter').update({ data: { ...nu.data, ...o.felter } }).eq('id', o.id);
+      if (error) throw error;
+      pushOm(o.liste, o.id);
+    } else if (o.type === 'remove') {
+      const { error } = await db.from('punkter').delete().in('id', o.ids);
+      if (error) throw error;
+    } else if (o.type === 'upsert') {
+      const { error } = await db.from('punkter').upsert(o.raekker);
+      if (error) throw error;
+    }
+  }
+  const proevIgen = e => erNetfejl(e) || e?.code === 'PGRST301' || /jwt/i.test(e?.message || '');   // net eller udløbet login
+  function sendKoe() {
+    if (sender) return sender;
+    if (!forbundet || !koeListe.length) return Promise.resolve();
+    const varNede = netNede;
+    sender = (async () => {
+      let afvist = false;
+      while (koeListe.length && forbundet) {
+        const o = koeListe[0];
+        try { await sendEn(o); netNede = false; }
+        catch (e) {
+          if (proevIgen(e)) { netNede = true; fortaelLyttere(); return; }   // bliver i køen – prøves igen senere
+          console.warn('Ændring afvist:', e);
+          afvist = true;
+          const nej = e?.code === '42501' || /voksne/.test(e?.message || '');
+          if (typeof visStatus === 'function') visStatus(nej ? 'Det kan kun de voksne ændre 🙂' : 'En ændring kunne ikke gemmes.', !nej);
+        }
+        if (koeListe[0] === o) koeListe.shift();
+        await gemKoe();
+      }
+      fortaelLyttere();
+      if (afvist || varNede) setTimeout(genhent, 300);   // vis det, der faktisk er gemt / de andres ændringer imens
+    })().finally(() => { sender = null; });
+    return sender;
+  }
+
   // Supabase giver højst 1000 rækker pr. svar – derfor hentes i bidder (ellers mangler der stille og roligt data)
   async function hentAlt() {
     const BID = 1000, alle = [];
@@ -126,12 +198,15 @@ const Data = (() => {
       if (data.length < BID) break;
     }
     raekker = alle;
+    anvendKoe();
   }
   async function genhent() {
     if (!forbundet) return proevForbind();   // startet fra kopien: prøv at komme på nettet
     try {
       await koe;   // først skal det, der venter på at blive gemt, være gemt
+      await sendKoe();
       await hentAlt();
+      netNede = false;
       udefra++;
       if (ventende.size) { setTimeout(genhent, 500); return; }   // nye ændringer imens – hent igen bagefter
       fortaelLyttere();
@@ -153,13 +228,16 @@ const Data = (() => {
     await hentAlt();
     profil = data;
     forbundet = true;
+    netNede = false;
     if (ventende.size) setTimeout(genhent, 500);   // nye ændringer imens – hent igen bagefter
     gemKopiSnart();
+    sendKoe();   // det, der blev lavet uden net
 
     // Live: når en anden ændrer noget, opdateres skærmen
     db.channel('punkter')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'punkter' }, payload => {
-        if (ventende.has((payload.new || payload.old)?.id)) return;   // vores egen ændring, som allerede står på skærmen
+        const id = (payload.new || payload.old)?.id;
+        if (ventende.has(id) || koeHar(id)) return;   // vores egen ændring, som allerede står på skærmen
         udefra++;
         if (payload.eventType === 'DELETE') raekker = raekker.filter(x => x.id !== payload.old.id);
         else gemLokalt(payload.new);
@@ -175,6 +253,7 @@ const Data = (() => {
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') genhent(); });
     window.addEventListener('online', genhent);
     setInterval(() => { if (document.visibilityState === 'visible') genhent(); }, 10 * 60 * 1000);
+    setInterval(() => { if (koeListe.length) { if (forbundet) sendKoe(); else proevForbind(); } }, 30 * 1000);   // ændringer venter: prøv igen
   }
   // Appen kører på kopien: prøv at komme på nettet (én ad gangen). Lykkes det, vises de friske data.
   function proevForbind() {
@@ -196,14 +275,18 @@ const Data = (() => {
     // i baggrunden (proevForbind). Uden kopi ventes der på nettet som før.
     async start() {
       const kopi = await Kopi.hent();
+      koeListe = await Kopi.hentKoe();
       if (!kopi) { const p = await forbind(); if (p) lyt(); return p; }
       profil = kopi.profil; raekker = kopi.raekker;
+      anvendKoe();
       proevForbind();
       lyt();
       return profil;
     },
     // Kører appen på kopien fra sidst (uden forbindelse til databasen)?
-    udenNet() { return !!profil && !forbundet; },
+    udenNet() { return !!profil && (!forbundet || netNede); },
+    // Antal ændringer, der venter på at blive sendt (Indkøb uden net)
+    venter() { return koeListe.filter(o => o.liste !== 'favoritter').length; },   // hurtigvalgets tællere regnes ikke med
 
     async login(navn, kode) {
       const email = navn.trim().toLowerCase() + '@' + EMAIL_DOMAENE;
@@ -216,6 +299,7 @@ const Data = (() => {
 
     async logud() {
       await koe;   // gem det, der venter, før man logges ud
+      if (forbundet) await sendKoe();   // og det i køen (uden net går det tabt – det hører til den, der var logget ind)
       clearTimeout(kopiTimer);
       kopiStop = true;
       await Kopi.slet();   // kopien på telefonen hører til den, der var logget ind
@@ -234,6 +318,12 @@ const Data = (() => {
     listNu(liste) { return raekker.filter(r => r.liste === liste).map(tilPunkt); },   // samme, uden at vente
 
     async add(liste, felter) {
+      if (KOE_LISTER.has(liste)) {   // vises med det samme, sendes via køen (også uden net)
+        const r = { id: nytId(), liste, data: klon(felter), oprettet: new Date().toISOString(), oprettet_af: profil?.id || null };
+        gemLokalt(r);
+        laegIKoe({ type: 'add', liste, id: r.id, data: r.data, oprettet: r.oprettet, af: r.oprettet_af });
+        return tilPunkt(r);
+      }
       await koe;   // efter de ændringer der venter (rækkefølgen bevares)
       const { data, error } = await db.from('punkter').insert({ liste, data: felter }).select().single();
       if (error) throw error;
@@ -245,6 +335,7 @@ const Data = (() => {
 
     async addMange(liste, felterListe) {
       if (!felterListe.length) return;
+      if (KOE_LISTER.has(liste)) { for (const f of felterListe) await this.add(liste, f); return; }
       await koe;
       const { data, error } = await db.from('punkter').insert(felterListe.map(f => ({ liste, data: f }))).select();
       if (error) throw error;
@@ -258,6 +349,7 @@ const Data = (() => {
       if (!r) return;
       const ny = { ...r, data: { ...r.data, ...aendringer } };
       gemLokalt(ny);
+      if (KOE_LISTER.has(liste)) { laegIKoe({ type: 'update', liste, id, felter: aendringer }); return; }
       iBaggrund([id], async () => {
         const { data, error } = await db.from('punkter').update({ data: ny.data }).eq('id', id).select().single();
         if (error) throw error;
@@ -270,6 +362,7 @@ const Data = (() => {
       const r = raekker.find(x => x.id === id);
       raekker = raekker.filter(x => x.id !== id);
       husk(r);
+      if (KOE_LISTER.has(liste)) { laegIKoe({ type: 'remove', liste, ids: [id] }); return; }
       iBaggrund([id], async () => {
         const { error } = await db.from('punkter').delete().eq('id', id);
         if (error) throw error;
@@ -284,6 +377,7 @@ const Data = (() => {
       const fjernet = raekker.filter(x => s.has(x.id));
       raekker = raekker.filter(x => !s.has(x.id));
       fjernet.forEach(r => husk(r));
+      if (KOE_LISTER.has(liste)) { laegIKoe({ type: 'remove', liste, ids }); return; }
       iBaggrund(ids, async () => {
         const { error } = await db.from('punkter').delete().in('id', ids);
         if (error) throw error;
@@ -301,7 +395,10 @@ const Data = (() => {
     // Sæt en fortrudt gruppe ind igen: slettede rækker kommer tilbage, ændrede får deres gamle indhold
     async gendan(g) {
       await koe;   // en sletning, der stadig er på vej, må ikke ramme det gendannede
-      const rows = g.raekker.map(r => ({ id: r.id, liste: r.liste, data: r.data, oprettet: r.oprettet, oprettet_af: r.oprettet_af }));
+      let rows = g.raekker.map(r => ({ id: r.id, liste: r.liste, data: r.data, oprettet: r.oprettet, oprettet_af: r.oprettet_af }));
+      const viaKoe = rows.filter(r => KOE_LISTER.has(r.liste));   // fx en slettet indkøbsvare: kommer tilbage via køen (også uden net)
+      if (viaKoe.length) { viaKoe.forEach(r => gemLokalt(klon(r))); laegIKoe({ type: 'upsert', raekker: viaKoe }); rows = rows.filter(r => !KOE_LISTER.has(r.liste)); }
+      if (!rows.length) { if (gruppe === g) gruppe = null; return; }
       const { data, error } = await db.from('punkter').upsert(rows).select();
       if (error) throw error;
       (data || []).forEach(gemLokalt);
