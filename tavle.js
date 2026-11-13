@@ -1,12 +1,19 @@
 // tavle.js – 🖥️ Familietablet "Tavlen" i køkkenet (Galaxy Tab, liggende, står tændt i dagevis).
-// Logger brugeren "Tavlen" ind (rolle 'barn' i databasen – se opdatering-tavlen.sql), vises KUN denne side:
+// 13o: Tavlen er en VOKSEN-bruger (opdatering-tavlen-3.sql): tavlen er hjemskærm, og "📱 Åbn appen" giver hele appen som på en
+// voksens telefon – undtagen Budget/bank og Dagbog (skjult på tabletten, TV_SKJULT). "Kun mig" er altid privat (maa_se i databasen).
+// Efter 5 min uden tryk går den selv tilbage til tavlen. (Før 13o: rolle 'barn' – #46/#47 gælder kun, hvis Tavlen er barn.)
+// Hjemskærmen:
 // hele dagen for alle fire + det fælles på én skærm uden at scrolle. Er der for meget, står der "+2 mere".
 // Kun to slags tryk: drengenes flueben (i deres egen kolonne) og afkrydsning på indkøbslisten. Alt andet laves på telefonerne.
 // Databasen sikrer det samme (barn_vagt: er_tavlen) – siden her er bare den venlige udgave.
 // Bruger de fælles hjælpere fra app.js/mere.js/sjov.js (el, knap, aftalerDen, skoleDag, pligtData, skiftFlueben …).
 
 const TAVLEN = 'Tavlen';
-const erTavlen = () => Data.bruger()?.navn === TAVLEN && Data.bruger()?.rolle === 'barn';
+const erTavlen = () => Data.bruger()?.navn === TAVLEN;
+const TV_SKJULT = ['budget', 'dagbog'];   // sider, der ikke vises på tabletten (budget.js/bank.js, dagbog.js) – kun skjult, ikke låst
+const TV_TILBAGE_MIN = 5;                 // appen → tavlen efter 5 min uden tryk
+let tvVisning = 'tavle';                  // 'tavle' | 'app'
+let tvSidstRoert = Date.now();
 const TV_VOKSNE = ['Winnie', 'Timmo'];            // deler én kolonne (der var meget tom plads)
 const TV_PERSONER = [...TV_VOKSNE, ...BOERN];     // dem, der har pligter på tavlen (og et profilkort)
 const TV_PROFIL_SEK = 30;                         // profilkortet lukker selv efter 30 sek.
@@ -244,7 +251,7 @@ async function tvMad(iso) {
 let tvProfilTimer = null;
 async function tvProfil(navn) {
   const iso = tvVisIso();   // om aftenen: morgendagens skema og mad
-  const alle = await Data.list('kalender');
+  const alle = [...await Data.list('kalender'), ...(Data.bruger()?.rolle === 'voksen' ? await Data.list('kalender_voksne') : [])];
   const barn = BOERN.includes(navn);
   const boks = el('div', 'tv-profil ' + PK[navn]);
   const del = (titel, ...indhold) => { const d = el('section', 'tv-p-del'); d.append(el('h3', 'tv-del-titel', titel), ...indhold); return d; };
@@ -302,7 +309,7 @@ function tvTilpas(kol) {
   kol.classList.toggle('tv-taet', forHoej());
 }
 
-function tvTegnSnart(ms = 200) { clearTimeout(tvTimer); tvTimer = setTimeout(tegnTavlen, ms); }
+function tvTegnSnart(ms = 200) { clearTimeout(tvTimer); tvTimer = setTimeout(() => { if (tvVisning === 'tavle') tegnTavlen(); }, ms); }
 
 async function tegnTavlen() {
   const gen = ++tvGen;
@@ -310,7 +317,8 @@ async function tegnTavlen() {
   if (!boks) return;
   tvTema();
   const iso = tvVisIso();   // i dag – eller i morgen fra kl. 19.30
-  const alle = await Data.list('kalender');   // KUN den fælles kalender – kalender_voksne/kalender_privat hentes aldrig her
+  // Fælles kalender + voksen-aftaler (Tavlen er voksen). "Kun mig" (kalender_privat) hentes aldrig her.
+  const alle = [...await Data.list('kalender'), ...(Data.bruger()?.rolle === 'voksen' ? await Data.list('kalender_voksne') : [])];
   const kolonner = [];
   for (const n of ['Fælles', 'voksne', ...BOERN]) {
     try { kolonner.push(n === 'voksne' ? await tvVoksenKolonne(alle, iso) : await tvKolonne(n, alle, iso)); }
@@ -402,10 +410,50 @@ function tvMenu() {
   aabnArk('Tavlen', felt('Udseende', tema), felt('Fuld skærm', fuld), el('p', 'hint', 'Efter klokken = lys kl. 06–20, mørk om aftenen og dæmpet om natten. Alt andet laves på telefonerne.'), opdater, ud);
 }
 
-async function startTavlen() {
+// ---------- Tavle ⇄ app ----------
+function tvTilApp() {
+  tvVisning = 'app';
+  tvSidstRoert = Date.now();
+  document.body.classList.remove('tavlen');
+  document.getElementById('tavlen').hidden = true;
+  document.getElementById('tv-tilbage').hidden = false;
+  visFane('idag');
+  tegnAlt();
+  window.scrollTo(0, 0);
+}
+function tvTilTavle() {
+  tvVisning = 'tavle';
+  if (!arkEl.hidden) lukArk();
+  if (typeof lukZoom === 'function') lukZoom();
   document.body.classList.add('tavlen');
+  document.getElementById('tavlen').hidden = false;
+  document.getElementById('tv-tilbage').hidden = true;
+  tvTegnSnart(0);
+}
+// Har ingen rørt appen i 5 min, går den tilbage til tavlen – men ikke midt i noget (åbent ark eller et felt, man skriver i)
+function tvTjekTilbage() {
+  if (tvVisning !== 'app' || Date.now() - tvSidstRoert < TV_TILBAGE_MIN * 60000) return;
+  const skriver = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement?.tagName || '');
+  if (!arkEl.hidden || skriver) return;
+  tvTilTavle();
+}
+
+async function startTavlen() {
+  document.body.classList.add('tavlen', 'tavlen-enhed');
   const boks = document.getElementById('tavlen');
   boks.hidden = false;
+  tvVisning = 'tavle';
+  // "📱 Åbn appen" (kun når Tavlen er voksen) og "🖥️ Tavlen" tilbage
+  if (Data.bruger()?.rolle === 'voksen') {
+    const aabn = knap('📱 Åbn appen', 'tv-aabn-app', tvTilApp);
+    aabn.id = 'tv-aabn';
+    document.querySelector('.tv-hoejre').append(aabn);
+  }
+  const tilbage = knap('🖥️ Tavlen', 'tv-tilbage', tvTilTavle);
+  tilbage.id = 'tv-tilbage'; tilbage.hidden = true;
+  document.body.append(tilbage);
+  ['pointerdown', 'keydown'].forEach(t => document.addEventListener(t, () => { tvSidstRoert = Date.now(); }, true));
+  setInterval(tvTjekTilbage, 20000);
   const ur = document.getElementById('tv-ur');
   let holdT = null;
   ur.addEventListener('pointerdown', () => { clearTimeout(holdT); holdT = setTimeout(tvMenu, 3000); });
@@ -414,7 +462,7 @@ async function startTavlen() {
   // Fuld skærm (uden Androids statuslinje og knapper): kræver et tryk – så det første tryk på tavlen slår det til igen,
   // fx efter genindlæsningen om natten. Fra/til i menuen (hold på uret); gemmes på tabletten (lokal 'tavle-fuld').
   document.addEventListener('pointerdown', tvFuldSkaerm, true);
-  Data.onChange(() => tvTegnSnart(400));
+  Data.onChange(() => { if (tvVisning === 'tavle') tvTegnSnart(400); });
   window.addEventListener('online', () => { tvHoved(); tvTegnSnart(); });
   window.addEventListener('offline', tvHoved);
   window.addEventListener('resize', () => tvTegnSnart(300));

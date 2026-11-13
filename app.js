@@ -145,7 +145,8 @@ async function anvendFaner() {
     b.hidden = b.dataset.fane === 'pligter' ? !voksen || skjulF.has('pligter') : voksen ? skjulF.has(b.dataset.fane) : !!tilladteFaner && !tilladteFaner.includes(b.dataset.fane);
   });
   const skjulM = new Set(voksen && Array.isArray(mineValg.skjulMere) ? mineValg.skjulMere : []);
-  document.querySelectorAll('#mere .mere-kort[data-gaa]').forEach(k => { k.hidden = !visAlleMere && skjulM.has(k.dataset.gaa); });
+  const tavleSkjul = typeof erTavlen === 'function' && erTavlen() ? TV_SKJULT : [];   // 🖥️ tabletten: ingen budget/bank/dagbog
+  document.querySelectorAll('#mere .mere-kort[data-gaa]').forEach(k => { k.hidden = tavleSkjul.includes(k.dataset.gaa) || (!visAlleMere && skjulM.has(k.dataset.gaa)); });
   let alleKnap = document.getElementById('mere-vis-alle');
   if (!alleKnap) {
     alleKnap = el('button', 'lille-knap mere-vis-alle'); alleKnap.type = 'button'; alleKnap.id = 'mere-vis-alle';
@@ -173,6 +174,7 @@ const faneHistorik = [];
 function visFane(navn, fraTilbage = false) {
   if (typeof lukZoom === 'function') lukZoom();
   if (!FANER.includes(navn)) navn = 'idag';
+  if (typeof erTavlen === 'function' && erTavlen() && TV_SKJULT.includes(navn)) navn = 'idag';   // 🖥️ ikke på tabletten
   if (erBarn() && typeof pauseHele === 'function' && pauseHele(Data.bruger()?.navn, isoDato(new Date()))) navn = 'idag';   // ⏸ hele tavlen holder pause
   if ((navn === 'kontakter' || navn === 'aktivitet' || navn === 'budget' || navn === 'dagbog' || navn === 'medicin') && erBarn()) navn = 'idag';   // kontakter, aktivitet og budget er kun for voksne
   if (navn !== 'hjaelp' && tilladteFaner && !tilladteFaner.includes(underMere(navn) ? 'mere' : navn)) navn = 'idag';
@@ -3593,7 +3595,7 @@ setInterval(async () => {
 }, 300000);
 
 async function tegnOverblik() {
-  if (typeof erTavlen === 'function' && erTavlen()) return;   // 🖥️ tavle.js
+  if (typeof erTavlen === 'function' && erTavlen() && tvVisning === 'tavle') return;   // 🖥️ tavle.js
   tegnTavleValg();
   const erBoernetavle = tavleVisning !== 'familie';
   document.getElementById('familie-overblik').hidden = erBoernetavle;
@@ -4369,7 +4371,7 @@ async function opdaterVenter() {
 }
 
 function tegnAlt() {
-  if (typeof erTavlen === 'function' && erTavlen()) { tvTegnSnart(); return; }   // 🖥️ familietabletten viser kun sin egen side (tavle.js)
+  if (typeof erTavlen === 'function' && erTavlen() && tvVisning === 'tavle') { tvTegnSnart(); return; }   // 🖥️ familietabletten: tavlen er fremme (tavle.js)
   tegnListe('indkob'); tegnListe('todo'); tegnMadplan(); tegnFastPlan(); tegnSkema(); tegnKalender(); tegnOverblik();
   tegnForslag('indkob'); tegnForslag('todo'); tegnForslag('ret'); tegnForslag('morgen'); tegnForslag('frokost');
   tegnFoedselsdage();
@@ -4425,13 +4427,6 @@ async function startTavle() {
   logUd.className = 'bruger-knap ' + (PK[profil.navn] || 'c-faelles');
   logUd.setAttribute('aria-label', 'Indstillinger – logget ind som ' + profil.navn);
   logUd.hidden = false;
-  // 🖥️ Familietabletten i køkkenet: kun tavle-siden (tavle.js) – med børnelåsen og Tavlens egne regler (barnMaa)
-  if (typeof erTavlen === 'function' && erTavlen()) {
-    laasForBoern();
-    visNet(); Data.onChange(visNet);
-    await startTavlen();
-    return;
-  }
   if (erBarn()) {
     laasForBoern();
   } else {
@@ -4461,6 +4456,7 @@ async function startTavle() {
   const gaa = new URLSearchParams(location.hash.slice(1)).get('gaa');
   if (gaa) { history.replaceState(null, '', location.pathname + location.search); setTimeout(() => gaaTil(gaa), 400); }
   tilbageVagt();
+  if (typeof erTavlen === 'function' && erTavlen()) await startTavlen();   // 🖥️ familietabletten: tavlen som hjemskærm (tavle.js)
 }
 
 // ---------- Telefonens tilbage-knap (Android) ----------
