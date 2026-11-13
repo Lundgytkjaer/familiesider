@@ -77,7 +77,44 @@ const Data = (() => {
   function fortaelLyttere() {
     clearTimeout(timer);
     timer = setTimeout(() => lyttere.forEach(fn => fn()), 150);
+    gemKopiSnart();
   }
+
+  // ---------- Kopi på telefonen (til brug uden net) ----------
+  // Rækkerne og profilen gemmes i telefonens egen database (IndexedDB), hver gang de er hentet eller ændret.
+  // Uden net starter appen fra kopien. Kopien slettes ved log ud. Fejl her må aldrig vælte appen.
+  const Kopi = (() => {
+    const aabn = () => new Promise((ok, fejl) => {
+      const q = indexedDB.open('familietavlen', 1);
+      q.onupgradeneeded = () => q.result.createObjectStore('kopi');
+      q.onsuccess = () => ok(q.result);
+      q.onerror = () => fejl(q.error);
+    });
+    const med = async (skriv, fn) => {
+      const d = await aabn();
+      try {
+        return await new Promise((ok, fejl) => {
+          const t = d.transaction('kopi', skriv ? 'readwrite' : 'readonly'), q = fn(t.objectStore('kopi'));
+          t.oncomplete = () => ok(q && q.result);
+          t.onerror = t.onabort = () => fejl(t.error);
+        });
+      } finally { d.close(); }
+    };
+    return {
+      async hent() { try { const k = await med(false, s => s.get('alt')); return k && k.profil && Array.isArray(k.raekker) ? k : null; } catch (e) { return null; } },
+      async gem(k) { try { await med(true, s => s.put(k, 'alt')); } catch (e) { console.warn('Kunne ikke gemme kopien:', e); } },
+      async slet() { try { await med(true, s => s.delete('alt')); } catch (e) { /* ingen kopi */ } }
+    };
+  })();
+  let kopiTimer, kopiStop = false;   // kopiStop: der logges ud – gem ikke mere
+  function gemKopiSnart() {
+    if (!profil || kopiStop) return;
+    clearTimeout(kopiTimer);
+    kopiTimer = setTimeout(() => { if (profil && !kopiStop) Kopi.gem({ profil, raekker, tid: Date.now() }); }, 1500);
+  }
+  // Er det nettet, der mangler (og ikke fx en forkert kode eller børnelåsen)?
+  const erNetfejl = e => !navigator.onLine || e?.name === 'AuthRetryableFetchError' || e?.status === 0
+    || /failed to fetch|load failed|networkerror|network request failed|fetch failed/i.test(e?.message || '');
 
   // Supabase giver højst 1000 rækker pr. svar – derfor hentes i bidder (ellers mangler der stille og roligt data)
   async function hentAlt() {
@@ -91,6 +128,7 @@ const Data = (() => {
     raekker = alle;
   }
   async function genhent() {
+    if (!forbundet) return proevForbind();   // startet fra kopien: prøv at komme på nettet
     try {
       await koe;   // først skal det, der venter på at blive gemt, være gemt
       await hentAlt();
@@ -100,14 +138,21 @@ const Data = (() => {
     } catch (e) { console.warn(e); }
   }
 
-  async function efterLogin() {
-    const { data: { user } } = await db.auth.getUser();
-    if (!user) return null;
+  // Kom på nettet: tjek login, hent profil og alle rækker, lyt efter de andres ændringer.
+  // Returnerer profilen, null (ikke logget ind) – eller kaster en fejl (fx intet net).
+  let forbundet = false, forbinder = null, lytter = false;
+  async function forbind() {
+    const { data: { session }, error: sFejl } = await db.auth.getSession();
+    if (!session) { if (sFejl && erNetfejl(sFejl)) throw sFejl; return null; }
+    const { data: { user }, error: uFejl } = await db.auth.getUser();
+    if (!user) { if (uFejl && erNetfejl(uFejl)) throw uFejl; return null; }
     const { data, error } = await db.from('profiler').select('*').eq('id', user.id).maybeSingle();
     if (error) throw error;
     if (!data) throw new Error('mangler-profil');
-    profil = data;
     await hentAlt();
+    profil = data;
+    forbundet = true;
+    gemKopiSnart();
 
     // Live: når en anden ændrer noget, opdateres skærmen
     db.channel('punkter')
@@ -119,31 +164,68 @@ const Data = (() => {
         fortaelLyttere();
       })
       .subscribe();
-
-    // Når telefonen vågner, nettet kommer igen, eller hvert 10. minut (fx en iPad der altid er tændt), hentes alt igen
+    return profil;
+  }
+  // Når telefonen vågner, nettet kommer igen, eller hvert 10. minut (fx en iPad der altid er tændt), hentes alt igen
+  function lyt() {
+    if (lytter) return;
+    lytter = true;
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') genhent(); });
     window.addEventListener('online', genhent);
     setInterval(() => { if (document.visibilityState === 'visible') genhent(); }, 10 * 60 * 1000);
-    return profil;
+  }
+  // Appen kører på kopien: prøv at komme på nettet (én ad gangen). Lykkes det, vises de friske data.
+  function proevForbind() {
+    if (forbundet || forbinder) return forbinder;
+    forbinder = (async () => {
+      try {
+        const p = await forbind();
+        if (p) { udefra++; fortaelLyttere(); }
+        else { await Kopi.slet(); location.reload(); }   // ikke længere logget ind på denne telefon → login-skærmen
+      } catch (e) { console.warn('Stadig uden net:', e?.message || e); }
+      finally { forbinder = null; }
+    })();
+    return forbinder;
   }
 
   return {
     // Er man allerede logget ind på denne enhed? Returnerer profilen eller null.
+    // Har telefonen en kopi, og svarer nettet ikke (inden for 4 sek. – straks, hvis telefonen ved, den er uden net), startes der fra kopien – og nettet prøves igen bagefter.
     async start() {
-      const { data: { session } } = await db.auth.getSession();
-      if (!session) return null;
-      return efterLogin();
+      const kopi = await Kopi.hent();
+      if (!kopi) { const p = await forbind(); if (p) lyt(); return p; }
+      const rigtig = forbind();
+      rigtig.catch(() => {});
+      const VENT = {};
+      let r;
+      try { r = await Promise.race([rigtig, new Promise(ok => setTimeout(ok, navigator.onLine ? 4000 : 300, VENT))]); }
+      catch (e) { if (!erNetfejl(e)) throw e; r = VENT; }
+      if (r === null) { await Kopi.slet(); return null; }   // logget ud et andet sted fra
+      if (r === VENT) {
+        profil = kopi.profil; raekker = kopi.raekker;
+        forbinder = rigtig.then(p => { forbinder = null; if (p) { udefra++; fortaelLyttere(); } else if (p === null) return Kopi.slet().then(() => location.reload()); },
+          () => { forbinder = null; });
+      }
+      lyt();
+      return profil;
     },
+    // Kører appen på kopien fra sidst (uden forbindelse til databasen)?
+    udenNet() { return !!profil && !forbundet; },
 
     async login(navn, kode) {
       const email = navn.trim().toLowerCase() + '@' + EMAIL_DOMAENE;
       const { error } = await db.auth.signInWithPassword({ email, password: kode });
       if (error) throw error;
-      return efterLogin();
+      const p = await forbind();
+      if (p) lyt();
+      return p;
     },
 
     async logud() {
       await koe;   // gem det, der venter, før man logges ud
+      clearTimeout(kopiTimer);
+      kopiStop = true;
+      await Kopi.slet();   // kopien på telefonen hører til den, der var logget ind
       if (typeof pushFoerLogud === 'function') await pushFoerLogud();   // push.js: telefonen skal ikke have den udloggedes beskeder
       await db.auth.signOut();
       location.reload();
