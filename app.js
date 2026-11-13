@@ -116,8 +116,10 @@ const kortDag = iso => { const d = new Date(iso + 'T00:00'); return d.getDate() 
 const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe', 'budget', 'dagbog', 'medicin', 'opskrifter'];
 const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe', 'budget', 'dagbog', 'medicin', 'opskrifter'];   // sider man når via "Mere"
 // Voksne: "Pligter" (pligter, belønninger, ønsker) er en fane i bundmenuen – og To do er tilbage i bundmenuen (2026-10-19s). Børn: som før.
+// Enkel visning (2026-11-13b, personvalg.enkel – voksne): To do og Pligter ligger under Mere i stedet for i bundmenuen.
+let enkelNu = false;
 const underMere = navn => (Data.bruger()?.rolle === 'voksen'
-  ? (UNDER_MERE.includes(navn) && navn !== 'pligter') : UNDER_MERE.includes(navn));
+  ? (enkelNu ? UNDER_MERE.includes(navn) || navn === 'todo' : UNDER_MERE.includes(navn) && navn !== 'pligter') : UNDER_MERE.includes(navn));
 const FANE_NAVN = { idag: 'I dag', kalender: 'Kalender', madplan: 'Madplan', indkob: 'Indkøb', todo: 'To do', mere: 'Mere', pligter: 'Pligter' };
 // Børn ser kun de faner, de voksne har slået til for dem (personvalg.faner). Tavlen ("I dag") er der altid.
 const BOERNE_FANER = ['kalender', 'madplan', 'mere'];   // standard for børn
@@ -136,6 +138,9 @@ async function anvendFaner() {
   // Voksne kan selv skjule faner og sider under Mere (Indstillinger → Bundmenu og sider). Kun en visning – siderne kan stadig nås via links.
   const mineValg = voksen ? await valgFor(p.navn) : {};
   const skjulF = new Set(voksen && Array.isArray(mineValg.skjulFaner) ? mineValg.skjulFaner : []);
+  enkelNu = voksen && mineValg.enkel === true;
+  document.body.classList.toggle('enkel', enkelNu);
+  if (enkelNu) { skjulF.add('todo'); skjulF.add('pligter'); }
   knapper.forEach(b => {
     b.hidden = b.dataset.fane === 'pligter' ? !voksen || skjulF.has('pligter') : voksen ? skjulF.has(b.dataset.fane) : !!tilladteFaner && !tilladteFaner.includes(b.dataset.fane);
   });
@@ -154,6 +159,11 @@ async function anvendFaner() {
   indre.style.gridTemplateColumns = 'repeat(' + synlige + ', 1fr)';
   indre.classList.toggle('mange', synlige >= 7);   // 7 faner: lidt mindre tekst, så "Kalender" kan være der
   const aaben = document.querySelector('.fane:not([hidden])')?.id;
+  if (aaben && voksen) {   // Enkel visning slået til/fra, mens man står på siden: den rigtige fane skal lyse
+    const iMenu = underMere(aaben) ? (tilbageTil && !underMere(tilbageTil) ? tilbageTil : 'mere') : aaben;
+    knapper.forEach(b => b.setAttribute('aria-selected', b.dataset.fane === iMenu));
+    opdaterTilbage();
+  }
   if (aaben && tilladteFaner && !tilladteFaner.includes(underMere(aaben) ? 'mere' : aaben)) visFane('idag');
 }
 // Tilbage-knappen på undersiderne går derhen, man kom fra (fx "‹ I dag", når man trykkede på vejret på tavlen)
@@ -915,9 +925,20 @@ function tegnNyFrist() {
   dato.className = 'skjult-dato'; dato.min = idag; dato.setAttribute('aria-label', 'Vælg dato');
   dato.addEventListener('change', () => { if (dato.value) { nyFrist = dato.value; tegnNyFrist(); } });
   boks.replaceChildren(el('span', 'frist-label', 'Senest:'), ...valg.map(([v, t]) => k(v, t)), datoKnap, dato);
+  tegnTodoValg();
 }
 function tegnNyPrio() {
   document.querySelectorAll('#ny-prio [data-prio]').forEach(b => b.setAttribute('aria-checked', Number(b.dataset.prio) === nyPrio));
+  tegnTodoValg();
+}
+// Prioritet og "Senest" er foldet sammen under tekstfeltet (2026-11-13b) – linjen viser, hvad der er valgt
+function tegnTodoValg() {
+  const t = document.getElementById('todo-valg-tekst'), prik = document.getElementById('todo-valg-prik');
+  if (!t) return;
+  const idag = isoDato(new Date());
+  const frist = !nyFrist ? 'ingen frist' : 'senest ' + (nyFrist === idag ? 'i dag' : nyFrist === plusDage(idag, 1) ? 'i morgen' : kortDag(nyFrist));
+  t.textContent = ({ 1: 'Haster', 2: 'Snart', 3: 'Engang' })[nyPrio] + ' · ' + frist;
+  if (prik) prik.className = 'prik p' + nyPrio;
 }
 document.querySelectorAll('#ny-prio [data-prio]').forEach(b => b.addEventListener('click', () => { nyPrio = Number(b.dataset.prio); tegnNyPrio(); }));
 
@@ -1423,21 +1444,19 @@ async function tegnMadplan() {
     terning.innerHTML = IKON_TERNING;
     terning.addEventListener('click', () => medUgeFortryd('Ny ret ' + DAGE_LANG[i].toLowerCase(), () => rulDage([i])));
 
+    // ✎ Tilpas (variant, fyld, tilbehør, sovs, ekstra) ligger under ⋯ (2026-11-13b – før en knap under hver dag, så ugen ikke kunne ses på én skærm)
+    const kanTilpas = !erBarn() && felt.value && !ude && !!retChips(alleFavs, 'ret', felt.value, () => {});   // retter.js
+    const tilpas = !kanTilpas ? null : () => tilpasRet(alleFavs, 'ret', felt.value, async t => {
+      if (fast && !egen && t === fast) return;
+      await gemRet(i, t === fast ? '' : t);
+      tegnMadplan();
+    });
     // ⋯ = dagens valg: 🎉 Vi er ude, 📌 fast hver uge, ⇅ flyt/byt, ryd. Er dagen fast, står der 📌 (børn ser kun 📌)
-    const gentag = knap('', 'gentag-knap dag-menu' + (fast ? ' aktiv' : ''), () => dagMenu(i, dato, { egen, fast, ude, rester, vist: felt.value.trim(), retter, faste }));
+    const gentag = knap('', 'gentag-knap dag-menu' + (fast ? ' aktiv' : ''), () => dagMenu(i, dato, { egen, fast, ude, rester, vist: felt.value.trim(), retter, faste, tilpas }));
     if (fast) gentag.textContent = '📌'; else gentag.innerHTML = IKON_MERE;
     gentag.setAttribute('aria-label', (fast ? 'Fast hver ' + DAGE_LANG[i].toLowerCase() + '. ' : '') + 'Valg for ' + DAGE_LANG[i].toLowerCase());
 
     li.append(label, fuldTekst(felt, t => retVisning(alleFavs, 'ret', t)), gentag, terning);   // retter.js
-    // Varianter af dagens ret (fx burger: flæskesteg · kyllingebøf …) – tryk for at vælge
-    if (!erBarn() && felt.value && !ude) {
-      const vc = retChips(alleFavs, 'ret', felt.value, async t => {   // retter.js
-        if (fast && !egen && t === fast) return;
-        await gemRet(i, t === fast ? '' : t);
-        tegnMadplan();
-      });
-      if (vc) li.append(vc);
-    }
 
     // Står der noget for familien i kalenderen den aften? → "Spiser I ude?" (ét tryk)
     if (voksen && !ude && i >= Math.max(idag, 0) && idag < 7) {
@@ -1515,11 +1534,12 @@ function udeAftale(aftaler, iso) {
 }
 
 // ⋯ ved en dag på madplanen
-function dagMenu(i, dato, { egen, fast, ude, rester, vist, retter, faste }) {
+function dagMenu(i, dato, { egen, fast, ude, rester, vist, retter, faste, tilpas }) {
   if (erBarn()) return;
   const dagNavn = DAGE_LANG[i].toLowerCase();
   const titel = DAGE_LANG[i] + ' ' + dato.getDate() + '/' + (dato.getMonth() + 1) + (vist ? ' · ' + vist : '');
   const boks = el('div', 'punkt-valg dag-valg');
+  if (tilpas) boks.append(knap('✎ Tilpas retten: fyld, tilbehør, sovs …', 'knap sekundaer', tilpas));
   boks.append(knap(ude && !rester ? '🎉 Ret "Vi er ude"' : '🎉 Vi er ude / spiser ikke hjemme', 'knap sekundaer', () => udeArk(i, dato, ude && !rester ? egen : '')));
   boks.append(knap(rester ? '♻️ Ret rester' : '♻️ Rester', 'knap sekundaer', () => resterArk(i, dato, rester ? egen : '')));
   if (!ude) boks.append(knap(fast ? '📌 Ikke fast hver ' + dagNavn + ' længere' : '📌 Fast hver ' + dagNavn, 'knap sekundaer', async () => {
@@ -3996,7 +4016,7 @@ function kontakt(tekst, til, fn, under = '') {
 }
 const kontaktListe = (...r) => { const l = el('div', 'kontakt-liste'); l.append(...r.filter(Boolean)); return l; };
 // Siderne under Mere (navn fra kortet) – til "Sider under Mere"
-const mereSider = () => [...document.querySelectorAll('#mere .mere-kort[data-gaa]')].map(k => [k.dataset.gaa, k.querySelector('.mere-navn')?.textContent || k.dataset.gaa, k.classList.contains('kun-voksen')]);
+const mereSider = () => [...document.querySelectorAll('#mere .mere-kort[data-gaa]:not(.kun-enkel):not(.kun-barn-enkel)')].map(k => [k.dataset.gaa, k.querySelector('.mere-navn')?.textContent || k.dataset.gaa, k.classList.contains('kun-voksen')]);
 
 // ---------- Indstillinger (ombygget 2026-10-20k) ----------
 // Det vigtigste øverst med tænd/sluk-knapper; resten under "Avanceret" (foldet sammen).
@@ -4041,7 +4061,7 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
   if (voksen && forMig) {
     const FANER_V = { kalender: 'Kalender', madplan: 'Madplan', indkob: 'Indkøb', todo: 'To do', pligter: 'Pligter' };
     const skjulte = new Set(Array.isArray(valg.skjulFaner) ? valg.skjulFaner : []);
-    const faneListe = kontaktListe(...Object.entries(FANER_V).map(([f, navn]) => kontakt(navn, !skjulte.has(f), async til => {
+    const faneListe = kontaktListe(...Object.entries(FANER_V).filter(([f]) => !(valg.enkel === true && (f === 'todo' || f === 'pligter'))).map(([f, navn]) => kontakt(navn, !skjulte.has(f), async til => {
       if (til) skjulte.delete(f); else skjulte.add(f);
       await saetValg(mig, 'skjulFaner', [...skjulte]); anvendFaner();
     })));
@@ -4053,7 +4073,12 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     const mereBoks = el('details', 'indst-fold');
     mereBoks.append(el('summary', null, 'Sider under Mere' + (skjultMere.size ? ' (' + skjultMere.size + ' skjult)' : '')),
       el('p', 'hint', 'Slå de sider fra, du ikke bruger. De forsvinder ikke – "Vis alle sider" nederst under Mere viser dem igen.'), mereListe);
-    dele.push(titel('📱 Bundmenu og sider'), el('label', 'felt-label', 'Faner i bunden'), faneListe,
+    const enkelListe = kontaktListe(kontakt('🌿 Enkel visning', valg.enkel === true, async til => {
+      await saetValg(mig, 'enkel', til); await anvendFaner(); aabnIndstillinger(hvem);
+    }));
+    dele.push(titel('📱 Bundmenu og sider'), enkelListe,
+      el('p', 'hint', 'Kun det daglige i bunden: I dag, Kalender, Madplan, Indkøb og Mere. To do og Pligter ligger under Mere, og Indkøb viser ikke antal varer. Intet slettes – slå den fra igen her.'),
+      el('label', 'felt-label', 'Faner i bunden'), faneListe,
       el('p', 'hint', 'I dag og Mere er der altid. Gælder kun dig – på alle dine enheder.'), mereBoks);
   }
 

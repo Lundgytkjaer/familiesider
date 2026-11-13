@@ -24,7 +24,7 @@
   <meta name="robots" content="noindex">
   <title>Familietavlen</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap">
-  <link rel="stylesheet" href="style.css?v=2026-11-13a">
+  <link rel="stylesheet" href="style.css?v=2026-11-13b">
 </head>
 <body data-tilstand="starter">
 <div class="indhold">
@@ -168,17 +168,21 @@
 
     <!-- TO DO -->
     <section id="todo" class="fane" hidden>
+      <button type="button" class="tilbage kun-enkel" data-gaa="mere">‹ Mere</button>
       <div class="sek-hoved"><h2>To do</h2><span class="taeller" data-taeller="todo"></span></div>
       <form class="tilfoj" data-liste="todo">
         <input type="text" id="ny-todo" placeholder="Fx bestil tid til vinterdæk" aria-label="Ny opgave" autocomplete="off" enterkeyhint="done">
         <button class="knap">Tilføj</button>
       </form>
+      <details class="todo-valg kun-voksen" id="todo-valg">
+      <summary><span class="prik" id="todo-valg-prik"></span><span id="todo-valg-tekst">Prioritet og frist</span></summary>
       <div class="seg" role="radiogroup" aria-label="Prioritet for ny opgave" id="ny-prio">
         <button type="button" role="radio" data-prio="1" class="p1"><span class="prik"></span>Haster</button>
         <button type="button" role="radio" data-prio="2" class="p2"><span class="prik"></span>Snart</button>
         <button type="button" role="radio" data-prio="3" class="p3"><span class="prik"></span>Engang</button>
       </div>
       <div class="seg wrap kun-voksen" role="radiogroup" aria-label="Skal være gjort senest" id="ny-frist"></div>
+      </details>
       <div class="forslag" data-forslag="todo"></div>
       <ul class="liste" data-liste="todo"></ul>
       <button type="button" class="ryd" data-liste="todo" data-tekst="Ryd det klarede">Ryd det klarede</button>
@@ -241,7 +245,11 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2.5h6"/></svg>
           <span class="mere-navn">Rutiner</span><span class="under">Tandbørstning, sengetid og andet med billeder</span>
         </button>
-        <button type="button" class="kort mere-kort kun-barn" data-gaa="pligter">
+        <button type="button" class="kort mere-kort kun-enkel" data-gaa="todo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5l1.5 1.5L8 5.5M4 12.5l1.5 1.5L8 11.5M4 18.5l1.5 1.5L8 17.5M12 7h8M12 13h8M12 19h8"/></svg>
+          <span class="mere-navn">To do</span><span class="under">Det, der skal ordnes – med frist og prioritet</span>
+        </button>
+        <button type="button" class="kort mere-kort kun-barn-enkel" data-gaa="pligter">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>
           <span class="mere-navn">Pligter</span><span class="under">Med eller uden lommepenge og stjerner</span>
         </button>
@@ -311,7 +319,7 @@
 
     <!-- PLIGTER -->
     <section id="pligter" class="fane" hidden>
-      <button type="button" class="tilbage kun-barn" data-gaa="mere">‹ Mere</button>
+      <button type="button" class="tilbage kun-barn-enkel" data-gaa="mere">‹ Mere</button>
       <div class="sek-hoved"><h2>Pligter</h2></div>
       <div id="pligter-indhold"></div>
     </section>
@@ -535,28 +543,28 @@
 <p class="status" id="status" role="status" hidden></p>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
-<script src="data.js?v=2026-11-13a"></script>
-<script src="dage.js?v=2026-11-13a"></script>
-<script src="vejr.js?v=2026-11-13a"></script>
-<script src="app.js?v=2026-11-13a"></script>
-<script src="mere.js?v=2026-11-13a"></script>
-<script src="sjov.js?v=2026-11-13a"></script>
-<script src="seddel.js?v=2026-11-13a"></script>
-<script src="familie.js?v=2026-11-13a"></script>
-<script src="handel.js?v=2026-11-13a"></script>
-<script src="retter.js?v=2026-11-13a"></script>
-<script src="aktivitet.js?v=2026-11-13a"></script>
-<script src="kort.js?v=2026-11-13a"></script>
-<script src="pause.js?v=2026-11-13a"></script>
-<script src="skoledag.js?v=2026-11-13a"></script>
-<script src="mappe.js?v=2026-11-13a"></script>
-<script src="bank.js?v=2026-11-13a"></script>
-<script src="budget.js?v=2026-11-13a"></script>
-<script src="dagbog.js?v=2026-11-13a"></script>
-<script src="medicin.js?v=2026-11-13a"></script>
-<script src="huskeord.js?v=2026-11-13a"></script>
-<script src="opskrifter.js?v=2026-11-13a"></script>
-<script src="push.js?v=2026-11-13a"></script>
-<script src="ai.js?v=2026-11-13a"></script>
+<script src="data.js?v=2026-11-13b"></script>
+<script src="dage.js?v=2026-11-13b"></script>
+<script src="vejr.js?v=2026-11-13b"></script>
+<script src="app.js?v=2026-11-13b"></script>
+<script src="mere.js?v=2026-11-13b"></script>
+<script src="sjov.js?v=2026-11-13b"></script>
+<script src="seddel.js?v=2026-11-13b"></script>
+<script src="familie.js?v=2026-11-13b"></script>
+<script src="handel.js?v=2026-11-13b"></script>
+<script src="retter.js?v=2026-11-13b"></script>
+<script src="aktivitet.js?v=2026-11-13b"></script>
+<script src="kort.js?v=2026-11-13b"></script>
+<script src="pause.js?v=2026-11-13b"></script>
+<script src="skoledag.js?v=2026-11-13b"></script>
+<script src="mappe.js?v=2026-11-13b"></script>
+<script src="bank.js?v=2026-11-13b"></script>
+<script src="budget.js?v=2026-11-13b"></script>
+<script src="dagbog.js?v=2026-11-13b"></script>
+<script src="medicin.js?v=2026-11-13b"></script>
+<script src="huskeord.js?v=2026-11-13b"></script>
+<script src="opskrifter.js?v=2026-11-13b"></script>
+<script src="push.js?v=2026-11-13b"></script>
+<script src="ai.js?v=2026-11-13b"></script>
 </body>
 </html>

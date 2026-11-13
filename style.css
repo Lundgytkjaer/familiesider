@@ -2426,3 +2426,15 @@ html.tastatur .ark .maaltid-smaa { display: none; }
 .zoom-baggrund { top: var(--vv-top, 0px); bottom: auto; height: var(--vv-h, 100%); }
 /* … og siden får luft forneden, så også det nederste felt på en side kan rulles op over tastaturet */
 html.tastatur .indhold { padding-bottom: calc(100vh - var(--vv-h, 100vh) + 24px); }
+
+/* Enkel visning (2026-11-13b, body.enkel sættes i anvendFaner): To do og Pligter ligger under Mere, Indkøb viser ikke antal varer */
+body:not(.enkel) .kun-enkel { display: none !important; }
+body:not(.barn):not(.enkel) .kun-barn-enkel { display: none !important; }
+body.enkel [data-badge="indkob"] { display: none !important; }
+/* To do: prioritet og frist foldet sammen under tekstfeltet – linjen viser det valgte */
+.todo-valg { margin: 6px 0 2px; }
+.todo-valg > summary { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 0 4px; font-size: 14px; font-weight: 600; color: var(--daempet); cursor: pointer; list-style: none; }
+.todo-valg > summary::-webkit-details-marker { display: none; }
+.todo-valg > summary::after { content: '▾'; font-size: 12px; }
+.todo-valg[open] > summary::after { content: '▴'; }
+.todo-valg > summary .prik { width: 9px; height: 9px; border-radius: 50%; flex: none; }
