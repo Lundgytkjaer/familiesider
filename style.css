@@ -2438,3 +2438,7 @@ body.enkel [data-badge="indkob"] { display: none !important; }
 .todo-valg > summary::after { content: '▾'; font-size: 12px; }
 .todo-valg[open] > summary::after { content: '▴'; }
 .todo-valg > summary .prik { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+/* Uden net: lille, rolig linje under overskriften (ingen rød fejl) */
+.uden-net { margin: -4px 0 8px; font-size: 13px; font-weight: 600; color: var(--daempet); }
+.uden-net::before { content: '☁︎ '; }

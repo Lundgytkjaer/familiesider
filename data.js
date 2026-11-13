@@ -149,9 +149,11 @@ const Data = (() => {
     const { data, error } = await db.from('profiler').select('*').eq('id', user.id).maybeSingle();
     if (error) throw error;
     if (!data) throw new Error('mangler-profil');
+    await koe;   // ændringer lavet på kopien imens skal være gemt, før alt hentes
     await hentAlt();
     profil = data;
     forbundet = true;
+    if (ventende.size) setTimeout(genhent, 500);   // nye ændringer imens – hent igen bagefter
     gemKopiSnart();
 
     // Live: når en anden ændrer noget, opdateres skærmen
@@ -190,22 +192,13 @@ const Data = (() => {
 
   return {
     // Er man allerede logget ind på denne enhed? Returnerer profilen eller null.
-    // Har telefonen en kopi, og svarer nettet ikke (inden for 4 sek. – straks, hvis telefonen ved, den er uden net), startes der fra kopien – og nettet prøves igen bagefter.
+    // Har telefonen en kopi, vises den med det samme (også med net – så åbner appen hurtigt), og de friske data hentes
+    // i baggrunden (proevForbind). Uden kopi ventes der på nettet som før.
     async start() {
       const kopi = await Kopi.hent();
       if (!kopi) { const p = await forbind(); if (p) lyt(); return p; }
-      const rigtig = forbind();
-      rigtig.catch(() => {});
-      const VENT = {};
-      let r;
-      try { r = await Promise.race([rigtig, new Promise(ok => setTimeout(ok, navigator.onLine ? 4000 : 300, VENT))]); }
-      catch (e) { if (!erNetfejl(e)) throw e; r = VENT; }
-      if (r === null) { await Kopi.slet(); return null; }   // logget ud et andet sted fra
-      if (r === VENT) {
-        profil = kopi.profil; raekker = kopi.raekker;
-        forbinder = rigtig.then(p => { forbinder = null; if (p) { udefra++; fortaelLyttere(); } else if (p === null) return Kopi.slet().then(() => location.reload()); },
-          () => { forbinder = null; });
-      }
+      profil = kopi.profil; raekker = kopi.raekker;
+      proevForbind();
       lyt();
       return profil;
     },

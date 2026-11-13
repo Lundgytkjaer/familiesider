@@ -3815,6 +3815,19 @@ function visStatus(tekst, fejl = false) {
   s.onclick = () => { s.hidden = true; };   // tryk = væk med det samme
   statusTimer = setTimeout(() => (s.hidden = true), fejl ? 6000 : 3000);   // almindelige beskeder skal ikke hænge og dække listen
 }
+// Diskret linje øverst, når appen kører uden net (på kopien fra sidst)
+// (lige efter start hentes de friske data stadig – derfor vises linjen først efter 3 sek., hvis telefonen selv mener, den har net)
+let netTimer;
+function visNet() {
+  const e = document.getElementById('uden-net');
+  if (!e) return;
+  clearTimeout(netTimer);
+  const uden = !!Data.bruger() && (Data.udenNet() || !navigator.onLine);
+  if (uden && navigator.onLine && e.hidden) { netTimer = setTimeout(() => { e.hidden = !Data.udenNet(); }, 3000); return; }
+  e.hidden = !uden;
+}
+window.addEventListener('online', visNet);
+window.addEventListener('offline', visNet);
 window.addEventListener('unhandledrejection', e => {
   console.error(e.reason);
   visStatus(navigator.onLine ? 'Noget gik galt – ændringen blev måske ikke gemt.' : 'Ingen forbindelse – ændringen blev ikke gemt.', true);
@@ -4415,6 +4428,7 @@ async function startTavle() {
   noterAktiv();
   tegnAlt();
   Data.onChange(tegnAlt);
+  visNet(); Data.onChange(visNet);
   setTimeout(() => { if (typeof sjovFyldOp === 'function') sjovFyldOp(); }, 6000);   // 🧩 nye gåder/vitser til drengenes tavler (sjov.js, kun voksne)
   document.body.dataset.tilstand = 'klar';
   if (typeof pushOpfrisk === 'function') pushOpfrisk();   // push.js
