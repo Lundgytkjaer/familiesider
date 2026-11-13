@@ -441,6 +441,22 @@ const Data = (() => {
       if (error) throw error;
     },
     // Bed Edge Function'en "push" sende (den afgør selv hvem der må få hvad)
+    // 📅 Kalender i telefonen (kalenderlink.js): mit hemmelige iCal-link. null = intet link. Kaster fejl, hvis SQL #45 mangler.
+    async kalenderLink() {
+      const { data, error } = await db.from('kalender_links').select('token').eq('bruger', profil.id).maybeSingle();
+      if (error) throw error;
+      return data?.token ? SUPABASE_URL + '/functions/v1/kalender?t=' + data.token : null;
+    },
+    async nytKalenderLink() {
+      const { data, error } = await db.rpc('nyt_kalenderlink');
+      if (error) throw error;
+      return SUPABASE_URL + '/functions/v1/kalender?t=' + data;
+    },
+    async sletKalenderLink() {
+      const { error } = await db.from('kalender_links').delete().eq('bruger', profil.id);
+      if (error) throw error;
+    },
+
     async push(krop) {
       const { data, error } = await db.functions.invoke('push', { body: krop });
       if (error) throw error;

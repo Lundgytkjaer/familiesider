@@ -2442,3 +2442,6 @@ body.enkel [data-badge="indkob"] { display: none !important; }
 /* Uden net: lille, rolig linje under overskriften (ingen rød fejl) */
 .uden-net { margin: -4px 0 8px; font-size: 13px; font-weight: 600; color: var(--daempet); }
 .uden-net::before { content: '☁︎ '; }
+
+/* 📅 Kalender i telefonen (kalenderlink.js) */
+.kal-link a.knap { display: flex; align-items: center; justify-content: center; text-decoration: none; }

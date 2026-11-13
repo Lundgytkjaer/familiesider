@@ -4129,6 +4129,9 @@ async function aabnIndstillinger(hvem = Data.bruger()?.navn) {
     avanceret.push(el('label', 'felt-label', 'Sedler'), kontaktListe(sk));
   }
 
+  // --- 📅 Kalender i telefonen (kalenderlink.js) – kun voksne, kun for sig selv ---
+  if (typeof kalenderLinkIndstilling === 'function' && forMig && voksen) dele.push(titel('📅 Kalender i telefonen'), kalenderLinkIndstilling());
+
   // --- Notifikationer ---
   if (typeof pushIndstilling === 'function' && forMig) dele.push(titel('🔔 Notifikationer på denne telefon'), pushIndstilling());
   if (typeof pushValg === 'function' && (forMig || voksen)) {
