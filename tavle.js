@@ -7,7 +7,7 @@
 
 const TAVLEN = 'Tavlen';
 const erTavlen = () => Data.bruger()?.navn === TAVLEN && Data.bruger()?.rolle === 'barn';
-const TV_KOLONNER = ['Timmo', 'Winnie', 'Oliver', 'Villads', 'Fælles'];
+const TV_KOLONNER = ['Fælles', 'Winnie', 'Timmo', 'Oliver', 'Villads'];
 const TV_KOMMER_DAGE = 14;              // "Kommer": aftaler de næste 14 dage
 const TV_LYS = [6 * 60, 20 * 60];       // lys tilstand fra 06.00 til 20.00, ellers mørk
 const TV_NAT = [22 * 60, 6 * 60];       // om natten dæmpes skærmen ekstra
@@ -248,10 +248,13 @@ function tvHoved() {
 }
 
 // Lys om dagen, mørk om aftenen – og ekstra dæmpet om natten
+// Valget gemmes på tabletten (lokal 'tavle-tema'): 'auto' (efter klokken, standard), 'lys' eller 'moerk'
+const TV_TEMA_NAVN = { auto: '🕒 Efter klokken', lys: '☀️ Lys', moerk: '🌙 Mørk' };
+const tvTemaValg = () => (TV_TEMA_NAVN[lokal.get('tavle-tema')] ? lokal.get('tavle-tema') : 'auto');
 function tvTema() {
-  const m = tvMin();
-  saetTema(m >= TV_LYS[0] && m < TV_LYS[1] ? 'lys' : 'moerk');
-  document.body.classList.toggle('tv-nat', m >= TV_NAT[0] || m < TV_NAT[1]);
+  const m = tvMin(), valg = tvTemaValg();
+  saetTema(valg !== 'auto' ? valg : m >= TV_LYS[0] && m < TV_LYS[1] ? 'lys' : 'moerk');
+  document.body.classList.toggle('tv-nat', valg === 'auto' && (m >= TV_NAT[0] || m < TV_NAT[1]));
 }
 
 // ---------- Står tændt i dagevis ----------
@@ -278,7 +281,8 @@ function tvNatGenstart() {
 function tvMenu() {
   const opdater = knap('🔄 Opdatér nu', 'knap', () => location.reload());
   const ud = bekraeftKnap('Log Tavlen ud', 'logge Tavlen ud', 'lille-knap fare', () => Data.logud());
-  aabnArk('Tavlen', el('p', 'hint', 'Alt andet laves på telefonerne.'), opdater, ud);
+  const tema = chipValg(Object.keys(TV_TEMA_NAVN), tvTemaValg(), v => { lokal.set('tavle-tema', v); tvTema(); }, v => TV_TEMA_NAVN[v]);
+  aabnArk('Tavlen', felt('Udseende', tema), el('p', 'hint', 'Efter klokken = lys kl. 06–20, mørk om aftenen og dæmpet om natten. Alt andet laves på telefonerne.'), opdater, ud);
 }
 
 async function startTavlen() {
