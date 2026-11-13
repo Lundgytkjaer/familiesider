@@ -3831,8 +3831,10 @@ function visNet() {
 window.addEventListener('online', visNet);
 window.addEventListener('offline', visNet);
 window.addEventListener('unhandledrejection', e => {
-  console.error(e.reason);
-  visStatus(navigator.onLine ? 'Noget gik galt – ændringen blev måske ikke gemt.' : 'Ingen forbindelse – ændringen blev ikke gemt.', true);
+  const net = !navigator.onLine || Data.udenNet() || Data.erNetfejl?.(e.reason);
+  (net ? console.warn : console.error)(e.reason);
+  if (net) visStatus('Uden net – det her gemmes først, når nettet er tilbage. Prøv igen om lidt (Indkøb virker uden net).');   // rolig, ikke rød
+  else visStatus('Noget gik galt – ændringen blev måske ikke gemt.', true);
 });
 
 // ---------- Børn: tavlen er mest til at kigge på ----------

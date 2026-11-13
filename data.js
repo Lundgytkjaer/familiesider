@@ -59,7 +59,8 @@ const Data = (() => {
         console.warn('Kunne ikke gemme:', e);
         rul();
         const nej = e?.code === '42501' || /voksne/.test(e?.message || '');
-        if (typeof visStatus === 'function') visStatus(nej ? 'Det kan kun de voksne ændre 🙂' : navigator.onLine ? 'Kunne ikke gemme – prøv igen.' : 'Ingen forbindelse – ændringen blev ikke gemt.', true);
+        if (erNetfejl(e)) { netNede = !!forbundet; if (typeof visStatus === 'function') visStatus(UDEN_NET_BESKED); }   // rolig, ikke rød
+        else if (typeof visStatus === 'function') visStatus(nej ? 'Det kan kun de voksne ændre 🙂' : 'Kunne ikke gemme – prøv igen.', true);
         fortaelLyttere();
         setTimeout(genhent, 300);
       } finally {
@@ -114,6 +115,7 @@ const Data = (() => {
     clearTimeout(kopiTimer);
     kopiTimer = setTimeout(() => { if (profil && !kopiStop) Kopi.gem({ profil, raekker, tid: Date.now() }); }, 1500);
   }
+  const UDEN_NET_BESKED = 'Uden net – det her gemmes først, når nettet er tilbage. Prøv igen om lidt (Indkøb virker uden net).';
   // Er det nettet, der mangler (og ikke fx en forkert kode eller børnelåsen)?
   const erNetfejl = e => !navigator.onLine || e?.name === 'AuthRetryableFetchError' || e?.status === 0
     || /failed to fetch|load failed|networkerror|network request failed|fetch failed/i.test(e?.message || '');
@@ -131,13 +133,13 @@ const Data = (() => {
   const nytId = () => crypto.randomUUID ? crypto.randomUUID()
     : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => { const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 3 | 8)).toString(16); });
   function gemKoe() { const k = klon(koeListe); koeSkriv = koeSkriv.then(() => kopiStop ? null : Kopi.gemKoe(k)); return koeSkriv; }
-  function laegIKoe(op) { koeListe.push(klon(op)); gemKoe(); fortaelLyttere(); sendKoe(); }
+  function laegIKoe(op) { koeListe.push(klon({ ...op, tid: Date.now() })); gemKoe(); fortaelLyttere(); sendKoe(); }
   const koeHar = id => koeListe.some(o => o.id === id || (o.ids || []).includes(id) || (o.raekker || []).some(r => r.id === id));
   // Læg de ventende ændringer oven på rækkerne (efter hver hentning, så de ikke forsvinder fra skærmen)
   function anvendKoe() {
     for (const o of koeListe) {
       if (o.type === 'add') { if (!raekker.some(x => x.id === o.id)) raekker.push({ id: o.id, liste: o.liste, data: klon(o.data), oprettet: o.oprettet, oprettet_af: o.af }); }
-      else if (o.type === 'update') { const r = raekker.find(x => x.id === o.id); if (r) gemLokalt({ ...r, data: { ...r.data, ...klon(o.felter) } }); }
+      else if (o.type === 'update') { const r = raekker.find(x => x.id === o.id); if (r) gemLokalt({ ...r, data: { ...r.data, ...klon(o.felter), _t: { ...(r.data._t || {}), ...Object.fromEntries(Object.keys(o.felter).map(k => [k, o.tid || 0])) } } }); }
       else if (o.type === 'remove') { const s = new Set(o.ids); raekker = raekker.filter(x => !s.has(x.id)); }
       else if (o.type === 'upsert') o.raekker.forEach(r => gemLokalt(klon(r)));
     }
@@ -151,11 +153,29 @@ const Data = (() => {
       const { data: nu, error: f1 } = await db.from('punkter').select('data').eq('id', o.id).maybeSingle();
       if (f1) throw f1;
       if (!nu) return;   // slettet imens – rettelsen droppes
-      const { error } = await db.from('punkter').update({ data: { ...nu.data, ...o.felter } }).eq('id', o.id);
+      // Seneste ændring vinder, felt for felt: data._t = { felt: tidspunkt for ændringen (telefonens ur) }
+      const tid = o.tid || Date.now(), t = nu.data._t || {}, ny = { ...nu.data }, nyT = { ...t };
+      let noget = false;
+      for (const [k, v] of Object.entries(o.felter)) {
+        if (k === '_t' || (t[k] || 0) > tid) continue;   // en anden har ændret feltet senere – deres vinder
+        ny[k] = v; nyT[k] = tid; noget = true;
+      }
+      if (!noget) return;
+      ny._t = nyT;
+      const { error } = await db.from('punkter').update({ data: ny }).eq('id', o.id);
       if (error) throw error;
       pushOm(o.liste, o.id);
     } else if (o.type === 'remove') {
-      const { error } = await db.from('punkter').delete().in('id', o.ids);
+      // Er en vare rettet af en anden EFTER min sletning, bliver den (ingen varer må forsvinde)
+      let ids = o.ids;
+      if (o.tid) {
+        const { data: nu, error: f1 } = await db.from('punkter').select('id, data').in('id', ids);
+        if (f1) throw f1;
+        const nyere = new Set((nu || []).filter(r => Object.values(r.data?._t || {}).some(x => x > o.tid)).map(r => r.id));
+        ids = ids.filter(id => !nyere.has(id));
+      }
+      if (!ids.length) return;
+      const { error } = await db.from('punkter').delete().in('id', ids);
       if (error) throw error;
     } else if (o.type === 'upsert') {
       const { error } = await db.from('punkter').upsert(o.raekker);
@@ -286,6 +306,7 @@ const Data = (() => {
     // Kører appen på kopien fra sidst (uden forbindelse til databasen)?
     udenNet() { return !!profil && (!forbundet || netNede); },
     // Antal ændringer, der venter på at blive sendt (Indkøb uden net)
+    erNetfejl,
     venter() { return koeListe.filter(o => o.liste !== 'favoritter').length; },   // hurtigvalgets tællere regnes ikke med
 
     async login(navn, kode) {
