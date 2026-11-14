@@ -20,7 +20,9 @@ body.bside { padding-inline: 16px; padding-block: 0 32px; }
 .bside .status { bottom: 20px; }
 .bside .login input[type="text"] { width: 100%; }
 /* fem faner i stedet for fire */
-.bside .budget-faner { grid-template-columns: repeat(5, 1fr); }
+/* seks faner: to rækker på telefon, én række fra 520 px */
+.bside .budget-faner { grid-template-columns: repeat(3, 1fr); row-gap: 6px; }
+@media (min-width: 520px) { .bside .budget-faner { grid-template-columns: repeat(6, 1fr); } }
 .bside .budget-faner button { font-size: 14px; white-space: nowrap; }
 
 /* ---------- Hele året (tabellen) ---------- */
@@ -64,11 +66,45 @@ button.bs-f:hover { text-decoration: underline; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bs-f.op { color: #ff8a7a; } :root:not([data-theme="light"]) .bs-f.ned { color: #6fd08c; } }
 :root[data-theme="dark"] .bs-f.op { color: #ff8a7a; } :root[data-theme="dark"] .bs-f.ned { color: #6fd08c; }
 
+/* ---------- Lån (laan.js) ---------- */
+.laan-tom { display: grid; gap: 10px; justify-items: start; }
+.laan-tom h3, .laan-tom p { margin: 0; }
+.laan-tal { display: grid; gap: 0; padding-block: 6px; }
+.laan-linje { display: grid; grid-template-columns: 1fr auto; column-gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--linje); align-items: baseline; }
+.laan-linje:last-child { border-bottom: 0; }
+.laan-linje span { color: var(--daempet); }
+.laan-linje b { font-variant-numeric: tabular-nums; text-align: right; }
+.laan-linje small { grid-column: 1 / -1; color: var(--daempet); font-size: 13px; margin-top: 2px; }
+.laan-knapper { display: flex; flex-wrap: wrap; gap: 8px; }
+.laan-nyt { justify-self: start; }
+.laan-aendr h3 { margin: 0 0 6px; font-size: 16px; }
+.laan-aendr-liste { list-style: none; margin: 0; padding: 0; }
+.laan-aendr-liste li + li { border-top: 1px solid var(--linje); }
+.laan-aendr-knap { all: unset; box-sizing: border-box; cursor: pointer; display: grid; grid-template-columns: 9.5em 1fr; column-gap: 12px; width: 100%; padding: 9px 0; }
+.laan-aendr-knap:hover b { text-decoration: underline; }
+.laan-aendr-knap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
+.laan-aendr-md { color: var(--daempet); }
+.laan-aendr-note { grid-column: 2; color: var(--daempet); font-size: 13px; }
+.laan-aendr-note:empty { display: none; }
+.laan-to { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.laan-to input { width: 100%; min-width: 0; }
+.bside .ark select { width: 100%; min-height: 46px; padding: 0 12px; border-radius: 12px; border: 1.5px solid var(--linje); background: var(--bg); color: var(--fg); font: inherit; }
+.laan-hvis { margin-top: 6px; }
+.laan-tab td, .laan-tab th { text-align: right; }
+.laan-tab .laan-nr { text-align: right; min-width: 0; width: 3em; color: var(--daempet); }
+.laan-tab .laan-dato, .laan-tab .laan-kom, .laan-tab .laan-aarnavn { text-align: left; }
+.laan-tab .laan-kom { white-space: normal; min-width: 150px; color: var(--daempet); font-size: .92em; }
+.laan-tab .laan-aarnavn { font-weight: 700; }
+.laan-tab tr.frem td { color: var(--daempet); }
+.laan-tab tr.laan-aar.frem td { font-weight: 600; }
+.laan-tab tr.nu td { background: color-mix(in srgb, var(--accent-blod) 55%, var(--flade)); color: var(--fg); font-weight: 600; }
+#laan-print { display: none; }
+
 /* ---------- Mellem: tabellen må bruge hele bredden, resten bliver i ét spor ---------- */
 @media (min-width: 700px) {
   .bs-skal { max-width: 760px; }
-  .bs-skal:has(#budget-indhold[data-vis="heleaaret"]), .bs-skal:has(#budget-indhold[data-vis="aar"]) { max-width: 1800px; }
-  #budget-indhold > .budget-hvem, #budget-indhold > .budget-faner { max-width: 560px; }
+  .bs-skal:has(#budget-indhold[data-vis="heleaaret"]), .bs-skal:has(#budget-indhold[data-vis="aar"]), .bs-skal:has(#budget-indhold[data-vis="laan"]) { max-width: 1800px; }
+  #budget-indhold > .budget-hvem, #budget-indhold > .budget-faner { max-width: 620px; }
 }
 
 /* ---------- Bred skærm (pc): flere spalter, og arket som panel i højre side ---------- */
@@ -86,8 +122,8 @@ button.bs-f:hover { text-decoration: underline; }
   /* "Hvis budget" til venstre og fanerne til højre på samme linje – samme sted i alle visninger */
   #budget-indhold { position: relative; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: start; }
   #budget-indhold > * { grid-column: 1 / -1; }
-  #budget-indhold > .budget-hvem { margin: 0; max-width: calc(100% - min(540px, 64%) - 16px); min-height: 40px; }
-  #budget-indhold > .budget-faner { position: absolute; top: 0; right: 0; width: min(540px, 64%); margin: 0; }
+  #budget-indhold > .budget-hvem { margin: 0; max-width: calc(100% - min(620px, 68%) - 16px); min-height: 40px; }
+  #budget-indhold > .budget-faner { position: absolute; top: 0; right: 0; width: min(620px, 68%); margin: 0; }
   .bside .seg button { min-height: 38px; }
 
   /* Overblik: kortene i tre spalter */
@@ -117,6 +153,14 @@ button.bs-f:hover { text-decoration: underline; }
   #budget-indhold[data-vis="aar"] > .b-bank-kort { grid-column: 1 / span 6; }
   #budget-indhold[data-vis="aar"] .b-aar-tab tbody th { max-width: 340px; }
 
+  /* Lån: nøgletal og ændringer til venstre, planen til højre */
+  #budget-indhold[data-vis="laan"] > .laan-top, #budget-indhold[data-vis="laan"] > .laan-tal, #budget-indhold[data-vis="laan"] > .laan-knapper,
+  #budget-indhold[data-vis="laan"] > .laan-aendr, #budget-indhold[data-vis="laan"] > .laan-tom { grid-column: 1 / span 4; }
+  #budget-indhold[data-vis="laan"] > .laan-plan { grid-column: 5 / -1; grid-row: 2 / span 5; }
+  #budget-indhold[data-vis="laan"] > .laan-plan .bs-rul { max-height: calc(100vh - 130px); }
+  .bside.ark-aaben #budget-indhold[data-vis="laan"] > * { grid-column: 1 / -1; grid-row: auto; }
+  .bside.ark-aaben #budget-indhold[data-vis="laan"] > .laan-plan .bs-rul { max-height: none; }
+
   .bs-tab { font-size: 14px; }
   .bs-tab .bs-navn { min-width: 230px; max-width: 300px; }
   .bside.ark-aaben .bs-tab .bs-navn { min-width: 170px; max-width: 200px; }
@@ -127,7 +171,23 @@ button.bs-f:hover { text-decoration: underline; }
   .bs-tab th, .bs-tab td { padding-inline: 10px; }
 }
 @media print {
-  .bs-top, .ark-baggrund, .budget-hvem, .budget-faner, .bs-valg, .status { display: none !important; }
+  .bs-top, .ark-baggrund, .budget-hvem, .budget-faner, .bs-valg, .status, .laan-knapper, .laan-nyt { display: none !important; }
   .bs-rul { max-height: none; overflow: visible; }
   .bs-tab { font-size: 10px; }
+  /* Udskrift af et lån (laanUdskriv): kun selve dokumentet */
+  body.laan-udskriv > *:not(#laan-print) { display: none !important; }
+  body.laan-udskriv { padding: 0; background: #fff; color: #000; }
+  body.laan-udskriv #laan-print { display: block; font-size: 11px; color: #000; }
+  #laan-print h1 { font-size: 20px; margin: 0 0 2px; }
+  #laan-print .laan-p-dato { margin: 0 0 12px; color: #555; }
+  #laan-print dl { display: grid; grid-template-columns: max-content 1fr max-content 1fr; gap: 3px 14px; margin: 0 0 10px; }
+  #laan-print dt { color: #555; } #laan-print dd { margin: 0; font-weight: 600; }
+  #laan-print .laan-p-tekst { margin: 0 0 8px; font-style: italic; }
+  #laan-print table { width: 100%; border-collapse: collapse; font-size: 9px; }
+  #laan-print th, #laan-print td { position: static; padding: 1.5px 5px; border-bottom: .5px solid #bbb; background: none !important; color: #000 !important; font-weight: 400; min-width: 0; }
+  #laan-print thead th { font-weight: 700; border-bottom: 1px solid #000; }
+  #laan-print thead { display: table-header-group; }
+  #laan-print tr { break-inside: avoid; }
+  #laan-print .laan-p-underskrift { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; margin-top: 46px; break-inside: avoid; }
+  #laan-print .laan-p-underskrift div { border-top: 1px solid #000; padding-top: 4px; display: grid; }
 }

@@ -31,7 +31,11 @@ let budgetAarValg = lokal.get('budget-aarvis') || 'begge';
 let budgetSort = lokal.get('budget-sort') || 'std';   // 'std' = fast rækkefølge (B_GRUPPE_ORDEN, største post først) · 'stoerst' = største beløb først
 const budgetAabne = new Set();
 // Ekstra visninger ud over de fire faste: { id: { tekst, vis(poster, kilde) → [elementer] } } – budgetsiden (budgetside.js) lægger "Hele året" ind
+// sidst: true = fanen står efter "År" · altid: true = vises også, når budgettet er tomt (laan.js)
 const B_EKSTRA_VIS = {};
+// Ekstra tekst på en post i Poster-listen: funktioner (post) → tekst eller '' (laan.js: renter og afdrag på lånets post)
+const B_POST_INFO = [];
+const bPostInfo = p => B_POST_INFO.map(f => f(p)).filter(Boolean);
 
 const bKr = n => Math.round(n || 0).toLocaleString('da-DK');
 const bTal = s => { const t = String(s ?? '').replace(/\s|kr\.?/gi, '').replace(/\./g, '').replace(',', '.'); const n = Number(t); return isFinite(n) ? n : NaN; };
@@ -149,21 +153,22 @@ function tegnBudget() {
   seg.setAttribute('role', 'radiogroup');
   boks.dataset.vis = budgetVis;   // budgetside.css lægger siden ud efter visningen
   const ekstra = B_EKSTRA_VIS[budgetVis];
-  for (const [id, tekst] of [['overblik', 'Overblik'], ...Object.entries(B_EKSTRA_VIS).map(([id, x]) => [id, x.tekst]), ['poster', 'Poster'], ['maaneder', 'Måneder'], ['aar', 'År']]) {
+  const ekstraFaner = sidst => Object.entries(B_EKSTRA_VIS).filter(([, x]) => !!x.sidst === sidst).map(([id, x]) => [id, x.tekst]);
+  for (const [id, tekst] of [['overblik', 'Overblik'], ...ekstraFaner(false), ['poster', 'Poster'], ['maaneder', 'Måneder'], ['aar', 'År'], ...ekstraFaner(true)]) {
     const b = knap(tekst, null, () => { budgetVis = id; lokal.set('budget-vis', id); tegnBudget(); });
     b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', budgetVis === id);
     seg.append(b);
   }
   if (budgetHvem !== 'faelles') {
     const kilde = bKilde(budgetHvem), ps = kilde.poster();
-    if (!ps.length) { boks.replaceChildren(hvemSeg, ...budgetPersonVis(kilde)); return; }
+    if (!ps.length && !ekstra?.altid) { boks.replaceChildren(hvemSeg, ...budgetPersonVis(kilde)); return; }
     const indhold = ekstra ? ekstra.vis(ps, kilde) : budgetVis === 'poster' ? budgetPosterVis(ps, kilde) : budgetVis === 'maaneder' ? budgetMaanederVis(ps, kilde)
       : budgetVis === 'aar' ? budgetAarVis(ps, kilde) : budgetPersonVis(kilde);
     boks.replaceChildren(hvemSeg, seg, ...indhold);
     return;
   }
   const poster = bPoster();
-  if (!poster.length) {
+  if (!poster.length && !ekstra?.altid) {
     const tom = el('div', 'kort budget-tom');
     tom.append(el('p', null, 'Her samler I familiens faste udgifter – hvad de koster om måneden og året, hvilken konto de betales fra, og hvor meget hver af jer skal overføre.'),
       knap('+ Tilføj første post', 'knap', () => redigerPost(null)));
@@ -410,7 +415,7 @@ function budgetPosterVis(poster, kilde = bKilde('faelles')) {
         const b = knap('', 'b-post' + (a ? '' : ' nul'), () => redigerPost(p, '', kilde));
         const v = el('span', 'b-post-v');
         v.append(el('span', 'b-post-navn', p.navn || 'Uden navn'),
-          el('span', 'b-post-info', [p.konto, bMoenster(p), bGammel(p) ? '🔄 tjek' : ''].filter(Boolean).join(' · ')));
+          el('span', 'b-post-info', [p.konto, bMoenster(p), bGammel(p) ? '🔄 tjek' : '', ...bPostInfo(p)].filter(Boolean).join(' · ')));
         const h2 = el('span', 'b-post-h');
         h2.append(el('b', null, a ? bKr(a / 12) + ' kr' : '0 kr'), el('span', null, a ? bKr(a) + '/år' : ''));
         b.append(v, h2);
@@ -1668,7 +1673,7 @@ function budgetPersonVis(kilde) {
       const li = el('li'), a = bAar(p);
       const b = knap('', 'b-post' + (a ? '' : ' nul'), () => redigerPost(p, '', kilde));
       const v = el('span', 'b-post-v');
-      v.append(el('span', 'b-post-navn', p.navn || 'Uden navn'), el('span', 'b-post-info', [bMoenster(p), bGammel(p) ? '🔄 tjek' : ''].filter(Boolean).join(' · ')));
+      v.append(el('span', 'b-post-navn', p.navn || 'Uden navn'), el('span', 'b-post-info', [bMoenster(p), bGammel(p) ? '🔄 tjek' : '', ...bPostInfo(p)].filter(Boolean).join(' · ')));
       const h2 = el('span', 'b-post-h');
       h2.append(el('b', null, bKr(a / 12) + ' kr'), el('span', null, a ? bKr(a) + '/år' : ''));
       b.append(v, h2); li.append(b); ul.append(li);
