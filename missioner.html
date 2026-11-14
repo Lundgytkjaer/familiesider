@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <script>
+    // Samme udseende (lys/mørk) som valgt i Familietavlen
+    try {
+      var t = localStorage.getItem('familietavle:tema');
+      if (t === 'lys') document.documentElement.dataset.theme = 'light';
+      if (t === 'moerk') document.documentElement.dataset.theme = 'dark';
+    } catch (e) {}
+  </script>
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f2f5f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e1311" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <link rel="icon" href="favicon.svg?v=2" type="image/svg+xml">
+  <link rel="icon" href="favicon-32.png?v=2" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=2">
+  <meta name="robots" content="noindex">
+  <title>Missioner · Familien</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap">
+  <link rel="stylesheet" href="style.css?v=2026-11-14b">
+  <link rel="stylesheet" href="missioner.css?v=2026-11-14b">
+</head>
+<body class="ms" data-tilstand="starter">
+<!-- Missioner: opgaver og quiz som sin egen side (lavet til iPad, virker også på telefon). Samme login og data som Familietavlen. -->
+<header class="ms-top" id="ms-top">
+  <a class="ms-hjem" href="./" aria-label="Til Familietavlen">‹ Tavlen</a>
+  <h1>Missioner</h1>
+  <span class="ms-idag" id="ms-idag" hidden></span>
+</header>
+<p class="uden-net" id="uden-net" hidden>Uden net – stjerner og svar kan ikke gemmes lige nu.</p>
+
+<main class="ms-main" id="ms-main"></main>
+
+<div class="login" id="login" hidden>
+  <form class="login-boks" id="login-form">
+    <h1>Missioner</h1>
+    <p class="under">Log ind som i Familietavlen</p>
+    <input type="text" id="login-navn" placeholder="Navn" autocomplete="username" autocapitalize="words" aria-label="Navn">
+    <input type="password" id="login-kode" placeholder="Kode" autocomplete="current-password" aria-label="Kode">
+    <button class="knap">Log ind</button>
+    <p class="fejl" id="login-fejl" hidden></p>
+  </form>
+</div>
+
+<p class="status" id="status" role="status" hidden></p>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
+<script src="data.js?v=2026-11-14b"></script>
+<script src="missionsdata.js?v=2026-11-14b"></script>
+<script src="missionskort.js?v=2026-11-14b"></script>
+<script src="missioner.js?v=2026-11-14b"></script>
+</body>
+</html>

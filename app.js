@@ -4005,11 +4005,11 @@ async function fuldBackup() {
     }
     // Koden: index.html + alt hvad den henter lokalt + ikoner og manifest
     let html = '';
-    for (const side of ['index.html', 'budget.html']) {   // budgetsiden er en side for sig – dens filer skal også med
+    for (const side of ['index.html', 'budget.html', 'missioner.html']) {   // budgetsiden er en side for sig – dens filer skal også med
       try { html += await (await fetch(side, { cache: 'no-store' })).text(); } catch { /* koden springes over */ }
     }
     const lokale = [...html.matchAll(/(?:src|href)="([^"#:]+?)(?:\?[^"]*)?"/g)].map(m => m[1]).filter(x => !x.startsWith('//') && !x.endsWith('/'));
-    const kode = [...new Set(['index.html', 'budget.html', ...lokale, 'sw.js', 'manifest.webmanifest', 'favicon.svg', 'favicon-32.png', 'apple-touch-icon.png', 'ikon-192.png', 'ikon-512.png', 'ikon-maskable-512.png'])];
+    const kode = [...new Set(['index.html', 'budget.html', 'missioner.html', ...lokale, 'sw.js', 'manifest.webmanifest', 'favicon.svg', 'favicon-32.png', 'apple-touch-icon.png', 'ikon-192.png', 'ikon-512.png', 'ikon-maskable-512.png'])];
     const kodeFejl = [];
     for (const k of kode) {
       try { const r = await fetch(k, { cache: 'no-store' }); if (!r.ok) throw 0; zip.file('kode/' + k, await r.blob()); } catch { kodeFejl.push(k); }

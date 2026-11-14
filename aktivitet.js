@@ -9,7 +9,7 @@ const AKT_LISTER = {
   justeringer: 'Stjerner og kr', udbetalinger: 'Udbetalinger', ekstra: 'Ekstra stjerner', madoensker: 'Madønsker',
   streakbonus: 'Streak', streakjoker: 'Streak', rutiner: 'Rutiner', pakkelister: 'Pakkelister', motion: 'Konkurrence',
   skema: 'Skema', skemadag: 'Skema', skemafarver: 'Skema', ringetider: 'Skema', personer: 'Familie', kontakter: 'Kontakter', steder: 'Vores kort', kortlag: 'Vores kort', noter: 'Familiemappen', noter_voksne: 'Familiemappen', pauser: 'Pause', budget: 'Budget', budgetkonti: 'Budget', budget_delt: 'Budget (personligt)', dagbog: 'Dagbog',
-  personvalg: 'Indstillinger', indstillinger: 'Indstillinger', personregler: 'Pligter'
+  personvalg: 'Indstillinger', indstillinger: 'Indstillinger', personregler: 'Pligter', missioner: 'Missioner', mission_spil: 'Missioner'
 };
 const AKT_SIDE = 150;   // rækker pr. hentning
 let aktRaekker = [], aktFilter = 'alle', aktAlleHentet = false, aktFejl = null;

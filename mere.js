@@ -509,6 +509,7 @@ async function pligtData(barn) {
     jokere: jokere.filter(x => x.barn === barn),   // rednings-jokere (sjov.js)
     ekstra: ekstra.filter(x => x.barn === barn),   // ekstra stjerner (ros / godkendte ønsker)
     jobs: jobs.filter(x => x.barn === barn),   // ekstra-jobs barnet har taget
+    missioner: Data.listNu('mission_spil').filter(x => x.barn === barn),   // 🚀 stjerner fra Missioner (missioner.html) – loft pr. dag tjekkes af databasen
     ledigeJobs: jobs.filter(x => x.status === 'ledig' && (!x.til || x.til === barn)),
     just: mineJust.filter(x => x.type !== 'streak'),   // + / − stjerner og kr fra en voksen
     streakAnker: mineJust.filter(x => x.type === 'streak').sort((a, b) => (a.oprettet || '').localeCompare(b.oprettet || '')).pop() || null,
@@ -527,7 +528,7 @@ function saldo(d) {
   const job = (d.jobs || []).filter(x => x.status === 'godkendt');
   d = { ...d, just: [...(d.just || []).filter(x => !x.dato || x.dato <= idagIso), ...job], flueben: d.flueben.filter(f => !f.venter) };
   return {
-    stjerner: sum(d.flueben, 'stjerner') + sum(d.bonus || [], 'stjerner') + sum((d.ekstra || []).filter(x => x.status === 'godkendt'), 'stjerner') + sum(d.just || [], 'stjerner') - sum(d.indl.filter(x => x.status !== 'afvist'), 'stjerner'),
+    stjerner: sum(d.flueben, 'stjerner') + sum(d.bonus || [], 'stjerner') + sum((d.ekstra || []).filter(x => x.status === 'godkendt'), 'stjerner') + sum(d.just || [], 'stjerner') + sum(d.missioner || [], 'stjerner') - sum(d.indl.filter(x => x.status !== 'afvist'), 'stjerner'),
     tilGode: sum(d.flueben, 'kr') + sum(d.just || [], 'kr') - sum(d.udb, 'kr'),
     ugeKr: sum(d.flueben.filter(f => f.dato >= man), 'kr')
   };

@@ -1,0 +1,147 @@
+/* missioner.css – 🚀 Missioner (missioner.html). Bygger oven på style.css (stil "A · Rolig"), men må være mere legende.
+   Lavet til iPad først; under 600 px (telefon) står svarene under hinanden. Farven er den indloggedes personfarve (--p). */
+body.ms { --accent: var(--p, var(--c-faelles)); --ms-ok: #1f9d55; --ms-nej: #d64533; padding-block: 0 calc(24px + env(safe-area-inset-bottom, 0px)); }
+:root[data-theme="dark"] body.ms { --ms-ok: #4cd08a; --ms-nej: #ff7a66; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) body.ms { --ms-ok: #4cd08a; --ms-nej: #ff7a66; } }
+body.ms[data-tilstand="starter"] .ms-main, body.ms[data-tilstand="login"] .ms-main,
+body.ms[data-tilstand="starter"] .ms-top, body.ms[data-tilstand="login"] .ms-top { visibility: hidden; }
+.ms-top, .ms-main, body.ms > .uden-net { max-width: 820px; margin-inline: auto; }
+.ms-top { display: flex; align-items: center; gap: 12px; padding: 14px 0 10px; }
+.ms-top h1 { flex: 1; font-size: 30px; }
+.ms-hjem { color: var(--daempet); font-weight: 600; font-size: 15px; text-decoration: none; padding: 8px 0; }
+.ms-idag { font-weight: 700; font-size: 16px; padding: 8px 14px; border-radius: 999px; background: var(--flade); white-space: nowrap; }
+.ms-idag.fuld { color: var(--daempet); }
+body.ms[data-vis="spil"] .ms-top, body.ms[data-vis="spil"] > .uden-net { display: none; }
+
+/* Forsiden */
+.ms-overskrift { font-size: 13px; font-family: var(--font); font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--daempet); margin: 22px 0 8px; }
+.ms-liste { display: grid; gap: 10px; }
+.ms-kort {
+  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 84px; padding: 14px 16px; text-align: left;
+  border: 2px solid transparent; border-radius: 20px; background: var(--flade); transition: transform .12s;
+}
+.ms-kort:active { transform: scale(.98); }
+.ms-kort.ny { border-color: var(--accent); }
+.ms-kort.skjult { opacity: .55; }
+.ms-bane { min-height: 104px; background: var(--accent); color: var(--paa-accent); }
+.ms-bane .ms-under { color: inherit; opacity: .85; }
+.ms-emoji { font-size: 40px; line-height: 1; flex: none; font-family: "Apple Color Emoji", "Noto Color Emoji", sans-serif; }
+.ms-kort-tekst { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.ms-kort-tekst b { font-family: var(--font-titel); font-size: 22px; line-height: 1.15; }
+.ms-under { font-size: 14px; color: var(--daempet); }
+.ms-niveau { flex: none; font-weight: 700; font-size: 15px; padding: 8px 12px; border-radius: 999px; background: color-mix(in srgb, currentColor 14%, transparent); white-space: nowrap; }
+.ms-kort.ny .ms-niveau { background: var(--accent); color: var(--paa-accent); }
+.ms-loft { margin-top: 14px; text-align: center; font-size: 15px; }
+.ms-logud { display: block; margin: 28px auto 0; color: var(--daempet); }
+.ms-logud.bekraeft, .ms-mlinje .bekraeft { border-color: var(--fare); color: var(--fare); }
+.ms-proeve { display: grid; gap: 12px; margin-top: 16px; }
+.ms-niveauer { display: flex; flex-wrap: wrap; gap: 8px; }
+.ms-niveauer .lille-knap { min-width: 56px; min-height: 52px; font-size: 18px; }
+
+/* Afspilleren */
+.ms-spiltop { display: flex; align-items: center; gap: 12px; padding: 12px 0 6px; position: sticky; top: 0; z-index: 5; background: var(--bg); }
+.ms-luk { flex: none; min-width: 48px; height: 48px; padding: 0 12px; border: 0; border-radius: 999px; background: var(--flade); font-size: 18px; font-weight: 700; color: var(--daempet); }
+.ms-luk.bekraeft { background: var(--fare); color: #fff; }
+.ms-spiltitel { flex: 1; min-width: 0; font-weight: 700; color: var(--daempet); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 15px; }
+.ms-spiltitel, .ms-res-emoji, .ms-mnavn { font-family: var(--font), "Apple Color Emoji", "Noto Color Emoji", sans-serif; }
+.ms-prikker { display: flex; gap: 5px; flex: none; }
+.ms-prikker i { width: 12px; height: 12px; border-radius: 50%; background: var(--linje); }
+.ms-prikker i.nu { background: var(--fg); transform: scale(1.25); }
+.ms-prikker i.ok { background: var(--ms-ok); }
+.ms-prikker i.nej { background: var(--ms-nej); }
+.ms-scene { display: grid; gap: 14px; justify-items: center; padding-top: 8px; }
+.ms-scene.ind { animation: ms-ind .22s ease-out; }
+@keyframes ms-ind { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) { .ms-scene.ind { animation: none; } }
+.ms-linje { margin: 0; font-size: 16px; color: var(--daempet); text-align: center; font-style: italic; }
+.ms-q { font-size: clamp(24px, 4.2vw, 34px); line-height: 1.2; text-align: center; margin: 4px 0; text-wrap: balance; }
+.ms-flag { font-family: "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", sans-serif; line-height: 1; font-size: 72px; }
+.ms-flag.stor { font-size: clamp(96px, 20vw, 150px); }
+.ms-svar { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; width: 100%; }
+.ms-svar.mange { grid-template-columns: 1fr 1fr 1fr; }
+.ms-valg {
+  min-height: 84px; padding: 12px 14px; border: 2.5px solid var(--linje); border-radius: 20px; background: var(--flade);
+  font-size: clamp(19px, 2.6vw, 24px); font-weight: 700; line-height: 1.2; transition: transform .1s; display: grid; place-items: center; gap: 4px; text-wrap: balance;
+}
+.ms-valg:active:not(:disabled) { transform: scale(.97); }
+.ms-svar.flag .ms-valg { min-height: 130px; }
+.ms-valg small { font-size: 13px; font-weight: 600; color: var(--daempet); }
+.ms-valg:disabled { color: inherit; opacity: .6; cursor: default; }
+.ms-valg.ok { border-color: var(--ms-ok); background: color-mix(in srgb, var(--ms-ok) 16%, var(--flade)); opacity: 1; }
+.ms-valg.nej { border-color: var(--ms-nej); background: color-mix(in srgb, var(--ms-nej) 14%, var(--flade)); opacity: 1; }
+.ms-fod { display: grid; gap: 10px; justify-items: center; width: 100%; padding: 8px 0 calc(8px + env(safe-area-inset-bottom, 0px)); position: sticky; bottom: 0; background: var(--bg); }
+.ms-fod:empty { display: none; }
+.ms-fod.oppe { position: static; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 14px; padding: 0; min-height: 56px; }
+.ms-fod.oppe:empty { display: none; }
+.ms-fod.oppe .ms-videre { min-width: 140px; min-height: 52px; font-size: 18px; }
+.ms-dom { margin: 0; font-size: 22px; font-weight: 800; font-family: var(--font-titel); text-align: center; }
+.ms-dom.ok { color: var(--ms-ok); }
+.ms-dom.nej { font-size: 19px; font-family: var(--font); font-weight: 600; }
+.ms-dom.nej b { color: var(--ms-ok); }
+.ms-forklaring { margin: 0; color: var(--daempet); text-align: center; font-size: 16px; }
+.ms-videre { min-width: 220px; min-height: 60px; font-size: 20px; }
+
+/* Europakortet */
+.ms-kortet { aspect-ratio: 940 / 860; width: min(100%, calc((100dvh - 190px) * 940 / 860)); min-width: min(100%, 330px); border-radius: 20px; background: color-mix(in srgb, #4aa3d8 22%, var(--flade)); touch-action: manipulation; }
+.ms-kortet path { stroke: var(--bg); stroke-width: 1.6; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.ms-kortet .andet { fill: color-mix(in srgb, var(--daempet) 35%, var(--flade)); pointer-events: none; }
+.ms-kortet .land { fill: color-mix(in srgb, var(--accent) 38%, var(--flade)); cursor: pointer; }
+.ms-kortet:not(.laast) .land:hover { fill: color-mix(in srgb, var(--accent) 60%, var(--flade)); }
+.ms-kortet .land.ok { fill: var(--ms-ok); }
+.ms-kortet .land.nej { fill: var(--ms-nej); }
+.ms-kortet.laast .land { cursor: default; }
+
+/* Skriv et tal */
+.ms-talboks { display: grid; gap: 12px; width: min(100%, 380px); }
+.ms-talvis { display: flex; align-items: baseline; justify-content: center; gap: 8px; min-height: 76px; padding: 10px 16px; border: 2.5px solid var(--linje); border-radius: 20px; background: var(--flade); }
+.ms-tal { font-family: var(--font-titel); font-size: 44px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 1ch; }
+.ms-tal.tom::after { content: '?'; color: var(--linje); }
+.ms-enhed { font-size: 22px; font-weight: 600; color: var(--daempet); }
+.ms-talvis.ok { border-color: var(--ms-ok); } .ms-talvis.nej { border-color: var(--ms-nej); }
+.ms-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.ms-tast { min-height: 64px; border: 0; border-radius: 16px; background: var(--flade); font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ms-tast:active { background: var(--accent-blod); }
+.ms-pad.laast { opacity: .4; pointer-events: none; }
+.ms-svarknap { min-height: 60px; font-size: 20px; }
+.ms-svarknap:disabled { opacity: .4; }
+.ms-pad.laast + .ms-svarknap { display: none; }
+
+/* Resultat */
+.ms-resultat { display: grid; gap: 8px; justify-items: center; text-align: center; padding-top: 24px; }
+.ms-res-emoji { font-size: 72px; line-height: 1; margin: 0; animation: ms-hop .5s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes ms-hop { from { transform: scale(.3); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .ms-res-emoji { animation: none; } }
+.ms-res-tal { margin: 0; font-size: 24px; font-weight: 600; }
+.ms-res-tal b { font-family: var(--font-titel); font-size: 56px; font-weight: 800; }
+.ms-res-tekst { margin: 0; font-size: 18px; }
+.ms-res-stjerner { margin: 4px 0; font-size: 30px; font-weight: 800; font-family: var(--font-titel), "Apple Color Emoji", "Noto Color Emoji", sans-serif; color: var(--accent); }
+.ms-fejlliste { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; width: 100%; max-width: 560px; text-align: left; }
+.ms-fejlliste li { background: var(--flade); border-radius: 12px; padding: 10px 14px; font-family: var(--font), "Apple Color Emoji", "Noto Color Emoji", sans-serif; }
+.ms-fejlliste b { color: var(--ms-ok); }
+.ms-res-knapper { display: grid; gap: 10px; justify-items: center; margin-top: 18px; }
+.ms-res-knapper .knap { min-width: 240px; min-height: 60px; font-size: 20px; }
+
+/* For de voksne */
+.ms-voksen { display: grid; gap: 10px; margin-bottom: 10px; }
+.ms-voksen h3 { margin: 0; font-family: var(--font-titel); font-size: 18px; }
+.ms-voksen .hint, .ms-voksen .fejl, .ms-voksen .seg { margin: 0; }
+.ms-indfelt { width: 100%; font-family: ui-monospace, monospace; font-size: 13px; border: 1.5px solid var(--linje); border-radius: 12px; background: var(--bg); color: var(--fg); }
+.ms-raekke { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.ms-mlinje { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ms-mnavn { flex: 1 1 180px; font-weight: 600; }
+
+@media (max-width: 599px) {
+  .ms-top h1 { font-size: 24px; }
+  .ms-idag { font-size: 14px; padding: 6px 10px; }
+  .ms-svar:not(.flag), .ms-svar.mange:not(.flag) { grid-template-columns: 1fr; gap: 10px; }
+  .ms-svar.flag.mange { grid-template-columns: 1fr 1fr; }
+  .ms-valg { min-height: 64px; }
+  .ms-svar.flag .ms-valg { min-height: 104px; }
+  .ms-flag { font-size: 60px; }
+  .ms-kort-tekst b { font-size: 19px; }
+  .ms-emoji { font-size: 32px; }
+  .ms-spiltitel { display: none; }
+  .ms-prikker { flex: 1; justify-content: flex-end; }
+  .ms-kortet { width: 100%; }
+  .ms-tast { min-height: 56px; }
+}
