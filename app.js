@@ -113,8 +113,8 @@ function ugeSpan(man) {
 const kortDag = iso => { const d = new Date(iso + 'T00:00'); return d.getDate() + '. ' + MDR[d.getMonth()]; };
 
 // ---------- Faner ----------
-const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe', 'budget', 'dagbog', 'medicin', 'opskrifter'];
-const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe', 'budget', 'dagbog', 'medicin', 'opskrifter'];   // sider man når via "Mere"
+const FANER = ['idag', 'kalender', 'madplan', 'indkob', 'todo', 'mere', 'skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe', 'dagbog', 'medicin', 'opskrifter'];   // Budget har sin egen side (budget.html)
+const UNDER_MERE = ['skema', 'rutiner', 'pligter', 'pakkelister', 'konkurrence', 'vejr', 'hjaelp', 'familie', 'kontakter', 'aktivitet', 'steder', 'mappe', 'dagbog', 'medicin', 'opskrifter'];   // sider man når via "Mere"
 // Voksne: "Pligter" (pligter, belønninger, ønsker) er en fane i bundmenuen – og To do er tilbage i bundmenuen (2026-10-19s). Børn: som før.
 // Enkel visning (2026-11-13b, personvalg.enkel – voksne): To do og Pligter ligger under Mere i stedet for i bundmenuen.
 let enkelNu = false;
@@ -203,7 +203,6 @@ function visFane(navn, fraTilbage = false) {
   if (typeof stopVaelg === 'function' && navn !== 'steder') stopVaelg();   // kort.js
   if (navn === 'steder' && typeof tegnSteder === 'function') tegnSteder();
   if (navn === 'mappe' && typeof tegnMappe === 'function') tegnMappe();   // mappe.js
-  if (navn === 'budget' && typeof tegnBudget === 'function') tegnBudget();   // budget.js
   if (navn === 'dagbog' && typeof tegnDagbog === 'function') tegnDagbog();   // dagbog.js
   if (navn === 'medicin' && typeof tegnMedicin === 'function') tegnMedicin();   // medicin.js
   if (navn === 'opskrifter' && typeof tegnOpskrifter === 'function') tegnOpskrifter();   // opskrifter.js
@@ -222,7 +221,8 @@ document.querySelectorAll('[data-gaa]').forEach(b => b.addEventListener('click',
     if (aktivFane === 'pakkelister' && typeof pakValgt !== 'undefined' && pakValgt) {
       pakValgt = ''; lokal.set('pak-valgt', ''); tegnPakkelister(); opdaterTilbage();
     } else visFane(tilbageTil || 'mere');
-  } else visFane(b.dataset.gaa);
+  } else if (b.dataset.gaa === 'budget') { location.href = 'budget.html'; return; }   // 💰 Budget er sin egen side (budget.html + budgetside.js)
+  else visFane(b.dataset.gaa);
   window.scrollTo(0, 0);
 }));
 
@@ -4005,9 +4005,11 @@ async function fuldBackup() {
     }
     // Koden: index.html + alt hvad den henter lokalt + ikoner og manifest
     let html = '';
-    try { html = await (await fetch('index.html', { cache: 'no-store' })).text(); } catch { /* koden springes over */ }
-    const lokale = [...html.matchAll(/(?:src|href)="([^"#:]+?)(?:\?[^"]*)?"/g)].map(m => m[1]).filter(x => !x.startsWith('//'));
-    const kode = [...new Set(['index.html', ...lokale, 'sw.js', 'manifest.webmanifest', 'favicon.svg', 'favicon-32.png', 'apple-touch-icon.png', 'ikon-192.png', 'ikon-512.png', 'ikon-maskable-512.png'])];
+    for (const side of ['index.html', 'budget.html']) {   // budgetsiden er en side for sig – dens filer skal også med
+      try { html += await (await fetch(side, { cache: 'no-store' })).text(); } catch { /* koden springes over */ }
+    }
+    const lokale = [...html.matchAll(/(?:src|href)="([^"#:]+?)(?:\?[^"]*)?"/g)].map(m => m[1]).filter(x => !x.startsWith('//') && !x.endsWith('/'));
+    const kode = [...new Set(['index.html', 'budget.html', ...lokale, 'sw.js', 'manifest.webmanifest', 'favicon.svg', 'favicon-32.png', 'apple-touch-icon.png', 'ikon-192.png', 'ikon-512.png', 'ikon-maskable-512.png'])];
     const kodeFejl = [];
     for (const k of kode) {
       try { const r = await fetch(k, { cache: 'no-store' }); if (!r.ok) throw 0; zip.file('kode/' + k, await r.blob()); } catch { kodeFejl.push(k); }
@@ -4370,6 +4372,14 @@ async function opdaterVenter() {
   if (typeof rydNotifikationer === 'function') rydNotifikationer();   // push.js
 }
 
+// Mere-kortet "Budget": de faste udgifter pr. måned. Selve budgettet er flyttet til sin egen side (budget.html).
+function budgetKortTekst() {
+  const u = document.querySelector('[data-gaa="budget"] .under');
+  if (!u || erBarn()) return;
+  const md = Data.listNu('budget').filter(p => !p.snap).reduce((s, p) => s + (p.mdr || []).reduce((a, x) => a + (Number(x) || 0), 0), 0) / 12;
+  u.textContent = (md >= 1 ? Math.round(md).toLocaleString('da-DK') + ' kr om måneden · ' : '') + 'åbner budgetsiden';
+}
+
 function tegnAlt() {
   if (typeof erTavlen === 'function' && erTavlen() && tvVisning === 'tavle') { tvTegnSnart(); return; }   // 🖥️ familietabletten: tavlen er fremme (tavle.js)
   tegnListe('indkob'); tegnListe('todo'); tegnMadplan(); tegnFastPlan(); tegnSkema(); tegnKalender(); tegnOverblik();
@@ -4379,7 +4389,7 @@ function tegnAlt() {
   tegnKontakter();   // fra familie.js (kun voksne)
   tegnMere();   // fra mere.js
   tegnVejr();   // fra vejr.js (tegner kun, når siden er åben)
-  if (typeof tegnBudget === 'function') tegnBudget();   // budget.js (tegner kun, når siden er åben)
+  budgetKortTekst();   // Mere-kortet "Budget" (selve budgettet ligger på budget.html)
   if (typeof tegnDagbog === 'function') tegnDagbog();   // dagbog.js (tegner kun, når siden er åben)
   if (typeof tegnMedicin === 'function') tegnMedicin();   // medicin.js (tegner kun, når siden er åben)
   if (typeof tegnOpskrifter === 'function') tegnOpskrifter();   // opskrifter.js (tegner kun, når siden er åben)

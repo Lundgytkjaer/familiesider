@@ -1,0 +1,133 @@
+/* budgetside.css – budgetsiden (budget.html). Bygger oven på style.css: samme farver, kort og budget-klasser (.b-*),
+   men lagt ud til en bred skærm. Under 1100 px ligner siden budgettet, som det så ud i appen (ét spor, ark fra bunden). */
+body.bside { padding-inline: 16px; padding-block: 0 32px; }
+[data-tilstand="starter"] .bs-skal, [data-tilstand="login"] .bs-skal, [data-tilstand="starter"] .bs-top, [data-tilstand="login"] .bs-top { visibility: hidden; }
+[data-tilstand="nej"] #budget { display: none; }
+
+.bs-top { display: flex; align-items: center; gap: 14px; padding-block: 12px 10px; max-width: 1800px; margin: 0 auto; }
+.bs-top h1 { flex: 1; font-size: 24px; }
+.bs-hjem { color: var(--accent); font-weight: 600; font-size: 14px; text-decoration: none; white-space: nowrap; }
+.bs-hjem:hover { text-decoration: underline; }
+.bs-bruger { color: var(--daempet); }
+.bs-bruger.bekraeft { border-color: var(--fare); color: var(--fare); }
+.bside .uden-net { max-width: 1800px; margin: 0 auto 8px; }
+
+.bs-skal { max-width: 560px; margin: 0 auto; }
+.bs-main { min-width: 0; }
+#bs-kun-voksne { display: grid; gap: 12px; justify-items: start; }
+#bs-kun-voksne p { margin: 0; }
+#bs-kun-voksne .knap { text-decoration: none; display: inline-flex; align-items: center; }
+.bside .status { bottom: 20px; }
+.bside .login input[type="text"] { width: 100%; }
+/* fem faner i stedet for fire */
+.bside .budget-faner { grid-template-columns: repeat(5, 1fr); }
+.bside .budget-faner button { font-size: 14px; white-space: nowrap; }
+
+/* ---------- Hele året (tabellen) ---------- */
+.bs-valg { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.bs-valg .seg { margin: 0; }
+.bs-valg .hint { margin: 0; }
+.bs-kort { padding: 0; overflow: hidden; }
+.bs-rul { overflow: auto; -webkit-overflow-scrolling: touch; max-height: calc(100vh - 150px); }
+.bs-tab { width: 100%; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; font-size: 13.5px; }
+.bs-tab th, .bs-tab td { padding: 5px 8px; border-bottom: 1px solid var(--linje); white-space: nowrap; }
+.bs-tab td { text-align: right; min-width: 62px; }
+.bs-tab thead th { position: sticky; top: 0; z-index: 2; background: var(--flade); text-align: right; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--daempet); border-bottom: 2px solid var(--linje); }
+.bs-tab .bs-navn { position: sticky; left: 0; z-index: 1; background: var(--flade); text-align: left; font-weight: 400; min-width: 150px; max-width: 46vw; overflow: hidden; text-overflow: ellipsis; }
+.bs-tab thead .bs-navn { z-index: 3; }
+.bs-tab .nu { background: color-mix(in srgb, var(--accent-blod) 55%, var(--flade)); }
+.bs-tab thead th.nu { color: var(--accent); }
+.bs-tab .bs-sum { border-left: 2px solid var(--linje); font-weight: 600; }
+.bs-tab .bs-sum + .bs-sum { border-left: 0; color: var(--daempet); }
+.bs-ialt th, .bs-ialt td { font-weight: 800; border-bottom: 2px solid var(--linje); }
+.bs-ialt .bs-navn { font-weight: 800; }
+.bs-rest td.minus, .bs-tab td.minus { color: var(--fare); }
+.bs-gruppe th, .bs-gruppe td { font-weight: 700; background: color-mix(in srgb, var(--bg) 60%, var(--flade)); }
+.bs-gruppe .bs-navn { font-weight: 700; background: color-mix(in srgb, var(--bg) 60%, var(--flade)); }
+.bs-gruppe td.nu { background: color-mix(in srgb, var(--accent-blod) 70%, var(--flade)); }
+.bs-gknap, .bs-pknap { all: unset; cursor: pointer; display: block; overflow: hidden; text-overflow: ellipsis; }
+.bs-gknap:focus-visible, .bs-pknap:focus-visible, button.bs-f:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 4px; }
+.bs-post .bs-navn { padding-left: 26px; color: var(--fg); }
+.bs-pknap:hover, .bs-gknap:hover { color: var(--accent); }
+.bs-pknap:hover { text-decoration: underline; }
+.bs-auto { color: var(--daempet); font-style: italic; }
+.bs-post:hover td, .bs-post:hover .bs-navn { background: color-mix(in srgb, var(--accent-blod) 35%, var(--flade)); }
+/* med forbrug: to tal i hver celle – budget (gråt, lille) over forbrug */
+.bs-tab.med-forbrug td { padding-block: 3px; line-height: 1.25; }
+.bs-b, .bs-f { display: block; }
+.med-forbrug .bs-b { color: var(--daempet); font-size: .82em; font-weight: 400; min-height: 1.25em; }
+.bs-f { font-weight: 600; color: var(--fg); min-height: 1.25em; }
+button.bs-f { all: unset; display: block; width: 100%; text-align: right; font-weight: 600; cursor: pointer; min-height: 1.25em; }
+button.bs-f:hover { text-decoration: underline; }
+.bs-f.op { color: #c0392b; }
+.bs-f.ned { color: #1e8449; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .bs-f.op { color: #ff8a7a; } :root:not([data-theme="light"]) .bs-f.ned { color: #6fd08c; } }
+:root[data-theme="dark"] .bs-f.op { color: #ff8a7a; } :root[data-theme="dark"] .bs-f.ned { color: #6fd08c; }
+
+/* ---------- Mellem: tabellen må bruge hele bredden, resten bliver i ét spor ---------- */
+@media (min-width: 700px) {
+  .bs-skal { max-width: 760px; }
+  .bs-skal:has(#budget-indhold[data-vis="heleaaret"]), .bs-skal:has(#budget-indhold[data-vis="aar"]) { max-width: 1800px; }
+  #budget-indhold > .budget-hvem, #budget-indhold > .budget-faner { max-width: 560px; }
+}
+
+/* ---------- Bred skærm (pc): flere spalter, og arket som panel i højre side ---------- */
+@media (min-width: 1100px) {
+  body.bside { padding-inline: 28px; }
+  .bs-skal, .bs-skal:has(#budget-indhold[data-vis]) { max-width: 1800px; display: flex; align-items: flex-start; gap: 20px; }
+  .bs-main { flex: 1 1 0; }
+  /* Arket: fast panel til højre i stedet for et lag hen over siden */
+  .bside .ark-baggrund { position: sticky; top: 12px; inset: auto; z-index: 5; flex: 0 0 440px; display: block; background: none; height: calc(100vh - 24px); align-self: flex-start; }
+  .bside .ark-baggrund { inset-block-start: 12px; }
+  .bside .ark { max-width: none; height: 100%; max-height: none; border-radius: var(--radius); border: 1px solid var(--linje); padding: 14px 18px 18px; box-shadow: 0 10px 30px rgb(0 0 0 / .08); }
+  .bside .ark .ark-top { position: sticky; top: -14px; z-index: 2; background: var(--flade); margin: -14px -18px 6px; padding: 10px 18px 6px; }
+  .bside .ark .ark-knapper { position: sticky; bottom: -18px; background: var(--flade); margin: 18px -18px -18px; padding: 10px 18px 14px; }
+
+  /* "Hvis budget" til venstre og fanerne til højre på samme linje – samme sted i alle visninger */
+  #budget-indhold { position: relative; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 16px; align-items: start; }
+  #budget-indhold > * { grid-column: 1 / -1; }
+  #budget-indhold > .budget-hvem { margin: 0; max-width: calc(100% - min(540px, 64%) - 16px); min-height: 40px; }
+  #budget-indhold > .budget-faner { position: absolute; top: 0; right: 0; width: min(540px, 64%); margin: 0; }
+  .bside .seg button { min-height: 38px; }
+
+  /* Overblik: kortene i tre spalter */
+  #budget-indhold[data-vis="overblik"] { display: block; columns: 3 340px; column-gap: 16px; }
+  #budget-indhold[data-vis="overblik"] > * { break-inside: avoid; margin: 0 0 16px; }
+  #budget-indhold[data-vis="overblik"] > .budget-hvem { column-span: all; margin-bottom: 16px; }
+  .bside.ark-aaben #budget-indhold[data-vis="overblik"] { columns: 2 340px; }
+
+  /* Poster: kategorierne i spalter */
+  #budget-indhold[data-vis="poster"] > .b-poster-top { grid-column: 1 / span 4; grid-row: 2; }
+  #budget-indhold[data-vis="poster"] > #budget-soeg { grid-column: 5 / span 4; grid-row: 2; margin: 0; }
+  #budget-indhold[data-vis="poster"] > .b-sort-valg { grid-column: 9 / -1; grid-row: 2; margin: 0; justify-self: end; }
+  #budget-indhold[data-vis="poster"] > .b-gruppe-valg { grid-row: 3; flex-wrap: wrap; overflow: visible; margin: 0; }
+  #budget-indhold[data-vis="poster"] > .b-poster { grid-row: 4; }
+  #budget-indhold[data-vis="poster"] > .b-poster { columns: 3 320px; column-gap: 24px; }
+  .bside.ark-aaben #budget-indhold[data-vis="poster"] > .b-poster { columns: 2 320px; }
+  #budget-indhold[data-vis="poster"] .b-gruppe-hoved { break-after: avoid; }
+  #budget-indhold[data-vis="poster"] .b-post-liste { break-inside: avoid; margin-bottom: 18px; }
+
+  /* Måneder: grafen til venstre, månedens poster til højre */
+  #budget-indhold[data-vis="maaneder"] > .kort { grid-column: span 6; }
+  #budget-indhold[data-vis="maaneder"] .b-graf { height: 300px; }
+
+  /* År: tabellen i fuld bredde, bankkortet smalt nedenunder */
+  #budget-indhold[data-vis="aar"] > .b-aar-valg { grid-column: 1 / span 4; margin: 0; }
+  #budget-indhold[data-vis="aar"] > .b-sort-valg { grid-column: 5 / span 4; margin: 0; }
+  #budget-indhold[data-vis="aar"] > .b-bank-kort { grid-column: 1 / span 6; }
+  #budget-indhold[data-vis="aar"] .b-aar-tab tbody th { max-width: 340px; }
+
+  .bs-tab { font-size: 14px; }
+  .bs-tab .bs-navn { min-width: 230px; max-width: 300px; }
+  .bside.ark-aaben .bs-tab .bs-navn { min-width: 170px; max-width: 200px; }
+}
+@media (min-width: 1500px) {
+  .bside .ark-baggrund { flex-basis: 480px; }
+  .bs-tab { font-size: 14.5px; }
+  .bs-tab th, .bs-tab td { padding-inline: 10px; }
+}
+@media print {
+  .bs-top, .ark-baggrund, .budget-hvem, .budget-faner, .bs-valg, .status { display: none !important; }
+  .bs-rul { max-height: none; overflow: visible; }
+  .bs-tab { font-size: 10px; }
+}

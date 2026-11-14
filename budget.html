@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <script>
+    // Samme udseende (lys/mørk) som valgt i Familietavlen
+    try {
+      var t = localStorage.getItem('familietavle:tema');
+      if (t === 'lys') document.documentElement.dataset.theme = 'light';
+      if (t === 'moerk') document.documentElement.dataset.theme = 'dark';
+    } catch (e) {}
+  </script>
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f2f5f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0e1311" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="favicon.svg?v=2" type="image/svg+xml">
+  <link rel="icon" href="favicon-32.png?v=2" sizes="32x32" type="image/png">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png?v=2">
+  <meta name="robots" content="noindex">
+  <title>Budget · Familien</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=Noto+Color+Emoji&display=swap">
+  <link rel="stylesheet" href="style.css?v=2026-11-14a">
+  <link rel="stylesheet" href="budgetside.css?v=2026-11-14a">
+</head>
+<body class="bside" data-tilstand="starter">
+<!-- Budgetsiden: budgettet som sin egen side (bedst på pc). Samme login og data som Familietavlen. Kun voksne. -->
+<header class="bs-top">
+  <a class="bs-hjem" href="./">‹ Familietavlen</a>
+  <h1>Budget</h1>
+  <button type="button" class="lille-knap bs-bruger" id="bs-bruger" hidden></button>
+</header>
+<p class="uden-net" id="uden-net" hidden>Uden net – viser det sidste. Ændringer kan ikke gemmes.</p>
+
+<div class="bs-skal">
+  <main class="bs-main">
+    <section id="budget">
+      <div id="budget-indhold"></div>
+    </section>
+    <div class="kort" id="bs-kun-voksne" hidden>
+      <p>Budgettet er kun for de voksne.</p>
+      <a class="knap" href="./">Tilbage til Familietavlen</a>
+    </div>
+  </main>
+
+  <div class="ark-baggrund" id="ark" hidden>
+    <div class="ark" role="dialog" aria-labelledby="ark-titel">
+      <div class="ark-top"><h2 id="ark-titel"></h2><button type="button" class="ark-luk" id="ark-luk" aria-label="Luk">✕</button></div>
+      <div id="ark-indhold"></div>
+    </div>
+  </div>
+</div>
+
+<div class="login" id="login" hidden>
+  <form class="login-boks" id="login-form">
+    <h1>Budget</h1>
+    <p class="under">Log ind som i Familietavlen</p>
+    <input type="text" id="login-navn" placeholder="Navn" autocomplete="username" autocapitalize="words" aria-label="Navn">
+    <input type="password" id="login-kode" placeholder="Kode" autocomplete="current-password" aria-label="Kode">
+    <button class="knap">Log ind</button>
+    <p class="fejl" id="login-fejl" hidden></p>
+  </form>
+</div>
+
+<p class="status" id="status" role="status" hidden></p>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2"></script>
+<script src="data.js?v=2026-11-14a"></script>
+<script src="budgetside.js?v=2026-11-14a"></script>
+<script src="bank.js?v=2026-11-14a"></script>
+<script src="budget.js?v=2026-11-14a"></script>
+</body>
+</html>

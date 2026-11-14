@@ -1,4 +1,4 @@
-// budget.js – 💰 Budget (Mere → Budget). KUN VOKSNE – databasen (kun_voksne) giver aldrig børn rækkerne.
+// budget.js – 💰 Budget (budgetsiden budget.html – hentes ikke længere af selve appen). KUN VOKSNE – databasen (kun_voksne) giver aldrig børn rækkerne.
 // Data:
 //   'budget'      {navn, gruppe, konto, mdr: [12 beløb jan–dec], note?, tjekket: 'ÅÅÅÅ-MM-DD', historik?: [{dato, aar}], raekke?}
 //   'budgetkonti' {navn, overfoert?: kr pr. måned i alt (det der overføres nu), raekke?}
@@ -30,6 +30,8 @@ let budgetMaaned = null;
 let budgetAarValg = lokal.get('budget-aarvis') || 'begge';
 let budgetSort = lokal.get('budget-sort') || 'std';   // 'std' = fast rækkefølge (B_GRUPPE_ORDEN, største post først) · 'stoerst' = største beløb først
 const budgetAabne = new Set();
+// Ekstra visninger ud over de fire faste: { id: { tekst, vis(poster, kilde) → [elementer] } } – budgetsiden (budgetside.js) lægger "Hele året" ind
+const B_EKSTRA_VIS = {};
 
 const bKr = n => Math.round(n || 0).toLocaleString('da-DK');
 const bTal = s => { const t = String(s ?? '').replace(/\s|kr\.?/gi, '').replace(/\./g, '').replace(',', '.'); const n = Number(t); return isFinite(n) ? n : NaN; };
@@ -145,7 +147,9 @@ function tegnBudget() {
   }
   const seg = el('div', 'seg budget-faner');
   seg.setAttribute('role', 'radiogroup');
-  for (const [id, tekst] of [['overblik', 'Overblik'], ['poster', 'Poster'], ['maaneder', 'Måneder'], ['aar', 'År']]) {
+  boks.dataset.vis = budgetVis;   // budgetside.css lægger siden ud efter visningen
+  const ekstra = B_EKSTRA_VIS[budgetVis];
+  for (const [id, tekst] of [['overblik', 'Overblik'], ...Object.entries(B_EKSTRA_VIS).map(([id, x]) => [id, x.tekst]), ['poster', 'Poster'], ['maaneder', 'Måneder'], ['aar', 'År']]) {
     const b = knap(tekst, null, () => { budgetVis = id; lokal.set('budget-vis', id); tegnBudget(); });
     b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', budgetVis === id);
     seg.append(b);
@@ -153,7 +157,7 @@ function tegnBudget() {
   if (budgetHvem !== 'faelles') {
     const kilde = bKilde(budgetHvem), ps = kilde.poster();
     if (!ps.length) { boks.replaceChildren(hvemSeg, ...budgetPersonVis(kilde)); return; }
-    const indhold = budgetVis === 'poster' ? budgetPosterVis(ps, kilde) : budgetVis === 'maaneder' ? budgetMaanederVis(ps, kilde)
+    const indhold = ekstra ? ekstra.vis(ps, kilde) : budgetVis === 'poster' ? budgetPosterVis(ps, kilde) : budgetVis === 'maaneder' ? budgetMaanederVis(ps, kilde)
       : budgetVis === 'aar' ? budgetAarVis(ps, kilde) : budgetPersonVis(kilde);
     boks.replaceChildren(hvemSeg, seg, ...indhold);
     return;
@@ -166,7 +170,7 @@ function tegnBudget() {
     boks.replaceChildren(hvemSeg, tom);
     return;
   }
-  const indhold = budgetVis === 'poster' ? budgetPosterVis(poster) : budgetVis === 'maaneder' ? budgetMaanederVis(poster)
+  const indhold = ekstra ? ekstra.vis(poster, bKilde('faelles')) : budgetVis === 'poster' ? budgetPosterVis(poster) : budgetVis === 'maaneder' ? budgetMaanederVis(poster)
     : budgetVis === 'aar' ? budgetAarVis(poster) : budgetOverblik(poster);
   boks.replaceChildren(hvemSeg, seg, ...indhold);
 }
@@ -1211,7 +1215,7 @@ function bBankKort(bk = bBankF) {
   kort.append(sm);
   return kort;
 }
-// Excel-ark med alle posteringer (inkl. dine flytninger) + oversigt pr. post og år. SheetJS hentes først, når der trykkes.
+// Excel-ark med budgettet (alle poster, 12 måneder), alle posteringer (inkl. dine flytninger) + oversigt pr. post og år. SheetJS hentes først, når der trykkes.
 let bXlsx = null;
 function bHentXlsx() {
   if (window.XLSX) return Promise.resolve(window.XLSX);
@@ -1257,6 +1261,11 @@ async function bEksport(bk = bBankF) {
     if (navn === 'Posteringer') for (let r = 1; r < aoa.length; r++) { const a = ws[X.utils.encode_cell({ r, c: 0 })]; if (a) a.z = 'dd-mm-yyyy'; }
     X.utils.book_append_sheet(wb, ws, navn);
   };
+  // Selve budgettet: hver post med sine 12 månedsbeløb – så arket er en hel kopi af budgettet og ikke kun af forbruget
+  const bud = [['Kategori', 'Post', 'Type', 'Konto', ...MDR.map(m => m.replace('.', '')), 'I alt', 'Note']];
+  for (const p of bk.kilde.poster().slice().sort((a, b) => bGruppeSort(a.gruppe || 'Andet', b.gruppe || 'Andet') || bStoerstSort(a, b)))
+    bud.push([p.gruppe || 'Andet', p.navn || '', bErInd(p) ? 'Indtægt' : 'Udgift', p.konto || '', ...bMdr(p), Math.round(bAar(p) * 100) / 100, p.note || '']);
+  ark(bud, [26, 36, 9, 20, ...Array(12).fill(9), 11, 40], 'Budget', Array.from({ length: 13 }, (_, i) => i + 4));
   ark(over, [26, 40, ...aarL.map(() => 15)], 'Oversigt', aarL.map((_, i) => i + 2));
   ark(post, [11, 6, 7, 12, 45, 12, 24, 36, 9, 30, 26, 40], 'Posteringer', [5]);
   X.writeFile(wb, (bk.mig ? 'mine-posteringer-' : 'posteringer-') + bIdag() + '.xlsx');
